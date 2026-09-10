@@ -114,6 +114,23 @@ async function handler(req, res) {
       if (!user || !verifyPassword(input.password || '', user.password)) return json(res, 401, { error: 'Credenciais inválidas.' });
       const token = id(); sessions.set(token, user.id); return json(res, 200, { token, user: publicUser(user) });
     }
+    if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
+      const distDir = path.join(__dirname, 'dist');
+      const resolved = path.resolve(path.join(distDir, decodeURIComponent(url.pathname)));
+      if (resolved.startsWith(distDir)) {
+        try {
+          const data = await fs.readFile(resolved);
+          const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2' };
+          res.writeHead(200, { 'Content-Type': types[path.extname(resolved).toLowerCase()] || 'application/octet-stream' });
+          return res.end(data);
+        } catch { /* cai para o index.html (SPA) */ }
+        try {
+          const index = await fs.readFile(path.join(distDir, 'index.html'));
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          return res.end(index);
+        } catch { /* dist ainda não existe */ }
+      }
+    }
     const user = getUser(req);
     if (!user) return json(res, 401, { error: 'Autenticação necessária.' });
     if (url.pathname === '/api/auth/me' && req.method === 'GET') return json(res, 200, { user: publicUser(user) });
