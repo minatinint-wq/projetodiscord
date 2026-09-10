@@ -1,0 +1,29 @@
+{
+  "name": "community-hub",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron-main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm run server\" \"vite --host 127.0.0.1\" \"wait-on http://localhost:5173 && electron .\"",
+    "server": "node server.js",
+    "desktop": "npm run dev",
+    "dev:full": "npm run dev",
+    "build": "vite build",
+    "preview": "vite preview",
+        "electron": "electron ."
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+        "concurrently": "latest",
+            "electron": "latest",
+            "wait-on": "latest"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest",
+        "ws": "latest"
+  }
+}

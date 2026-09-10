@@ -1,0 +1,93 @@
+{
+  "users": [
+    {
+      "id": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "username": "demo",
+      "displayName": "Usuário Demo",
+      "email": "demo@orbit.local",
+      "password": {
+        "salt": "29f7104424362d17ed1453106675941d",
+        "hash": "2515a9cfb6bd106e12837f17a613fa9e40301a3bed75f0a9fa60104aec3f6e4c3d3745a3d4095ee02c89019abe89ea511289fe8ae0bbe8812d46f4c392a8687a"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T15:48:32.217Z"
+    }
+  ],
+  "servers": [
+    {
+      "id": "17c4222e-7527-413a-92ba-5485489ecc0c",
+      "name": "Orbit Community",
+      "icon": "O",
+      "ownerId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "createdAt": "2026-09-10T15:48:32.218Z"
+    },
+    {
+      "id": "5b72429b-cc1e-4f4d-92d8-56d686a3b256",
+      "name": "akakaka",
+      "icon": "A",
+      "ownerId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "createdAt": "2026-09-10T15:51:51.043Z"
+    }
+  ],
+  "memberships": [
+    {
+      "userId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "serverId": "17c4222e-7527-413a-92ba-5485489ecc0c",
+      "role": "owner",
+      "joinedAt": "2026-09-10T15:48:32.218Z"
+    },
+    {
+      "userId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "serverId": "5b72429b-cc1e-4f4d-92d8-56d686a3b256",
+      "role": "owner",
+      "joinedAt": "2026-09-10T15:51:51.043Z"
+    }
+  ],
+  "channels": [
+    {
+      "id": "8694c807-fa16-4a98-a419-c35b1380ffa5",
+      "serverId": "17c4222e-7527-413a-92ba-5485489ecc0c",
+      "name": "geral",
+      "type": "text",
+      "topic": "Converse, compartilhe e crie junto",
+      "position": 0,
+      "createdAt": "2026-09-10T15:48:32.218Z"
+    },
+    {
+      "id": "678bbedc-186b-44d4-88a1-ab505da7f2c3",
+      "serverId": "5b72429b-cc1e-4f4d-92d8-56d686a3b256",
+      "name": "geral",
+      "type": "text",
+      "topic": "Comece uma conversa",
+      "position": 0,
+      "createdAt": "2026-09-10T15:51:51.043Z"
+    },
+    {
+      "id": "d459ffbd-047d-4a4c-883e-e7f8d6898b60",
+      "serverId": "17c4222e-7527-413a-92ba-5485489ecc0c",
+      "name": "asda",
+      "type": "text",
+      "topic": "",
+      "position": 1,
+      "createdAt": "2026-09-10T15:52:32.624Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "fc7788bb-c9ef-4fcb-b0b4-f7b4dc196be0",
+      "channelId": "8694c807-fa16-4a98-a419-c35b1380ffa5",
+      "authorId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "content": "Bem-vindo ao Orbit! Este é o seu primeiro canal.",
+      "createdAt": "2026-09-10T15:48:32.218Z",
+      "editedAt": null
+    },
+    {
+      "id": "b5a9b348-87e8-4676-aa5a-a99b91d9c64f",
+      "channelId": "8694c807-fa16-4a98-a419-c35b1380ffa5",
+      "authorId": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
+      "content": "asdasd",
+      "createdAt": "2026-09-10T15:56:21.743Z",
+      "editedAt": null
+    }
+  ]
+}
