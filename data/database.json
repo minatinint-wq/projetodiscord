@@ -2,15 +2,89 @@
   "users": [
     {
       "id": "3d2a4580-5ec7-4500-9481-4f3b1829957f",
-      "username": "demo",
-      "displayName": "Usuário Demo",
+      "username": "sesh",
+      "displayName": "sesh",
       "email": "demo@orbit.local",
       "password": {
         "salt": "29f7104424362d17ed1453106675941d",
         "hash": "2515a9cfb6bd106e12837f17a613fa9e40301a3bed75f0a9fa60104aec3f6e4c3d3745a3d4095ee02c89019abe89ea511289fe8ae0bbe8812d46f4c392a8687a"
       },
       "avatarColor": "purple",
-      "createdAt": "2026-09-10T15:48:32.217Z"
+      "createdAt": "2026-09-10T15:48:32.217Z",
+      "bio": "",
+      "avatar": null,
+      "badges": [
+        "dev",
+        "booster",
+        "star",
+        "bug"
+      ]
+    },
+    {
+      "id": "f94ec1bc-7b02-44e7-b1b8-433a4d52ae38",
+      "username": "n11789059038615",
+      "displayName": "Novo Nome",
+      "email": "p11789059038615@orbit.local",
+      "password": {
+        "salt": "394826603c38bc3218863a03166508b4",
+        "hash": "e2c7b7cf6ce516805afb39f6fb9e2150a5475957ad83ae3383b7f8983e5a8224f6bb969bbf251a7a124716f8058f6082c5c1948171e16643fc17932829089c2e"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T16:50:38.709Z",
+      "bio": "Minha bio",
+      "avatar": "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+      "badges": [
+        "dev",
+        "star"
+      ]
+    },
+    {
+      "id": "2721e042-52c4-4594-b27a-6bbeb7081b7f",
+      "username": "q1789059048675",
+      "displayName": "Q",
+      "email": "q1789059048675@orbit.local",
+      "password": {
+        "salt": "9efa477d53d538df68a7425c076e7445",
+        "hash": "8776b356bfc47998985a49d931f0328908a1281683c90a10d6118a5e2846735a31671375eee16ce00a209bb415a6d68698cbef3b3f49b895d62a7eef210d4509"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T16:50:48.770Z"
+    },
+    {
+      "id": "132e2ee9-6668-4279-a9ab-04fa9a1c2ec7",
+      "username": "w1789059064219",
+      "displayName": "W",
+      "email": "w1789059064219@orbit.local",
+      "password": {
+        "salt": "a2cd9a29af3f92b3e3fa28c08e495efd",
+        "hash": "e13fecc4e2c7235f312566b1c8433c20704b08816763749b5b17b98398e7a04fcf4f405514227b85fc9b90c8b9ae648ae9ce26f01cad19e0637f75b02b11d858"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T16:51:04.312Z"
+    },
+    {
+      "id": "aa529845-985b-4fba-81a2-1eefebeda5f4",
+      "username": "w21789059064219",
+      "displayName": "W2",
+      "email": "w21789059064219@orbit.local",
+      "password": {
+        "salt": "e81dda1817c2746910d8fd1fb4ce3ddd",
+        "hash": "66f16d6ca5c79ca89daad04a12234cde52aa15ac13d890365b920f44f27f3fb30fcf8e5487e2fb9da26bc284bcb86b3eb6f6c5ba39a06d7bab97d685b6c3b246"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T16:51:04.364Z"
+    },
+    {
+      "id": "2ee066fc-9f3f-4818-b08b-2f40898f4eff",
+      "username": "s",
+      "displayName": "sesh",
+      "email": "hunteqy@gmail.com",
+      "password": {
+        "salt": "f069b97cf55abe4295574e16496443d0",
+        "hash": "2bf84b9f5fac1eb3f042d796db1d64c5d49109d88733a4df8338b9c96aeb887c1e7e9dbb079af9bfacd797de501b624f96fcadc9a583a04debd7cfb6a5c30f52"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T16:56:38.195Z"
     }
   ],
   "servers": [
@@ -61,15 +135,6 @@
       "topic": "Comece uma conversa",
       "position": 0,
       "createdAt": "2026-09-10T15:51:51.043Z"
-    },
-    {
-      "id": "d459ffbd-047d-4a4c-883e-e7f8d6898b60",
-      "serverId": "17c4222e-7527-413a-92ba-5485489ecc0c",
-      "name": "asda",
-      "type": "text",
-      "topic": "",
-      "position": 1,
-      "createdAt": "2026-09-10T15:52:32.624Z"
     }
   ],
   "messages": [

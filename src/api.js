@@ -17,9 +17,14 @@ export const api = {
   login: input => request('/api/auth/login', { method: 'POST', body: JSON.stringify(input) }),
   register: input => request('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }),
   me: () => request('/api/auth/me'),
+  updateMe: input => request('/api/auth/me', { method: 'PATCH', body: JSON.stringify(input) }),
+  profile: userId => request(`/api/users/${userId}`),
   servers: () => request('/api/servers'),
   createServer: name => request('/api/servers', { method: 'POST', body: JSON.stringify({ name }) }),
   createChannel: (serverId, input) => request(`/api/servers/${serverId}`, { method: 'POST', body: JSON.stringify(input) }),
+  joinServer: serverId => request(`/api/servers/${serverId}/join`, { method: 'POST' }),
+  updateChannel: (channelId, input) => request(`/api/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteChannel: channelId => request(`/api/channels/${channelId}`, { method: 'DELETE' }),
   messages: channelId => request(`/api/channels/${channelId}/messages`),
   sendMessage: (channelId, content) => request(`/api/channels/${channelId}/messages`, { method: 'POST', body: JSON.stringify({ content }) })
 };
