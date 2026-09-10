@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, session } = require('electron');
+const { app, BrowserWindow, dialog, session, desktopCapturer } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const http = require('node:http');
@@ -22,6 +22,11 @@ function createWindow() {
 }
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => callback(['media', 'audioCapture', 'videoCapture', 'mediaKeySystem'].includes(permission)));
+  session.defaultSession.setDisplayMediaRequestHandler((options, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then(sources => {
+      if (sources.length > 0) callback({ source: sources[0], enableLocalEcho: false }); else callback({});
+    }).catch(() => callback({}));
+  });
   startBackend(); createWindow();
 });
 app.on('window-all-closed', () => { if (backend) backend.kill(); if (process.platform !== 'darwin') app.quit(); });

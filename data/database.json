@@ -85,6 +85,18 @@
       },
       "avatarColor": "purple",
       "createdAt": "2026-09-10T16:56:38.195Z"
+    },
+    {
+      "id": "c5c2ec02-d7ee-4b47-8368-cef5cb7de6ac",
+      "username": "l3plh78v@outlook.com",
+      "displayName": "sesh",
+      "email": "l3plh78v@outlook.com",
+      "password": {
+        "salt": "885b5a2a6a1d4961a50092c8c6636c37",
+        "hash": "500be6d6648505f74cd8e4bcac5cdaede323757936e1e7f641475c4f0ba3717975a1efb483533abd8ca53aed7631e37b4e12cce2e51852c10eaf0b0cf0e8a794"
+      },
+      "avatarColor": "purple",
+      "createdAt": "2026-09-10T17:05:10.706Z"
     }
   ],
   "servers": [

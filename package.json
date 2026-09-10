@@ -11,19 +11,20 @@
     "dev:full": "npm run dev",
     "build": "vite build",
     "preview": "vite preview",
-        "electron": "electron ."
+    "electron": "electron ."
   },
   "devDependencies": {
     "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "electron": "latest",
     "vite": "latest",
-        "concurrently": "latest",
-            "electron": "latest",
-            "wait-on": "latest"
+    "wait-on": "latest"
   },
   "dependencies": {
+    "lucide-react": "latest",
+    "pg": "^8.23.0",
     "react": "latest",
     "react-dom": "latest",
-    "lucide-react": "latest",
-        "ws": "latest"
+    "ws": "latest"
   }
 }
