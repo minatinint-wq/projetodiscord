@@ -29,6 +29,9 @@ Thumbs.db
 *.temp
 .cache/
 
+# Local installer downloads
+*.exe
+
 # Sensitive files (auto-detected)
 dist
 node_modules
