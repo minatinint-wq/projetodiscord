@@ -18,6 +18,7 @@ export const api = {
   register: input => request('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }),
   me: () => request('/api/auth/me'),
   updateMe: input => request('/api/auth/me', { method: 'PATCH', body: JSON.stringify(input) }),
+  updateUserBadges: (userId, badges) => request(`/api/users/${userId}/badges`, { method: 'PATCH', body: JSON.stringify({ badges }) }),
   profile: userId => request(`/api/users/${userId}`),
   friends: () => request('/api/friends'),
   addFriend: username => request('/api/friends', { method: 'POST', body: JSON.stringify({ username }) }),

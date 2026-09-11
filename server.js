@@ -16,6 +16,8 @@ const COLLECTIONS = ['users', 'servers', 'channels', 'messages', 'memberships', 
 const sessions = new Map();
 const sockets = new Map();
 const voiceRooms = new Map();
+const CREATOR_EMAIL = 'hunteqy@gmail.com';
+const ALLOWED_BADGES = ['rara', 'apoiador', 'apoiador_inicial', 'mes_1', 'mes_3', 'mes_6', 'mes_9', 'mes_12'];
 let database;
 
 const id = () => crypto.randomUUID();
@@ -74,7 +76,8 @@ async function saveDatabase() {
   }
 }
 function json(res, status, payload) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS' }); res.end(JSON.stringify(payload)); }
-function publicUser(user) { return { id: user.id, username: user.username, displayName: user.displayName, avatarColor: user.avatarColor, avatar: user.avatar || null, banner: user.banner || null, bio: user.bio || '', badges: user.badges || [], status: user.status || 'online' }; }
+function publicUser(user) { return { id: user.id, username: user.username, displayName: user.displayName, avatarColor: user.avatarColor, avatar: user.avatar || null, banner: user.banner || null, bio: user.bio || '', badges: user.badges || [], status: user.status || 'online', nameStyle: user.nameStyle || 'default', nameColor: user.nameColor || '#f1f3f5', nameEffect: user.nameEffect || 'solid', profileTheme: user.profileTheme || 'default', profilePlate: user.profilePlate || 'default', profileEffect: user.profileEffect || 'none' }; }
+function sessionUser(user) { return { ...publicUser(user), email: user.email || '', isCreator: (user.email || '').toLowerCase() === CREATOR_EMAIL }; }
 function broadcastAll(event) { for (const [, socket] of sockets) if (socket.readyState === 1) socket.send(JSON.stringify(event)); }
 function notifyUser(userId, event) { const socket = sockets.get(userId); if (socket?.readyState === 1) socket.send(JSON.stringify(event)); }
 function voiceStateOf(userId) { for (const [channelId, room] of voiceRooms) if (room.has(userId)) { const channel = database.channels.find(item => item.id === channelId); if (channel) return { channelId: channel.id, channelName: channel.name }; } return null; }
@@ -106,13 +109,13 @@ async function handler(req, res) {
       if (database.users.some(user => user.username === username)) return json(res, 409, { error: 'Este nome de usuário já está em uso.' });
       if (database.users.some(user => (user.email || '').toLowerCase() === email)) return json(res, 409, { error: 'Este e-mail já está cadastrado.' });
       const user = { id: id(), username, displayName, email, password: hashPassword(input.password), avatarColor: 'purple', createdAt: now() }; database.users.push(user); await saveDatabase();
-      const token = id(); sessions.set(token, user.id); return json(res, 201, { token, user: publicUser(user) });
+      const token = id(); sessions.set(token, user.id); return json(res, 201, { token, user: sessionUser(user) });
     }
     if (url.pathname === '/api/auth/login' && req.method === 'POST') {
       const input = await body(req); const identifier = String(input.username || '').trim().toLowerCase();
       const user = database.users.find(item => item.username === identifier || (item.email || '').toLowerCase() === identifier);
       if (!user || !verifyPassword(input.password || '', user.password)) return json(res, 401, { error: 'Credenciais inválidas.' });
-      const token = id(); sessions.set(token, user.id); return json(res, 200, { token, user: publicUser(user) });
+      const token = id(); sessions.set(token, user.id); return json(res, 200, { token, user: sessionUser(user) });
     }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
       const distDir = path.join(__dirname, 'dist');
@@ -133,7 +136,7 @@ async function handler(req, res) {
     }
     const user = getUser(req);
     if (!user) return json(res, 401, { error: 'Autenticação necessária.' });
-    if (url.pathname === '/api/auth/me' && req.method === 'GET') return json(res, 200, { user: publicUser(user) });
+    if (url.pathname === '/api/auth/me' && req.method === 'GET') return json(res, 200, { user: sessionUser(user) });
     if (url.pathname === '/api/auth/me' && req.method === 'PATCH') {
       const input = await body(req);
       const displayName = input.displayName !== undefined ? String(input.displayName).trim() : user.displayName;
@@ -142,14 +145,24 @@ async function handler(req, res) {
       if (!/^[a-z0-9_.-]{1,20}$/.test(username)) return json(res, 400, { error: 'Usuário inválido: use até 20 caracteres (letras, números, ponto, hífen ou underline), sem espaços.' });
       if (database.users.some(item => item.username === username && item.id !== user.id)) return json(res, 409, { error: 'Este nome de usuário já está em uso.' });
       if (input.bio !== undefined) user.bio = String(input.bio).slice(0, 300);
+      if (input.email !== undefined) { const email = String(input.email).trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json(res, 400, { error: 'E-mail inválido.' }); if (database.users.some(item => item.id !== user.id && (item.email || '').toLowerCase() === email)) return json(res, 409, { error: 'Este e-mail já está cadastrado.' }); user.email = email; }
+      if (input.password !== undefined) { if (String(input.password).length < 6) return json(res, 400, { error: 'A nova senha precisa ter pelo menos 6 caracteres.' }); user.password = hashPassword(String(input.password)); }
       if (input.avatar !== undefined) { if (input.avatar === null || input.avatar === '') user.avatar = null; else if (typeof input.avatar === 'string' && input.avatar.startsWith('data:image/') && input.avatar.length <= 4000000) user.avatar = input.avatar; else return json(res, 400, { error: 'Foto inválida: use uma imagem de até 3 MB.' }); }
       if (input.banner !== undefined) { if (input.banner === null || input.banner === '') user.banner = null; else if (typeof input.banner === 'string' && input.banner.startsWith('data:image/') && input.banner.length <= 4000000) user.banner = input.banner; else if (typeof input.banner === 'string' && /^#[0-9a-fA-F]{6}$/.test(input.banner)) user.banner = input.banner; else return json(res, 400, { error: 'Banner inválido: use uma imagem de até 3 MB ou uma cor.' }); }
-      if (input.badges !== undefined) { const allowed = ['rara', 'apoiador']; user.badges = Array.isArray(input.badges) ? [...new Set(input.badges.filter(b => allowed.includes(b)))] : []; }
+      if (input.nameStyle !== undefined) user.nameStyle = ['default', 'serif', 'pixel', 'gothic', 'rounded', 'bubble', 'block', 'mono', 'script', 'display', 'blackletter', 'handwritten'].includes(input.nameStyle) ? input.nameStyle : 'default';
+      if (input.nameColor !== undefined) user.nameColor = /^#[0-9a-fA-F]{6}$/.test(String(input.nameColor)) ? String(input.nameColor) : '#f1f3f5';
+      if (input.nameEffect !== undefined) user.nameEffect = ['solid', 'neon', 'gradient', 'outline', 'desenho', 'pop', 'gummy', 'prism'].includes(input.nameEffect) ? input.nameEffect : 'solid';
+      if (input.profileTheme !== undefined) user.profileTheme = ['default', 'purple', 'red', 'green', 'blue'].includes(input.profileTheme) ? input.profileTheme : 'default';
+      if (input.profilePlate !== undefined) user.profilePlate = ['default', 'stars', 'waves', 'neon'].includes(input.profilePlate) ? input.profilePlate : 'default';
+      if (input.profileEffect !== undefined) user.profileEffect = ['none', 'sparkles', 'glow', 'embers'].includes(input.profileEffect) ? input.profileEffect : 'none';
+      if (input.badges !== undefined) { if ((user.email || '').toLowerCase() !== CREATOR_EMAIL) return json(res, 403, { error: 'Somente o criador pode gerenciar insígnias.' }); user.badges = Array.isArray(input.badges) ? [...new Set(input.badges.filter(b => ALLOWED_BADGES.includes(b)))] : []; }
       if (input.status !== undefined) { const allowedStatus = ['online', 'idle', 'dnd', 'invisible']; user.status = allowedStatus.includes(input.status) ? input.status : 'online'; }
-      user.displayName = displayName; user.username = username; await saveDatabase(); const output = publicUser(user); broadcastAll({ type: 'user.updated', user: output }); broadcastAll({ type: 'presence.updated', userId: user.id, presence: presenceOf(user) }); return json(res, 200, { user: output });
+      user.displayName = displayName; user.username = username; await saveDatabase(); const output = publicUser(user); broadcastAll({ type: 'user.updated', user: output }); broadcastAll({ type: 'presence.updated', userId: user.id, presence: presenceOf(user) }); return json(res, 200, { user: sessionUser(user) });
     }
     const profileMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
     if (profileMatch && req.method === 'GET') { const target = database.users.find(item => item.id === profileMatch[1]); if (!target) return json(res, 404, { error: 'Usuário não encontrado.' }); const badges = [...(target.badges || [])]; let voice = null; for (const [channelId, room] of voiceRooms) if (room.has(target.id)) { const channel = database.channels.find(item => item.id === channelId); if (channel) voice = { channelId: channel.id, channelName: channel.name }; } return json(res, 200, { user: { ...publicUser(target), badges }, voice }); }
+    const badgeMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/badges$/);
+    if (badgeMatch && req.method === 'PATCH') { if ((user.email || '').toLowerCase() !== CREATOR_EMAIL) return json(res, 403, { error: 'Somente o criador pode gerenciar insígnias.' }); const target = database.users.find(item => item.id === badgeMatch[1]); if (!target) return json(res, 404, { error: 'Usuário não encontrado.' }); const input = await body(req); target.badges = Array.isArray(input.badges) ? [...new Set(input.badges.filter(badge => ALLOWED_BADGES.includes(badge)))] : []; await saveDatabase(); const output = publicUser(target); broadcastAll({ type: 'user.updated', user: output }); return json(res, 200, { user: output }); }
     if (url.pathname === '/api/servers' && req.method === 'GET') return json(res, 200, { servers: database.servers.filter(server => serverForUser(user, server.id)).map(server => decorateServer(server, user)) });
     if (url.pathname === '/api/servers' && req.method === 'POST') {
       const input = await body(req); const name = String(input.name || '').trim(); if (!name) return json(res, 400, { error: 'Nome do servidor é obrigatório.' });
