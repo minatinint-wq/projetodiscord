@@ -54,6 +54,12 @@ const ALLOWED_BADGES = [
   "artista",
   "streamer",
 ];
+const LEGACY_BADGES = {
+  booster: "apoiador",
+  bug: "cacador_bugs",
+  dev: "desenvolvedor",
+  star: "fundador",
+};
 let database;
 let pgClient = null;
 let saveQueue = Promise.resolve();
@@ -91,13 +97,43 @@ const initials = (name) =>
     .toUpperCase();
 const blankDatabase = () =>
   Object.fromEntries(COLLECTIONS.map((key) => [key, []]));
-const normalizeDatabase = (input) =>
-  Object.fromEntries(
+const normalizeDatabase = (input) => {
+  const normalized = Object.fromEntries(
     COLLECTIONS.map((key) => [
       key,
       Array.isArray(input?.[key]) ? input[key] : [],
     ]),
   );
+  normalized.users = normalized.users.map((user) => ({
+    ...user,
+    badges: [
+      ...new Set(
+        (Array.isArray(user.badges) ? user.badges : [])
+          .map((badge) => LEGACY_BADGES[badge] || badge)
+          .filter((badge) => ALLOWED_BADGES.includes(badge)),
+      ),
+    ],
+    avatarFrame: user.avatarFrame || "none",
+    favoriteGame: user.favoriteGame || "",
+    activityText: user.activityText || "",
+    wishlist: user.wishlist || "",
+  }));
+  normalized.servers = normalized.servers.map((server) => {
+    const candidateTag = String(server.tag || server.name || "SESH")
+      .replace(/[^a-z0-9]/gi, "")
+      .slice(0, 4)
+      .toUpperCase();
+    return {
+      ...server,
+      tag: candidateTag.length >= 2 ? candidateTag : "SESH",
+      banner: server.banner || null,
+      accentColor: /^#[0-9a-fA-F]{6}$/.test(server.accentColor || "")
+        ? server.accentColor
+        : "#c93642",
+    };
+  });
+  return normalized;
+};
 
 function encodeDatabase(value) {
   const plain = JSON.stringify(value);
@@ -203,12 +239,6 @@ async function loadDatabase() {
     const loaded = {};
     for (const row of rows) loaded[row.key] = row.value;
     database = normalizeDatabase(loaded);
-    if (database.users.length) {
-      console.log(
-        `Sesh: ${database.users.length} usuário(s) carregados do PostgreSQL.`,
-      );
-      return;
-    }
   } else {
     let loaded = null;
     try {
@@ -490,8 +520,14 @@ async function handler(req, res) {
   if (req.method === "OPTIONS") return json(res, 204, {});
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    if (url.pathname === "/api/health")
-      return json(res, 200, { ok: true, time: now() });
+    if (url.pathname === "/api/health") {
+      if (pgClient) await pgClient.query("SELECT 1");
+      return json(res, 200, {
+        ok: true,
+        storage: pgClient ? "postgresql" : "local",
+        time: now(),
+      });
+    }
     if (url.pathname === "/api/auth/register" && req.method === "POST") {
       const input = await body(req);
       const username = String(input.username || "")
@@ -1231,6 +1267,10 @@ wss.on("connection", (socket, req) => {
   );
   const userId = sessions.get(token);
   if (!userId) return socket.close(1008, "Unauthorized");
+  socket.isAlive = true;
+  socket.on("pong", () => {
+    socket.isAlive = true;
+  });
   sockets.set(userId, socket);
   const connected = database.users.find((item) => item.id === userId);
   if (connected)
@@ -1302,6 +1342,18 @@ wss.on("connection", (socket, req) => {
       });
   });
 });
+const websocketHeartbeat = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.isAlive === false) {
+      socket.terminate();
+      continue;
+    }
+    socket.isAlive = false;
+    socket.ping();
+  }
+}, 30_000);
+websocketHeartbeat.unref?.();
+server.on("close", () => clearInterval(websocketHeartbeat));
 server.on("error", (error) => {
   if (error.code === "EADDRINUSE")
     console.error(

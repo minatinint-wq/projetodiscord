@@ -54,6 +54,7 @@ Outros comandos:
 npm test
 npm run build
 npm run desktop
+npm start
 ```
 
 No desenvolvimento, os dados ficam em `data/database.json`; nenhum banco remoto
@@ -80,4 +81,5 @@ O executável portátil é gerado em:
 - Personalização de perfil, molduras, entretenimento e insígnias
 - Tag, banner e cor de destaque do servidor
 
-Consulte `DISTRIBUICAO.md` antes de publicar para outras pessoas.
+Consulte `DISTRIBUICAO.md` antes de publicar para outras pessoas e
+`RENDER.md` para criar o Web Service e o PostgreSQL no Render.
