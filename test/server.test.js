@@ -1,0 +1,160 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { after, before, test } from "node:test";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const port = 34000 + Math.floor(Math.random() * 1000);
+const baseUrl = `http://127.0.0.1:${port}`;
+let tempDir;
+let serverProcess;
+
+async function waitForServer() {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/health`);
+      if (response.ok) return;
+    } catch {
+      // O processo ainda está iniciando.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error("O servidor de teste não iniciou.");
+}
+
+async function request(pathname, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+  const payload = await response.json();
+  return { response, payload };
+}
+
+before(async () => {
+  tempDir = await mkdtemp(path.join(os.tmpdir(), "sesh-test-"));
+  serverProcess = spawn(process.execPath, ["server.js"], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      HOST: "127.0.0.1",
+      PORT: String(port),
+      DATA_FILE: path.join(tempDir, "database.json"),
+      DATABASE_URL: "",
+      SEED_DEMO_USER: "true",
+      DATA_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  await waitForServer();
+});
+
+after(async () => {
+  serverProcess?.kill();
+  if (tempDir?.startsWith(os.tmpdir())) {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("saúde, autenticação e isolamento básico funcionam", async () => {
+  const health = await request("/api/health");
+  assert.equal(health.response.status, 200);
+  assert.equal(health.payload.ok, true);
+
+  const anonymous = await request("/api/auth/me");
+  assert.equal(anonymous.response.status, 401);
+
+  const malformed = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{",
+  });
+  assert.equal(malformed.status, 400);
+
+  const login = await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username: "demo", password: "demo123" }),
+  });
+  assert.equal(login.response.status, 200);
+  assert.equal(login.payload.user.username, "demo");
+  assert.ok(login.payload.token);
+
+  const auth = { Authorization: `Bearer ${login.payload.token}` };
+  const me = await request("/api/auth/me", { headers: auth });
+  assert.equal(me.response.status, 200);
+  assert.equal(me.payload.user.email, "demo@sesh.local");
+
+  const created = await request("/api/servers", {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ name: "Sala de teste" }),
+  });
+  assert.equal(created.response.status, 201);
+
+  const customizedServer = await request(
+    `/api/servers/${created.payload.server.id}`,
+    {
+      method: "PATCH",
+      headers: auth,
+      body: JSON.stringify({
+        tag: "PLAY",
+        banner: "data:image/png;base64,c2VzaA==",
+        accentColor: "#d6404b",
+      }),
+    },
+  );
+  assert.equal(customizedServer.response.status, 200);
+  assert.equal(customizedServer.payload.server.tag, "PLAY");
+  assert.equal(customizedServer.payload.server.accentColor, "#d6404b");
+
+  const customizedProfile = await request("/api/auth/me", {
+    method: "PATCH",
+    headers: auth,
+    body: JSON.stringify({
+      avatarFrame: "ruby",
+      favoriteGame: "Jogo de teste",
+      activityText: "Em uma partida",
+      wishlist: "Próxima aventura",
+    }),
+  });
+  assert.equal(customizedProfile.response.status, 200);
+  assert.equal(customizedProfile.payload.user.avatarFrame, "ruby");
+  assert.equal(customizedProfile.payload.user.favoriteGame, "Jogo de teste");
+
+  const secondUser = await request("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
+      username: "visitante",
+      displayName: "Visitante",
+      email: "visitante@sesh.local",
+      password: "teste123",
+    }),
+  });
+  assert.equal(secondUser.response.status, 201);
+
+  const secondAuth = {
+    Authorization: `Bearer ${secondUser.payload.token}`,
+  };
+  const forbidden = await request(`/api/servers/${created.payload.server.id}`, {
+    method: "POST",
+    headers: secondAuth,
+    body: JSON.stringify({ name: "sem-permissao", type: "text" }),
+  });
+  assert.equal(forbidden.response.status, 403);
+
+  const encryptedDatabase = await readFile(
+    path.join(tempDir, "database.json"),
+    "utf8",
+  );
+  assert.match(encryptedDatabase, /^SESH1:/);
+  assert.equal(encryptedDatabase.includes("demo@sesh.local"), false);
+});

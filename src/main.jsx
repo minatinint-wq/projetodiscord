@@ -1,0 +1,6006 @@
+/* @refresh reset */
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  Bell,
+  Camera,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Hash,
+  Headphones,
+  HelpCircle,
+  Lock,
+  Maximize2,
+  Megaphone,
+  Menu,
+  MessageSquare,
+  MessagesSquare,
+  Mic,
+  MicOff,
+  MonitorUp,
+  MoreVertical,
+  Paperclip,
+  PhoneOff,
+  Pin,
+  Plus,
+  Radio,
+  Search,
+  Send,
+  Settings,
+  Smile,
+  UserPlus,
+  Users,
+  Video,
+  VideoOff,
+  Volume2,
+  X,
+} from "lucide-react";
+import { api, connectSocket } from "./api";
+import "./styles.css";
+
+const colors = ["purple", "orange", "green", "blue"];
+const PROFILE_NAME_COLORS = [
+  "#f1f3f5",
+  "#202020",
+  "#20d9a0",
+  "#20e06c",
+  "#258fda",
+  "#b834ee",
+  "#f0448f",
+  "#d9ad20",
+  "#f0442e",
+];
+const BADGES = {
+  rara: { label: "Insígnia Rara", image: "/badges/rare.png" },
+  apoiador: { label: "Apoiador", image: "/badges/supporter.png" },
+  apoiador_inicial: {
+    label: "Apoiador inicial",
+    image: "/badges/early-supporter.png",
+  },
+  mes_1: { label: "1 mês", image: "/badges/membership-1-month.png" },
+  mes_3: { label: "3 meses", image: "/badges/membership-3-months.png" },
+  mes_6: { label: "6 meses", image: "/badges/membership-6-months.png" },
+  mes_9: { label: "9 meses", image: "/badges/membership-9-months.png" },
+  mes_12: { label: "12 meses", image: "/badges/membership-12-months.png" },
+  explorador: { label: "Explorador Sesh", image: "/badges/explorer.svg" },
+  anfitriao: {
+    label: "Anfitrião de comunidade",
+    image: "/badges/host.svg",
+  },
+  voz: { label: "Presença em voz", image: "/badges/voice.svg" },
+  criador: { label: "Criador Sesh", image: "/badges/creator.svg" },
+  fundador: { label: "Fundador", image: "/badges/founder.svg" },
+  moderador: { label: "Moderador", image: "/badges/moderator.svg" },
+  desenvolvedor: { label: "Desenvolvedor", image: "/badges/developer.svg" },
+  eventos: { label: "Organizador de eventos", image: "/badges/events.svg" },
+  verificado: { label: "Perfil verificado", image: "/badges/verified.svg" },
+  cacador_bugs: { label: "Caçador de bugs", image: "/badges/bug-hunter.svg" },
+  artista: { label: "Artista da comunidade", image: "/badges/artist.svg" },
+  streamer: { label: "Streamer", image: "/badges/streamer.svg" },
+};
+function BadgeIcon({ badge, className = "" }) {
+  return (
+    <span
+      className={`badge-tooltip ${className}`}
+      data-label={badge.label}
+      aria-label={badge.label}
+      tabIndex="0"
+    >
+      <img src={badge.image} alt="" />
+    </span>
+  );
+}
+function initials(name = "") {
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
+}
+function Avatar({ user, color = "purple", small = false, onClick }) {
+  const value = initials(user?.displayName || user?.username || "?");
+  return user?.avatar ? (
+    <img
+      className={`avatar avatar-img avatar-frame-${user?.avatarFrame || "none"} ${small ? "avatar-small" : ""}`}
+      src={user.avatar}
+      alt=""
+      onClick={onClick}
+    />
+  ) : (
+    <div
+      className={`avatar avatar-${color} avatar-frame-${user?.avatarFrame || "none"} ${small ? "avatar-small" : ""}`}
+      onClick={onClick}
+    >
+      {value}
+    </div>
+  );
+}
+
+function MediaStreamVideo({ stream, muted = false, className = "" }) {
+  const videoRef = useRef(null);
+  useEffect(() => {
+    if (videoRef.current && videoRef.current.srcObject !== stream)
+      videoRef.current.srcObject = stream || null;
+  }, [stream]);
+  return (
+    <video
+      ref={videoRef}
+      className={className}
+      autoPlay
+      playsInline
+      muted={muted}
+    />
+  );
+}
+function BadgeContextMenu({ menu, onAdd }) {
+  return (
+    <div
+      className="context-menu badge-context-menu"
+      style={{ left: menu.x, top: menu.y }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button className="context-item" onClick={onAdd}>
+        Adicionar insígnias
+      </button>
+    </div>
+  );
+}
+function BadgeEditor({ user, badges, onCancel, onSave }) {
+  const [selected, setSelected] = useState(badges);
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <section
+        className="prompt-dialog badge-editor"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3>Insígnias de @{user.username}</h3>
+        <p className="badge-editor-help">
+          Marque as insígnias que devem aparecer neste perfil.
+        </p>
+        <div className="badge-editor-list">
+          {Object.entries(BADGES).map(([key, badge]) => (
+            <label className="setting-check" key={key}>
+              <input
+                type="checkbox"
+                checked={selected.includes(key)}
+                onChange={(event) =>
+                  setSelected((current) =>
+                    event.target.checked
+                      ? [...current, key]
+                      : current.filter((item) => item !== key),
+                  )
+                }
+              />
+              <img
+                className="badge-picker-img"
+                src={badge.image}
+                alt={badge.label}
+              />{" "}
+              {badge.label}
+            </label>
+          ))}
+        </div>
+        <div className="prompt-actions">
+          <button className="prompt-cancel" onClick={onCancel}>
+            Cancelar
+          </button>
+          <button className="prompt-confirm" onClick={() => onSave(selected)}>
+            Salvar insígnias
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function ProfileChoiceModal({ title, options, selected, onSelect, onClose }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section
+        className="choice-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+        <h2>{title}</h2>
+        <div className="choice-grid">
+          {options.map((option) => (
+            <button
+              className={selected === option.value ? "choice-selected" : ""}
+              key={option.value}
+              onClick={() => onSelect(option.value)}
+            >
+              {option.image ? (
+                <img src={option.image} alt="" />
+              ) : (
+                <span className={`choice-swatch ${option.value}`} />
+              )}
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="prompt-actions">
+          <button className="prompt-confirm" onClick={onClose}>
+            Aplicar
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function FontStyleModal({ current, onClose, onApply }) {
+  const [font, setFont] = useState(current || "default");
+  const [effect, setEffect] = useState("solid");
+  const [color, setColor] = useState("#f1f3f5");
+  const fonts = [
+    ["default", "Gg"],
+    ["serif", "Gg"],
+    ["rounded", "Gg"],
+    ["bubble", "Gg"],
+    ["pixel", "Gg"],
+    ["block", "Gg"],
+    ["mono", "Gg"],
+    ["gothic", "Gg"],
+    ["script", "Gg"],
+    ["display", "Gg"],
+    ["blackletter", "Gg"],
+    ["handwritten", "Gg"],
+  ];
+  const colors = [
+    "#f1f3f5",
+    "#202020",
+    "#20d9a0",
+    "#20e06c",
+    "#258fda",
+    "#b834ee",
+    "#f2266f",
+    "#d9ad20",
+    "#f0442e",
+  ];
+  return (
+    <div className="modal-backdrop font-modal-backdrop" onClick={onClose}>
+      <section
+        className="font-style-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+        <h2>Alterar estilo do nome exibido</h2>
+        <h3>Escolha fonte</h3>
+        <div className="font-grid">
+          {fonts.map(([value, label]) => (
+            <button
+              key={value}
+              className={`font-option font-${value} ${font === value ? "choice-selected" : ""}`}
+              onClick={() => setFont(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <h3>Escolha efeito</h3>
+        <div className="font-effects">
+          {[
+            "solid",
+            "gradient",
+            "neon",
+            "desenho",
+            "pop",
+            "gummy",
+            "prism",
+          ].map((value) => (
+            <button
+              key={value}
+              className={effect === value ? "choice-selected" : ""}
+              onClick={() => setEffect(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <h3>Escolha cor</h3>
+        <div className="font-colors">
+          {colors.map((value) => (
+            <button
+              key={value}
+              className={color === value ? "choice-selected" : ""}
+              style={{ background: value }}
+              onClick={() => setColor(value)}
+            />
+          ))}
+        </div>
+        <div className="prompt-actions">
+          <button className="prompt-cancel" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            className="prompt-confirm"
+            onClick={() => onApply({ font, effect, color })}
+          >
+            Aplicar
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function WorkingFontStyleModal({ user, onClose, onApply }) {
+  const [font, setFont] = useState(
+    localStorage.getItem("sesh_name_style") || user.nameStyle || "default",
+  );
+  const [effect, setEffect] = useState(
+    localStorage.getItem("sesh_name_effect") || user.nameEffect || "solid",
+  );
+  const [color, setColor] = useState(
+    localStorage.getItem("sesh_name_color") || user.nameColor || "#f1f3f5",
+  );
+  const fonts = [
+    "default",
+    "serif",
+    "rounded",
+    "bubble",
+    "pixel",
+    "block",
+    "mono",
+    "gothic",
+    "script",
+    "display",
+    "blackletter",
+    "handwritten",
+  ];
+  const effects = [
+    "solid",
+    "gradient",
+    "neon",
+    "desenho",
+    "pop",
+    "gummy",
+    "prism",
+  ];
+  const colors = PROFILE_NAME_COLORS;
+  return (
+    <div className="modal-backdrop font-modal-backdrop" onClick={onClose}>
+      <section
+        className="font-style-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+        <h2>Alterar estilo do nome exibido</h2>
+        <div className={`font-live-preview font-${font}`} style={{ color }}>
+          Sesh
+        </div>
+        <h3>Escolha fonte</h3>
+        <div className="font-grid">
+          {fonts.map((value) => (
+            <button
+              key={value}
+              className={`font-option font-${value} ${font === value ? "choice-selected" : ""}`}
+              onClick={() => setFont(value)}
+            >
+              Gg
+            </button>
+          ))}
+        </div>
+        <h3>Escolha efeito</h3>
+        <div className="font-effects">
+          {effects.map((value) => (
+            <button
+              key={value}
+              className={effect === value ? "choice-selected" : ""}
+              onClick={() => setEffect(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+        <h3>Escolha cor</h3>
+        <div className="font-colors">
+          {colors.map((value) => (
+            <button
+              key={value}
+              className={color === value ? "choice-selected" : ""}
+              style={{ background: value }}
+              onClick={() => setColor(value)}
+            />
+          ))}
+        </div>
+        <div className="prompt-actions">
+          <button className="prompt-cancel" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            className="prompt-confirm"
+            onClick={() => onApply({ font, effect, color })}
+          >
+            Aplicar
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function CanvasChoiceModal({ title, kind, current, onClose, onApply }) {
+  const [selected, setSelected] = useState(current || "default");
+  const canvasRef = useRef(null);
+  const options =
+    kind === "name"
+      ? [
+          ["default", "Padrão"],
+          ["serif", "Serifado"],
+          ["pixel", "Pixel"],
+          ["gothic", "Gótico"],
+        ]
+      : kind === "plate"
+        ? [
+            ["default", "Padrão"],
+            ["stars", "Estrelas"],
+            ["waves", "Ondas"],
+            ["neon", "Neon"],
+          ]
+        : kind === "effect"
+          ? [
+              ["none", "Nenhum"],
+              ["sparkles", "Brilhos"],
+              ["glow", "Brilho"],
+              ["embers", "Faíscas"],
+            ]
+          : kind === "frame"
+            ? [
+                ["none", "Sem moldura"],
+                ["ruby", "Rubi"],
+                ["gold", "Dourada"],
+                ["neon", "Neon"],
+                ["ice", "Cristal"],
+              ]
+            : [
+                ["default", "Padrão"],
+                ["purple", "Roxo"],
+                ["red", "Vermelho"],
+                ["green", "Verde"],
+                ["blue", "Azul"],
+              ];
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const colors = {
+      default: "#252a34",
+      purple: "#6954e8",
+      red: "#c82e45",
+      green: "#249b6c",
+      blue: "#287bc7",
+      stars: "#4a397f",
+      waves: "#245d7e",
+      neon: "#361c62",
+      sparkles: "#4b367b",
+      glow: "#2b5f87",
+      embers: "#71351f",
+      none: "#252a34",
+    };
+    let frame = 0;
+    let raf;
+    const draw = () => {
+      ctx.fillStyle = colors[selected] || "#252a34";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 0.35;
+      for (let index = 0; index < 18; index += 1) {
+        ctx.fillStyle = index % 2 ? "#fff" : "#ff5577";
+        ctx.beginPath();
+        ctx.arc(
+          (index * 47 + frame) % canvas.width,
+          (index * 29) % canvas.height,
+          kind === "plate" ? 4 : 8,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 22px sans-serif";
+      ctx.fillText(
+        kind === "name"
+          ? "Sesh"
+          : kind === "plate"
+            ? "Placa de identificação"
+            : kind === "effect"
+              ? "Efeito de perfil"
+              : "Tema e faixa",
+        18,
+        48,
+      );
+      frame = (frame + 0.4) % canvas.width;
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [selected, kind]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <section
+        className="canvas-choice-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+        <h2>{title}</h2>
+        <canvas
+          ref={canvasRef}
+          width="520"
+          height="130"
+          className="customization-canvas"
+        />{" "}
+        <div className="canvas-choice-grid">
+          {options.map(([value, label]) => (
+            <button
+              key={value}
+              className={selected === value ? "choice-selected" : ""}
+              onClick={() => setSelected(value)}
+            >
+              <span className={`choice-swatch ${value}`} />
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="prompt-actions">
+          <button className="prompt-cancel" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="prompt-confirm" onClick={() => onApply(selected)}>
+            Aplicar
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+function VoiceSettingsPanel({ user, onClose, onAccount }) {
+  const [micVolume, setMicVolume] = useState(80);
+  const [outputVolume, setOutputVolume] = useState(80);
+  const [sensitivity, setSensitivity] = useState(55);
+  const [automatic, setAutomatic] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [testing, setTesting] = useState(false);
+  const [testingCamera, setTestingCamera] = useState(false);
+  const [deviceError, setDeviceError] = useState("");
+  const [devices, setDevices] = useState([]);
+  const [selectedMic, setSelectedMic] = useState(
+    localStorage.getItem("sesh_audio_input") || "",
+  );
+  const [selectedOutput, setSelectedOutput] = useState(
+    localStorage.getItem("sesh_audio_output") || "",
+  );
+  const [selectedCamera, setSelectedCamera] = useState(
+    localStorage.getItem("sesh_video_input") || "",
+  );
+  const cameraPreviewRef = useRef(null);
+  const cameraPreviewStreamRef = useRef(null);
+  useEffect(() => {
+    navigator.mediaDevices
+      ?.enumerateDevices?.()
+      .then((items) =>
+        setDevices(
+          items.filter((item) =>
+            ["audioinput", "audiooutput", "videoinput"].includes(item.kind),
+          ),
+        ),
+      )
+      .catch(() => {});
+    return () => {
+      cameraPreviewStreamRef.current
+        ?.getTracks()
+        .forEach((track) => track.stop());
+    };
+  }, []);
+  function selectDevice(storageKey, setter, value) {
+    setter(value);
+    if (value) localStorage.setItem(storageKey, value);
+    else localStorage.removeItem(storageKey);
+  }
+  async function testMicrophone() {
+    setTesting(true);
+    setDeviceError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedMic ? { deviceId: { exact: selectedMic } } : true,
+      });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch {
+      setDeviceError("Não foi possível acessar o microfone selecionado.");
+    }
+    setTimeout(() => setTesting(false), 1200);
+  }
+  async function toggleCameraPreview() {
+    if (testingCamera) {
+      cameraPreviewStreamRef.current
+        ?.getTracks()
+        .forEach((track) => track.stop());
+      cameraPreviewStreamRef.current = null;
+      if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = null;
+      setTestingCamera(false);
+      return;
+    }
+    setDeviceError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          ...(selectedCamera ? { deviceId: { exact: selectedCamera } } : {}),
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      cameraPreviewStreamRef.current = stream;
+      if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = stream;
+      setTestingCamera(true);
+      const updated = await navigator.mediaDevices.enumerateDevices();
+      setDevices(
+        updated.filter((item) =>
+          ["audioinput", "audiooutput", "videoinput"].includes(item.kind),
+        ),
+      );
+    } catch {
+      setDeviceError("Não foi possível acessar a câmera selecionada.");
+    }
+  }
+  return (
+    <div className="voice-settings-backdrop">
+      <section className="voice-settings-modal">
+        <aside className="voice-settings-nav">
+          <div className="voice-settings-user">
+            <Avatar
+              user={user || { displayName: "Sesh" }}
+              color="purple"
+              small
+            />
+            <div>
+              <strong>{user?.displayName || "Sesh"}</strong>
+              <span>Editar perfil</span>
+            </div>
+          </div>
+          <div className="voice-settings-search">
+            <Search size={14} /> Buscar
+          </div>
+          <button onClick={onAccount}>Conta</button>
+          <button className="voice-settings-active">
+            <Lock size={15} /> Dados e privacidade
+          </button>
+          <button>
+            <MessageSquare size={15} /> Permissões de mensagens
+          </button>
+          <button>
+            <Bell size={15} /> Notificações
+          </button>
+          <hr />
+          <small>Cobrança</small>
+          <button>Sesh Plus</button>
+          <button>Destaques da comunidade</button>
+          <button>Assinaturas</button>
+          <hr />
+          <small>Experiência</small>
+          <button className="voice-settings-active">
+            <Mic size={15} /> Voz e vídeo
+          </button>
+          <button className="voice-settings-sub">Voz</button>
+          <button className="voice-settings-sub">Transmissão</button>
+          <button className="voice-settings-sub">Sons</button>
+          <button className="voice-settings-sub">Avançado</button>
+        </aside>
+        <main className="voice-settings-content">
+          <button className="voice-settings-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+          <header>Voz e vídeo</header>
+          <div className="voice-settings-scroll">
+            <h1>Voz</h1>
+            <div className="voice-device-grid">
+              <label>
+                Microfone
+                <select
+                  value={selectedMic}
+                  onChange={(event) =>
+                    selectDevice(
+                      "sesh_audio_input",
+                      setSelectedMic,
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="">Dispositivo padrão</option>
+                  {devices
+                    .filter((item) => item.kind === "audioinput")
+                    .map((item) => (
+                      <option key={item.deviceId} value={item.deviceId}>
+                        {item.label || "Microfone"}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                Alto-falante
+                <select
+                  value={selectedOutput}
+                  onChange={(event) =>
+                    selectDevice(
+                      "sesh_audio_output",
+                      setSelectedOutput,
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="">Dispositivo padrão</option>
+                  {devices
+                    .filter((item) => item.kind === "audiooutput")
+                    .map((item) => (
+                      <option key={item.deviceId} value={item.deviceId}>
+                        {item.label || "Alto-falante"}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                Câmera
+                <select
+                  value={selectedCamera}
+                  onChange={(event) =>
+                    selectDevice(
+                      "sesh_video_input",
+                      setSelectedCamera,
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="">Dispositivo padrão</option>
+                  {devices
+                    .filter((item) => item.kind === "videoinput")
+                    .map((item) => (
+                      <option key={item.deviceId} value={item.deviceId}>
+                        {item.label || "Câmera"}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+            <div className="voice-slider-grid">
+              <label>
+                Volume do Microfone
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={micVolume}
+                  onChange={(event) => setMicVolume(event.target.value)}
+                />
+              </label>
+              <label>
+                Volume do Alto-falante
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={outputVolume}
+                  onChange={(event) => setOutputVolume(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="voice-test-row">
+              <button onClick={testMicrophone}>
+                {testing ? "Testando..." : "Teste do microfone"}
+              </button>
+              <div className="voice-meter">
+                {Array.from({ length: 34 }, (_, index) => (
+                  <i key={index} />
+                ))}
+              </div>
+            </div>
+            <div className="camera-test">
+              <video
+                ref={cameraPreviewRef}
+                autoPlay
+                muted
+                playsInline
+                className={testingCamera ? "camera-preview-on" : ""}
+              />
+              <button onClick={toggleCameraPreview}>
+                {testingCamera ? "Encerrar prévia" : "Testar câmera"}
+              </button>
+            </div>
+            {deviceError && <div className="form-error">{deviceError}</div>}
+            <p className="voice-help">
+              Precisa de ajuda? Confira nosso{" "}
+              <span>guia de solução de problemas</span>
+            </p>
+            <hr />
+            <h2>Perfil de entrada</h2>
+            {[
+              [
+                "isolated",
+                "Isolamento de Voz",
+                "Só a sua voz: deixe o Sesh equilibrar o ruído",
+              ],
+              [
+                "studio",
+                "Estúdio",
+                "Áudio puro: microfone aberto e sem processamento",
+              ],
+              [
+                "custom",
+                "Personalizado",
+                "Modo avançado: use de todos os botões e mostradores!",
+              ],
+            ].map(([value, label, help]) => (
+              <label className="voice-radio" key={value}>
+                <input
+                  type="radio"
+                  name="profile"
+                  defaultChecked={value === "custom"}
+                />{" "}
+                <span>
+                  <strong>{label}</strong>
+                  <small>{help}</small>
+                </span>
+              </label>
+            ))}
+            <div className="voice-toggle-row">
+              <div>
+                <strong>
+                  Ajustar Automaticamente a Sensibilidade de Entrada
+                </strong>
+                <small>
+                  Controla quanto o Sesh transmite do seu microfone.
+                </small>
+              </div>
+              <button
+                className={`voice-toggle ${automatic ? "on" : ""}`}
+                onClick={() => setAutomatic((value) => !value)}
+              >
+                <span />
+              </button>
+            </div>
+            <input
+              className="voice-full-slider"
+              type="range"
+              min="0"
+              max="100"
+              value={sensitivity}
+              onChange={(event) => setSensitivity(event.target.value)}
+            />
+            <div className="voice-toggle-row">
+              <div>
+                <strong>Supressão de ruído</strong>
+                <small>Reduz sons indesejados durante a conversa.</small>
+              </div>
+              <button
+                className={`voice-toggle ${noiseSuppression ? "on" : ""}`}
+                onClick={() => setNoiseSuppression((value) => !value)}
+              >
+                <span />
+              </button>
+            </div>
+          </div>
+        </main>
+      </section>
+    </div>
+  );
+}
+function ServerSettingsPanel({ server, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: server.name || "",
+    tag: server.tag || "",
+    banner: server.banner || null,
+    accentColor: server.accentColor || "#c93642",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  function chooseBanner(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setError("Escolha um banner de até 3 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setForm((current) => ({ ...current, banner: String(reader.result) }));
+    reader.readAsDataURL(file);
+  }
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await onSave({
+        name: form.name.trim(),
+        tag: form.tag.trim().toUpperCase(),
+        banner: form.banner,
+        accentColor: form.accentColor,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="modal-backdrop server-settings-backdrop" onClick={onClose}>
+      <section
+        className="server-settings-modal"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+        <header>
+          <span>CONFIGURAÇÕES DO SERVIDOR</span>
+          <h2>Identidade da comunidade</h2>
+          <p>Personalize como o servidor aparece para os membros.</p>
+        </header>
+        <div
+          className="server-settings-preview"
+          style={{
+            ...bannerStyleValue(form.banner),
+            "--server-accent": form.accentColor,
+          }}
+        >
+          <div>
+            <strong>{form.name || "Nome do servidor"}</strong>
+            {form.tag && <span>{form.tag}</span>}
+          </div>
+        </div>
+        <form onSubmit={submit}>
+          <label>
+            Nome do servidor
+            <input
+              required
+              maxLength="80"
+              value={form.name}
+              onChange={(event) =>
+                setForm({ ...form, name: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Tag do servidor
+            <input
+              maxLength="4"
+              placeholder="SESH"
+              value={form.tag}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  tag: event.target.value
+                    .replace(/[^a-z0-9]/gi, "")
+                    .toUpperCase(),
+                })
+              }
+            />
+            <small>De 2 a 4 letras ou números. Ela aparece nos membros.</small>
+          </label>
+          <label>
+            Cor de destaque
+            <input
+              type="color"
+              value={form.accentColor}
+              onChange={(event) =>
+                setForm({ ...form, accentColor: event.target.value })
+              }
+            />
+          </label>
+          <div className="server-banner-actions">
+            <label className="secondary-setting">
+              Escolher banner
+              <input type="file" accept="image/*" onChange={chooseBanner} />
+            </label>
+            {form.banner && (
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, banner: null })}
+              >
+                Remover banner
+              </button>
+            )}
+          </div>
+          {error && <div className="form-error">{error}</div>}
+          <div className="prompt-actions">
+            <button type="button" className="prompt-cancel" onClick={onClose}>
+              Cancelar
+            </button>
+            <button className="prompt-confirm" disabled={busy}>
+              {busy ? "Salvando..." : "Salvar servidor"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function ProfileSettingsPanel({
+  user,
+  onClose,
+  onSave,
+  onPrivacy,
+  onCustomize,
+}) {
+  const [tab, setTab] = useState("profile");
+  const [customizer, setCustomizer] = useState(null);
+  const [form, setForm] = useState({
+    displayName: user.displayName,
+    username: user.username,
+    bio: user.bio || "",
+    avatar: user.avatar,
+    banner: user.banner || null,
+    badges: user.badges || [],
+    email: user.email || "",
+    password: "",
+    nameStyle: user.nameStyle || "default",
+    nameEffect: user.nameEffect || "solid",
+    nameColor: user.nameColor || "#f1f3f5",
+    profileTheme: user.profileTheme || "default",
+    profilePlate: user.profilePlate || "default",
+    profileEffect: user.profileEffect || "none",
+    avatarFrame: user.avatarFrame || "none",
+    favoriteGame: user.favoriteGame || "",
+    activityText: user.activityText || "",
+    wishlist: user.wishlist || "",
+  });
+  const update = (key, value) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  async function applyCustomization(values) {
+    try {
+      await onCustomize(values);
+      setForm((current) => ({ ...current, ...values }));
+      setCustomizer(null);
+    } catch {
+      // O componente pai já exibe a mensagem retornada pela API.
+    }
+  }
+  return (
+    <div className="profile-settings-backdrop">
+      <section className="profile-settings-modal">
+        <aside className="profile-settings-side">
+          <div className="profile-settings-switcher">
+            Perfil principal <ChevronDown size={14} />
+          </div>
+          <div className="profile-settings-side-title">
+            Placa de identificação
+          </div>
+          <button
+            type="button"
+            className="profile-settings-id-card"
+            onClick={() =>
+              setCustomizer({ kind: "plate", key: "profilePlate" })
+            }
+          >
+            <Avatar user={form} color="purple" small />
+            <span />
+            <Plus size={16} />
+          </button>
+          <div className="profile-settings-side-title">Avatar e decorações</div>
+          <div className="profile-settings-tiles">
+            <button
+              type="button"
+              aria-label="Alterar moldura do avatar"
+              onClick={() =>
+                setCustomizer({ kind: "frame", key: "avatarFrame" })
+              }
+            >
+              <Avatar user={form} color="purple" />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setCustomizer({ kind: "effect", key: "profileEffect" })
+              }
+            >
+              <Plus size={22} />
+            </button>
+          </div>
+          <div className="profile-settings-side-title">
+            Estilo do nome exibido
+          </div>
+          <button
+            type="button"
+            className="profile-name-style"
+            onClick={() => setCustomizer({ kind: "name", key: "nameStyle" })}
+          >
+            {form.displayName || "Sesh"}
+          </button>
+          <div className="profile-settings-side-title">Tema e faixa</div>
+          <div className="profile-settings-themes">
+            <button
+              type="button"
+              aria-label="Alterar tema do perfil"
+              onClick={() =>
+                setCustomizer({ kind: "theme", key: "profileTheme" })
+              }
+            />
+            <button
+              type="button"
+              aria-label="Alterar faixa do perfil"
+              onClick={() =>
+                setCustomizer({ kind: "theme", key: "profileTheme" })
+              }
+            />
+          </div>
+          <div className="profile-settings-side-title">
+            Efeitos de perfil e molduras
+          </div>
+          <div className="profile-settings-tiles">
+            <button
+              type="button"
+              onClick={() =>
+                setCustomizer({ kind: "effect", key: "profileEffect" })
+              }
+            >
+              <Plus size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setCustomizer({ kind: "plate", key: "profilePlate" })
+              }
+            >
+              <Plus size={22} />
+            </button>
+          </div>
+        </aside>
+        <main className="profile-settings-main">
+          <button className="profile-settings-close" onClick={onClose}>
+            <X size={18} />
+          </button>
+          {tab === "profile" ? (
+            <>
+              <section className="profile-preview">
+                <div
+                  className="profile-preview-banner"
+                  style={bannerStyleValue(form.banner)}
+                />
+                <div className="profile-preview-body">
+                  <Avatar user={form} color="purple" />
+                  <h1>{form.displayName || "Sesh"}</h1>
+                  <div>@{form.username || "usuario"}</div>
+                  <p>{form.bio || "Adicione uma biografia ao seu perfil."}</p>
+                  {(form.activityText || form.favoriteGame) && (
+                    <div className="profile-preview-activity">
+                      <strong>{form.activityText || "Jogando agora"}</strong>
+                      {form.favoriteGame && <span>{form.favoriteGame}</span>}
+                    </div>
+                  )}
+                  <div className="profile-preview-badges">
+                    {form.badges.map((key) =>
+                      BADGES[key] ? (
+                        <BadgeIcon key={key} badge={BADGES[key]} />
+                      ) : null,
+                    )}
+                  </div>
+                </div>
+              </section>
+              <section className="profile-settings-right">
+                <nav>
+                  <button className="profile-tab-active">Mural</button>
+                  <button>Atividade</button>
+                  <button>Lista de desejos</button>
+                </nav>
+                <h2>Personalize seu perfil com widgets</h2>
+                <p>
+                  Explore nossa biblioteca de widgets para compartilhar mais
+                  sobre você e seus interesses
+                </p>
+                <div className="profile-widget-grid">
+                  <label>
+                    Atividade atual
+                    <input
+                      value={form.activityText}
+                      placeholder="Ex.: Jogando com a comunidade"
+                      onChange={(event) =>
+                        update("activityText", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Jogo favorito
+                    <input
+                      value={form.favoriteGame}
+                      placeholder="Qual jogo não sai da sua lista?"
+                      onChange={(event) =>
+                        update("favoriteGame", event.target.value)
+                      }
+                    />
+                  </label>
+                  <label className="profile-wishlist-field">
+                    Lista de desejos
+                    <textarea
+                      value={form.wishlist}
+                      placeholder="Jogos, filmes e experiências que você quer conhecer"
+                      onChange={(event) =>
+                        update("wishlist", event.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+              </section>
+              <div className="profile-settings-fields">
+                <label>
+                  Nome de exibição
+                  <input
+                    value={form.displayName}
+                    onChange={(event) =>
+                      update("displayName", event.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Nome de usuário
+                  <input
+                    value={form.username}
+                    onChange={(event) => update("username", event.target.value)}
+                  />
+                  <small>
+                    Use este nome para que outras pessoas adicionem você.
+                  </small>
+                </label>
+                <label>
+                  Bio
+                  <textarea
+                    value={form.bio}
+                    onChange={(event) => update("bio", event.target.value)}
+                  />
+                </label>
+                <div className="profile-settings-badges">
+                  <strong>Insígnias do perfil</strong>
+                  {Object.entries(BADGES).map(([key, badge]) => (
+                    <label key={key}>
+                      <input
+                        type="checkbox"
+                        checked={form.badges.includes(key)}
+                        onChange={(event) =>
+                          update(
+                            "badges",
+                            event.target.checked
+                              ? [...form.badges, key]
+                              : form.badges.filter((item) => item !== key),
+                          )
+                        }
+                      />
+                      <img src={badge.image} alt={badge.label} />
+                      {badge.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="profile-settings-actions">
+                  <button onClick={() => onSave(form)}>
+                    Salvar alterações
+                  </button>
+                  <button onClick={() => setTab("privacy")}>
+                    Dados e privacidade
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="profile-privacy">
+              <h1>Dados e privacidade</h1>
+              <p>
+                Gerencie o email, senha e identificador usados na sua conta.
+              </p>
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => update("email", event.target.value)}
+                />
+              </label>
+              <label>
+                Nova senha
+                <input
+                  type="password"
+                  placeholder="Deixe vazio para manter a senha atual"
+                  value={form.password}
+                  onChange={(event) => update("password", event.target.value)}
+                />
+              </label>
+              <label>
+                Nome de usuário
+                <input
+                  value={form.username}
+                  onChange={(event) => update("username", event.target.value)}
+                />
+              </label>
+              <button onClick={() => onSave(form)}>Salvar dados</button>
+              <button
+                className="profile-back-button"
+                onClick={() => setTab("profile")}
+              >
+                Voltar ao perfil
+              </button>
+            </div>
+          )}
+        </main>
+      </section>
+      {customizer?.kind === "name" && (
+        <WorkingFontStyleModal
+          user={form}
+          onClose={() => setCustomizer(null)}
+          onApply={(selection) =>
+            applyCustomization({
+              nameStyle: selection.font,
+              nameEffect: selection.effect,
+              nameColor: selection.color,
+            })
+          }
+        />
+      )}
+      {customizer && customizer.kind !== "name" && (
+        <CanvasChoiceModal
+          title={
+            customizer.kind === "plate"
+              ? "Alterar placa de identificação"
+              : customizer.kind === "effect"
+                ? "Alterar efeito do perfil"
+                : customizer.kind === "frame"
+                  ? "Alterar moldura do avatar"
+                  : "Alterar tema do perfil"
+          }
+          kind={customizer.kind}
+          current={form[customizer.key]}
+          onClose={() => setCustomizer(null)}
+          onApply={(value) => applyCustomization({ [customizer.key]: value })}
+        />
+      )}
+    </div>
+  );
+}
+function bannerStyleValue(banner) {
+  if (!banner) return undefined;
+  return String(banner).startsWith("data:image/")
+    ? { backgroundImage: `url(${banner})` }
+    : { background: banner };
+}
+function DirectConversation({ user, onClose, onOpenProfile }) {
+  if (!user) return null;
+  return (
+    <div className="direct-conversation">
+      <header className="direct-header">
+        <button className="direct-back" onClick={onClose}>
+          ‹
+        </button>
+        <span className="avatar-dot-wrap">
+          <Avatar user={user} color={user.avatarColor || "purple"} small />
+          <span
+            className={`presence-dot presence-${user.presence || "offline"}`}
+          />
+        </span>
+        <div className="direct-header-person">
+          <strong>{user.displayName}</strong>
+          <span>
+            @{user.username} {user.presence === "voice" ? "• Em voz" : ""}
+          </span>
+        </div>
+        <div className="direct-header-actions">
+          <button title="Iniciar chamada">
+            <PhoneOff size={17} />
+          </button>
+          <button title="Vídeo">
+            <Video size={17} />
+          </button>
+          <button title="Fixar">
+            <Pin size={17} />
+          </button>
+          <button title="Ver perfil" onClick={onOpenProfile}>
+            <Users size={17} />
+          </button>
+        </div>
+      </header>
+      <main className="direct-main">
+        <div className="direct-messages">
+          <div className="direct-welcome">
+            <Avatar user={user} color={user.avatarColor || "purple"} />
+            <h2>{user.displayName}</h2>
+            <p>Este é o começo da sua conversa com @{user.username}.</p>
+          </div>
+        </div>
+        <form
+          className="direct-composer"
+          onSubmit={(event) => event.preventDefault()}
+        >
+          <Plus size={18} />
+          <input placeholder={`Conversar com @${user.username}`} />
+          <Smile size={18} />
+        </form>
+      </main>
+      <aside className="direct-profile">
+        <div className="direct-profile-banner" />
+        <Avatar user={user} color={user.avatarColor || "purple"} />
+        <h2>{user.displayName}</h2>
+        <span className="direct-profile-username">@{user.username}</span>
+        {user.bio && <p>{user.bio}</p>}
+        <div className="direct-profile-section">MÚLTIPLAS CONEXÕES</div>
+        <button className="direct-profile-link" onClick={onOpenProfile}>
+          Ver Perfil Completo
+        </button>
+        {user.voice && (
+          <div className="direct-voice-card">
+            <strong>Em voz</strong>
+            <span>{user.voice.channelName}</span>
+            <button>Abrir chamada de voz</button>
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function LandingPage() {
+  return (
+    <main className="landing-page">
+      <nav className="landing-nav">
+        <a
+          className="landing-logo"
+          href="/"
+          aria-label="Página inicial do Sesh"
+        >
+          <img src="/branding/sesh-logo.gif" alt="" />
+          <span>Sesh</span>
+        </a>
+        <div className="landing-links">
+          <a href="#recursos">Recursos</a>
+          <a href="#comunidades">Comunidades</a>
+          <a href="#seguranca">Segurança</a>
+          <a href="/app">Entrar</a>
+        </div>
+        <a className="landing-open" href="/app">
+          Abrir o Sesh
+        </a>
+      </nav>
+
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
+          <span className="landing-eyebrow">CONVERSE DO SEU JEITO</span>
+          <h1>Sua galera, no mesmo ritmo.</h1>
+          <p>
+            Um espaço simples para conversar, ligar a câmera, compartilhar a
+            tela e construir comunidades que parecem suas.
+          </p>
+          <div className="landing-actions">
+            <a className="landing-primary" href="/app">
+              Abrir no navegador
+              <ChevronRight size={19} />
+            </a>
+            <a className="landing-secondary" href="#recursos">
+              Conhecer recursos
+            </a>
+          </div>
+          <div className="landing-proof">
+            <span>
+              <i /> Servidor local online
+            </span>
+            <span>Texto, voz e vídeo</span>
+          </div>
+        </div>
+
+        <div className="landing-product-wrap" aria-label="Prévia do Sesh">
+          <div className="landing-product-glow" />
+          <div className="landing-product">
+            <div className="landing-window-bar">
+              <div>
+                <i />
+                <i />
+                <i />
+              </div>
+              <span>sesh • comunidade</span>
+            </div>
+            <div className="landing-app-preview">
+              <aside className="landing-preview-rail">
+                <img src="/branding/sesh-logo.gif" alt="" />
+                <i />
+                <i />
+                <i />
+                <button>+</button>
+              </aside>
+              <aside className="landing-preview-channels">
+                <strong>NOITE DE JOGOS</strong>
+                <small>CANAIS DE TEXTO</small>
+                <span className="selected">
+                  <Hash size={14} /> geral
+                </span>
+                <span>
+                  <Hash size={14} /> clipes
+                </span>
+                <small>CANAIS DE VOZ</small>
+                <span>
+                  <Volume2 size={14} /> resenha
+                </span>
+                <div className="landing-preview-user">
+                  <b>SA</b>
+                  <div>
+                    <strong>Sabrina</strong>
+                    <small>Online</small>
+                  </div>
+                </div>
+              </aside>
+              <section className="landing-preview-chat">
+                <header>
+                  <Hash size={18} />
+                  <strong>geral</strong>
+                  <span>Conversa da comunidade</span>
+                </header>
+                <div className="landing-preview-messages">
+                  <article>
+                    <b className="red">JM</b>
+                    <div>
+                      <strong>João</strong>
+                      <p>Quem entra na call hoje?</p>
+                    </div>
+                  </article>
+                  <article>
+                    <b>SA</b>
+                    <div>
+                      <strong>Sabrina</strong>
+                      <p>Já estou por aqui. Vou compartilhar a tela 👋</p>
+                    </div>
+                  </article>
+                  <article>
+                    <b className="dark">LU</b>
+                    <div>
+                      <strong>Lucas</strong>
+                      <p>Perfeito, ligando a câmera.</p>
+                    </div>
+                  </article>
+                </div>
+                <div className="landing-preview-composer">
+                  Conversar em #geral
+                  <Smile size={16} />
+                </div>
+              </section>
+            </div>
+          </div>
+          <div className="landing-call-card">
+            <div className="landing-call-avatars">
+              <span>SA</span>
+              <span>JM</span>
+              <span>LU</span>
+            </div>
+            <div>
+              <strong>Resenha ao vivo</strong>
+              <small>3 pessoas conectadas</small>
+            </div>
+            <div className="landing-call-actions">
+              <Mic size={15} />
+              <Camera size={15} />
+              <MonitorUp size={15} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-features" id="recursos">
+        <header>
+          <span>FEITO PARA ESTAR JUNTO</span>
+          <h2>Menos ruído. Mais conversa.</h2>
+        </header>
+        <div className="landing-feature-grid">
+          <article>
+            <MessageSquare size={24} />
+            <h3>Comunidades organizadas</h3>
+            <p>Canais para cada assunto sem perder o contexto da conversa.</p>
+          </article>
+          <article>
+            <Video size={24} />
+            <h3>Voz e câmera</h3>
+            <p>Entre na sala, abra a câmera e converse sem complicação.</p>
+          </article>
+          <article>
+            <MonitorUp size={24} />
+            <h3>Compartilhe sua tela</h3>
+            <p>Mostre jogos, projetos e ideias para todo mundo acompanhar.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="landing-community" id="comunidades">
+        <div>
+          <span>UM LUGAR COM A SUA CARA</span>
+          <h2>Do grupo pequeno à comunidade inteira.</h2>
+        </div>
+        <a href="/app">
+          Criar meu espaço <ChevronRight size={18} />
+        </a>
+      </section>
+
+      <footer className="landing-footer" id="seguranca">
+        <a className="landing-logo" href="/">
+          <img src="/branding/sesh-logo.gif" alt="" />
+          <span>Sesh</span>
+        </a>
+        <p>Comunicação local em desenvolvimento.</p>
+        <a href="/app">Entrar</a>
+      </footer>
+    </main>
+  );
+}
+
+function AuthScreen({ onLogin }) {
+  const [register, setRegister] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    username: "",
+    displayName: "",
+    email: "",
+    password: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const result = register
+        ? await api.register(form)
+        : await api.login({ username: form.username, password: form.password });
+      localStorage.setItem("orbit_token", result.token);
+      onLogin(result.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function useDemoAccount() {
+    setRegister(false);
+    setForm({
+      username: "demo",
+      displayName: "",
+      email: "",
+      password: "demo123",
+    });
+    setError("");
+  }
+
+  return (
+    <div className="auth-screen">
+      <a className="auth-page-brand" href="/" aria-label="Voltar ao Sesh">
+        <img src="/branding/sesh-logo.gif" alt="" />
+        <strong>Sesh</strong>
+      </a>
+      <div className="auth-card">
+        <section className="auth-brand-panel">
+          <div className="auth-brand-top">
+            <div className="auth-logo-frame">
+              <img
+                className="auth-logo auth-logo-img"
+                src="/branding/sesh-logo.gif"
+                alt="Símbolo animado do Sesh"
+              />
+            </div>
+          </div>
+          <div className="auth-brand-copy">
+            <h2>Entrar rapidamente</h2>
+            <p>Use a conta local de teste para conhecer o Sesh agora.</p>
+            <button type="button" onClick={useDemoAccount}>
+              Usar conta demo
+            </button>
+          </div>
+          <div className="auth-brand-status">
+            <i />
+            Servidor local disponível
+          </div>
+        </section>
+
+        <section className="auth-form-panel">
+          <div className="auth-form-heading">
+            <span>{register ? "NOVA CONTA" : "ACESSO SESH"}</span>
+            <h1>{register ? "Crie sua conta" : "Bem-vindo de volta"}</h1>
+            <p>
+              {register
+                ? "Crie seu perfil e comece sua comunidade."
+                : "Entre para continuar suas conversas."}
+            </p>
+          </div>
+
+          <form onSubmit={submit}>
+            {register && (
+              <label className="auth-field">
+                <span>Nome de exibição</span>
+                <input
+                  required
+                  autoComplete="name"
+                  placeholder="Como as pessoas verão você"
+                  value={form.displayName}
+                  onChange={(e) =>
+                    setForm({ ...form, displayName: e.target.value })
+                  }
+                />
+              </label>
+            )}
+            <label className="auth-field">
+              <span>Usuário ou e-mail</span>
+              <input
+                required
+                autoFocus
+                autoComplete="username"
+                placeholder="Digite seu usuário"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </label>
+            {register && (
+              <label className="auth-field">
+                <span>E-mail</span>
+                <input
+                  required
+                  type="email"
+                  autoComplete="email"
+                  placeholder="voce@exemplo.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </label>
+            )}
+            <label className="auth-field">
+              <span>Senha</span>
+              <div className="auth-password-field">
+                <input
+                  required
+                  minLength="6"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={register ? "new-password" : "current-password"}
+                  placeholder="Mínimo de 6 caracteres"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+            {error && (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            )}
+            <button className="auth-submit" disabled={loading}>
+              {loading ? "Entrando..." : register ? "Criar conta" : "Entrar"}
+            </button>
+          </form>
+
+          {!register && (
+            <div className="auth-demo">
+              <div>
+                <strong>Acesso local de teste</strong>
+                <span>demo / demo123</span>
+              </div>
+              <button type="button" onClick={useDemoAccount}>
+                Preencher
+              </button>
+            </div>
+          )}
+
+          <div className="auth-switch-row">
+            <span>{register ? "Já faz parte?" : "Novo por aqui?"}</span>
+            <button
+              className="auth-switch"
+              onClick={() => {
+                setRegister(!register);
+                setError("");
+              }}
+            >
+              {register ? "Entrar na minha conta" : "Criar uma conta"}
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function App({ currentUser, onLogout, onUserUpdate }) {
+  const [servers, setServers] = useState([]);
+  const [selectedServer, setSelectedServer] = useState(null);
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [memberListOpen, setMemberListOpen] = useState(true);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [search, setSearch] = useState("");
+  const [notice, setNotice] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("account");
+  const [theme, setTheme] = useState(
+    localStorage.getItem("orbit_theme") || "dark",
+  );
+  const [compactMode, setCompactMode] = useState(
+    localStorage.getItem("orbit_compact") === "true",
+  );
+  const [notifications, setNotifications] = useState(
+    localStorage.getItem("orbit_notifications") !== "false",
+  );
+  const [voiceConnected, setVoiceConnected] = useState(false);
+  const [voiceParticipants, setVoiceParticipants] = useState([]);
+  const [muted, setMuted] = useState(false);
+  const [voiceStates, setVoiceStates] = useState({});
+  const [voiceChannel, setVoiceChannel] = useState(null);
+  const [camOn, setCamOn] = useState(false);
+  const [screenOn, setScreenOn] = useState(false);
+  const [remoteVideos, setRemoteVideos] = useState({});
+  const [focusedVideoId, setFocusedVideoId] = useState(null);
+  const [videoFullscreen, setVideoFullscreen] = useState(false);
+  const [speaking, setSpeaking] = useState({});
+  const [deafened, setDeafened] = useState(false);
+  const deafenedRef = useRef(false);
+  const camTrackRef = useRef(null);
+  const screenTrackRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const analysersRef = useRef(new Map());
+  const speakingRef = useRef({});
+  const localVideoStream = useMemo(() => {
+    const track = screenOn
+      ? screenTrackRef.current
+      : camOn
+        ? camTrackRef.current
+        : null;
+    return track?.readyState === "live" ? new MediaStream([track]) : null;
+  }, [camOn, screenOn]);
+  const orderedVoiceParticipants = useMemo(() => {
+    const callOrder = voiceStates[voiceChannel?.id] || [];
+    const details = new Map(
+      [...callOrder, ...voiceParticipants].map((participant) => [
+        participant.id,
+        participant,
+      ]),
+    );
+    const orderedIds = [
+      ...callOrder.map((participant) => participant.id),
+      ...voiceParticipants.map((participant) => participant.id),
+    ];
+    return [...new Set(orderedIds)]
+      .map((id) => details.get(id))
+      .filter(Boolean);
+  }, [voiceParticipants, voiceStates, voiceChannel?.id]);
+  const voiceActiveRef = useRef(false);
+  const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
+  const [homeTab, setHomeTab] = useState("online");
+  const [friendQuery, setFriendQuery] = useState("");
+  const [addFriendValue, setAddFriendValue] = useState("");
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [serverModal, setServerModal] = useState(null);
+  const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [guideServer, setGuideServer] = useState(null);
+  const guideIconRef = useRef(null);
+  const composerInputRef = useRef(null);
+  const socketRef = useRef(null);
+  const peersRef = useRef(new Map());
+  const localStreamRef = useRef(null);
+  const audioRefs = useRef(new Map());
+  const [contextMenu, setContextMenu] = useState(null);
+  const [badgeMenu, setBadgeMenu] = useState(null);
+  const [badgeEditor, setBadgeEditor] = useState(null);
+  const [pinnedChannels, setPinnedChannels] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sesh_pinned") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [mutedChannels, setMutedChannels] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sesh_muted") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [dialog, setDialog] = useState(null);
+  const [profileView, setProfileView] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+  const [accountForm, setAccountForm] = useState(null);
+  const [channelModal, setChannelModal] = useState(null);
+  const [presenceMap, setPresenceMap] = useState({});
+  const [statusMenu, setStatusMenu] = useState(false);
+  useEffect(() => {
+    const syncFullscreen = () =>
+      setVideoFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () =>
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+  useEffect(() => {
+    if (!focusedVideoId) return;
+    const participantExists = orderedVoiceParticipants.some(
+      (participant) => participant.id === focusedVideoId,
+    );
+    const stream =
+      focusedVideoId === currentUser.id
+        ? localVideoStream
+        : remoteVideos[focusedVideoId];
+    if (!participantExists || !stream) setFocusedVideoId(null);
+  }, [
+    focusedVideoId,
+    orderedVoiceParticipants,
+    remoteVideos,
+    localVideoStream,
+    currentUser.id,
+  ]);
+  useEffect(() => {
+    if (!profileView) return;
+    setProfileData("loading");
+    api
+      .profile(profileView.userId)
+      .then((result) => setProfileData(result))
+      .catch((err) => {
+        setNotice(err.message);
+        setProfileView(null);
+      });
+    const onKey = (event) => {
+      if (event.key === "Escape") setProfileView(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [profileView]);
+  useEffect(() => {
+    document.body.classList.toggle(
+      "creator-account",
+      Boolean(currentUser.isCreator),
+    );
+    return () => document.body.classList.remove("creator-account");
+  }, [currentUser.isCreator]);
+  useEffect(() => {
+    const ownProfile =
+      !profileData?.user || profileData.user.id === currentUser.id;
+    const viewed = ownProfile ? currentUser : profileData.user;
+    const localNameStyle = ownProfile
+      ? localStorage.getItem("sesh_name_style")
+      : null;
+    document.body.dataset.profileTheme = viewed.profileTheme || "default";
+    document.body.dataset.nameStyle =
+      localNameStyle || viewed.nameStyle || "default";
+    document.body.dataset.profilePlate = viewed.profilePlate || "default";
+    document.body.dataset.profileEffect = viewed.profileEffect || "none";
+    document.body.style.setProperty(
+      "--profile-name-color",
+      viewed.nameColor || "#f1f3f5",
+    );
+  }, [currentUser, profileData]);
+  useEffect(() => {
+    document.querySelectorAll(".member").forEach((row) => {
+      const username = row
+        .querySelector(".member-role")
+        ?.textContent?.replace(/^@/, "");
+      const member = members.find((item) => item.username === username);
+      if (!member || row.querySelector(".member-plate-label")) return;
+      const plate = member.profilePlate || "default";
+      row.classList.add(`member-plate-${plate}`);
+      if (plate !== "default") {
+        const label = document.createElement("span");
+        label.className = "member-plate-label";
+        label.textContent =
+          plate === "stars" ? "✦" : plate === "waves" ? "〰" : "✧";
+        row.querySelector(".member-role")?.after(label);
+      }
+    });
+  }, [members]);
+  useEffect(() => {
+    return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(statusMenuEl());
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [statusMenu, selectedServer, currentUser.status]);
+  useEffect(() => {
+    return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(
+      <VoiceSettingsPanel
+        user={currentUser}
+        onClose={() => setSettingsOpen(false)}
+        onAccount={() => setSettingsTab("account")}
+      />,
+    );
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [settingsOpen, settingsTab]);
+  useEffect(() => {
+    return;
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(
+      <ProfileSettingsPanel
+        user={{ ...currentUser, ...accountForm }}
+        onClose={() => setSettingsOpen(false)}
+        onPrivacy={() => setSettingsTab("account")}
+        onSave={saveProfileSettings}
+      />,
+    );
+    return () => {
+      root.unmount();
+      host.remove();
+    };
+  }, [settingsOpen, settingsTab, currentUser, accountForm]);
+  useEffect(() => {
+    return;
+    let host;
+    let root;
+    const closeFontModal = () => {
+      if (root && host) {
+        root.unmount();
+        host.remove();
+        root = null;
+        host = null;
+      }
+    };
+    const openFontModal = (event) => {
+      const target = event.target.closest?.(".profile-name-style");
+      if (!target) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      root.render(
+        <FontStyleModal
+          current={currentUser.nameStyle || "default"}
+          onClose={closeFontModal}
+          onApply={async (selection) => {
+            try {
+              const result = await api.updateMe({
+                nameStyle: selection.font,
+                nameEffect: selection.effect,
+                nameColor: selection.color,
+              });
+              onUserUpdate(result.user);
+              setNotice("Estilo do nome aplicado com sucesso.");
+              closeFontModal();
+            } catch (err) {
+              setNotice(err.message);
+            }
+          }}
+        />,
+      );
+    };
+    const forceClose = (event) => {
+      if (
+        event.target.closest?.(
+          ".font-style-modal .modal-close, .font-style-modal .prompt-cancel",
+        )
+      ) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeFontModal();
+      }
+    };
+    document.addEventListener("click", openFontModal, true);
+    document.addEventListener("click", forceClose, true);
+    return () => {
+      document.removeEventListener("click", openFontModal, true);
+      document.removeEventListener("click", forceClose, true);
+      closeFontModal();
+    };
+  }, [settingsOpen, settingsTab, currentUser]);
+  useEffect(() => {
+    return;
+    const handleFontActions = async (event) => {
+      const target = event.target.closest?.(
+        ".font-style-modal .prompt-confirm, .font-style-modal .modal-close, .font-style-modal .prompt-cancel",
+      );
+      if (!target) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const backdrop = target.closest(".font-modal-backdrop");
+      if (
+        target.classList.contains("modal-close") ||
+        target.classList.contains("prompt-cancel")
+      ) {
+        backdrop?.remove();
+        return;
+      }
+      const selectedFont =
+        backdrop
+          ?.querySelector(".font-option.choice-selected")
+          ?.className.match(/font-([a-z]+)/)?.[1] || "default";
+      const selectedEffect =
+        backdrop?.querySelector(".font-effects .choice-selected")
+          ?.textContent || "solid";
+      const selectedColor =
+        [...(backdrop?.querySelectorAll(".font-colors button") || [])].find(
+          (button) => button.classList.contains("choice-selected"),
+        )?.style.background || "#f1f3f5";
+      try {
+        const result = await api.updateMe({
+          nameStyle: selectedFont,
+          nameEffect: selectedEffect,
+          nameColor: selectedColor,
+        });
+        onUserUpdate(result.user);
+        setNotice("Estilo do nome aplicado com sucesso.");
+        backdrop?.remove();
+      } catch (err) {
+        setNotice(err.message);
+      }
+    };
+    document.addEventListener("click", handleFontActions, true);
+    return () => document.removeEventListener("click", handleFontActions, true);
+  }, [settingsOpen, settingsTab, currentUser]);
+  useEffect(() => {
+    return;
+    const applyFontDirectly = async (event) => {
+      const button = event.target.closest?.(
+        ".font-style-modal .prompt-confirm",
+      );
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const backdrop = button.closest(".font-modal-backdrop");
+      const selected = backdrop?.querySelector(".font-option.choice-selected");
+      const fontClass = selected?.classList[1] || "font-default";
+      const selectedFont = fontClass.replace("font-", "");
+      const selectedEffect =
+        backdrop?.querySelector(".font-effects .choice-selected")
+          ?.textContent || "solid";
+      const selectedColorIndex = [
+        ...(backdrop?.querySelectorAll(".font-colors button") || []),
+      ].findIndex((item) => item.classList.contains("choice-selected"));
+      const selectedColor =
+        PROFILE_NAME_COLORS[selectedColorIndex] || "#f1f3f5";
+      try {
+        const result = await api.updateMe({
+          nameStyle: selectedFont,
+          nameEffect: selectedEffect,
+          nameColor: selectedColor,
+        });
+        onUserUpdate(result.user);
+        setNotice("Estilo do nome aplicado com sucesso.");
+        backdrop?.remove();
+      } catch (err) {
+        setNotice(err.message);
+      }
+    };
+    document.addEventListener("mousedown", applyFontDirectly, true);
+    return () =>
+      document.removeEventListener("mousedown", applyFontDirectly, true);
+  }, [settingsOpen, settingsTab, currentUser]);
+  useEffect(() => {
+    return;
+    let suppressClick = false;
+    const markApply = (event) => {
+      if (event.target.closest?.(".font-style-modal .prompt-confirm"))
+        suppressClick = true;
+    };
+    const suppressOldApply = (event) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    window.addEventListener("mousedown", markApply, true);
+    window.addEventListener("click", suppressOldApply, true);
+    return () => {
+      window.removeEventListener("mousedown", markApply, true);
+      window.removeEventListener("click", suppressOldApply, true);
+    };
+  }, [settingsOpen, settingsTab]);
+  useEffect(() => {
+    return;
+    const persistFontPreview = (event) => {
+      const button = event.target.closest?.(
+        ".font-style-modal .prompt-confirm",
+      );
+      if (!button) return;
+      const backdrop = button.closest(".font-modal-backdrop");
+      const selected = backdrop?.querySelector(".font-option.choice-selected");
+      const fontClass = [...(selected?.classList || [])].find(
+        (value) => value.startsWith("font-") && value !== "font-option",
+      );
+      if (fontClass) {
+        localStorage.setItem("sesh_name_style", fontClass.replace("font-", ""));
+        document.body.dataset.nameStyle = fontClass.replace("font-", "");
+      }
+    };
+    window.addEventListener("mousedown", persistFontPreview, true);
+    return () =>
+      window.removeEventListener("mousedown", persistFontPreview, true);
+  }, [settingsOpen, settingsTab]);
+  useEffect(() => {
+    return;
+    let host;
+    let root;
+    const openWorkingFont = (event) => {
+      if (!event.target.closest?.(".profile-name-style")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      root.render(
+        <WorkingFontStyleModal
+          user={currentUser}
+          onClose={() => {
+            root.unmount();
+            host.remove();
+          }}
+          onApply={async (selection) => {
+            const result = await api.updateMe({
+              nameStyle: selection.font,
+              nameEffect: selection.effect,
+              nameColor: selection.color,
+            });
+            localStorage.setItem("sesh_name_style", selection.font);
+            localStorage.setItem("sesh_name_effect", selection.effect);
+            localStorage.setItem("sesh_name_color", selection.color);
+            onUserUpdate(result.user);
+            setNotice("Estilo do nome aplicado!");
+            root.unmount();
+            host.remove();
+          }}
+        />,
+      );
+    };
+    window.addEventListener("click", openWorkingFont, true);
+    return () => {
+      window.removeEventListener("click", openWorkingFont, true);
+      if (root && host) {
+        root.unmount();
+        host.remove();
+      }
+    };
+  }, [settingsOpen, settingsTab, currentUser]);
+  useEffect(() => {
+    return;
+    let host;
+    let root;
+    const onCustomize = (event) => {
+      const target = event.target.closest?.(
+        ".profile-name-style, .profile-settings-themes button, .profile-settings-tiles > div",
+      );
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const sectionTitle =
+        target.parentElement.previousElementSibling?.textContent || "";
+      const kind = target.classList.contains("profile-name-style")
+        ? "name"
+        : target.parentElement.classList.contains("profile-settings-themes")
+          ? "theme"
+          : sectionTitle.includes("Avatar")
+            ? "plate"
+            : target === target.parentElement?.firstElementChild
+              ? "effect"
+              : "plate";
+      const key =
+        kind === "name"
+          ? "nameStyle"
+          : kind === "theme"
+            ? "profileTheme"
+            : kind === "effect"
+              ? "profileEffect"
+              : "profilePlate";
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      root.render(
+        <CanvasChoiceModal
+          title={
+            kind === "plate"
+              ? "Alterar placa de identificação"
+              : "Personalizar perfil"
+          }
+          kind={kind}
+          current={accountForm?.[key] || currentUser[key] || "default"}
+          onClose={() => {
+            root.unmount();
+            host.remove();
+          }}
+          onApply={async (value) => {
+            try {
+              const result = await api.updateMe({ [key]: value });
+              onUserUpdate(result.user);
+              setMembers((current) =>
+                current.map((member) =>
+                  member.id === result.user.id
+                    ? { ...member, ...result.user }
+                    : member,
+                ),
+              );
+              setNotice("Personalização aplicada!");
+              root.unmount();
+              host.remove();
+            } catch (err) {
+              setNotice(err.message);
+            }
+          }}
+        />,
+      );
+    };
+    document.addEventListener("click", onCustomize, true);
+    return () => document.removeEventListener("click", onCustomize, true);
+  }, [settingsOpen, settingsTab, currentUser, accountForm]);
+  useEffect(() => {
+    if (selectedServer && homeTab.startsWith("dm:")) setHomeTab("online");
+  }, [selectedServer, homeTab]);
+  useEffect(() => {
+    if (!currentUser.isCreator) return;
+    const onContextMenu = (event) => {
+      const card = event.target.closest(".profile-card");
+      if (card && profileData?.user) {
+        event.preventDefault();
+        event.stopPropagation();
+        setBadgeMenu({
+          x: Math.min(event.clientX, window.innerWidth - 240),
+          y: Math.min(event.clientY, window.innerHeight - 70),
+          user: profileData.user,
+        });
+        return;
+      }
+      const row = event.target.closest(".member, .voice-member, .message");
+      if (!row) return;
+      const username =
+        row.querySelector(".member-role")?.textContent?.replace(/^@/, "") ||
+        row.querySelector(".message-meta strong")?.textContent;
+      const displayName =
+        row.querySelector(".voice-member-name")?.textContent ||
+        row.querySelector(".message-meta strong")?.textContent ||
+        row.querySelector("strong")?.textContent;
+      const target =
+        members.find(
+          (item) =>
+            item.username === username || item.displayName === displayName,
+        ) ||
+        messages.find((item) => item.author?.displayName === displayName)
+          ?.author ||
+        Object.values(voiceStates)
+          .flat()
+          .find((item) => item.displayName === displayName);
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setBadgeMenu({
+        x: Math.min(event.clientX, window.innerWidth - 240),
+        y: Math.min(event.clientY, window.innerHeight - 70),
+        user: target,
+      });
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
+  }, [currentUser.isCreator, profileData, members, messages, voiceStates]);
+  useEffect(() => {
+    api
+      .servers()
+      .then((result) => {
+        setServers(result.servers);
+        if (
+          result.servers.length === 0 &&
+          !localStorage.getItem("sesh_onboarded")
+        )
+          setOnboardOpen(true);
+      })
+      .catch((err) => setNotice(err.message));
+    api
+      .friends()
+      .then(setFriendsData)
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!selectedServer) return;
+    const channel =
+      selectedServer.channels.find((item) => item.type === "text") ||
+      selectedServer.channels[0];
+    setSelectedChannel(channel);
+    if (channel?.type === "text")
+      api.messages(channel.id).then((result) => setMessages(result.messages));
+    api.me().then(() => {});
+    api
+      .server(selectedServer.id)
+      .then((result) => {
+        setMembers(result.members || []);
+        if (Array.isArray(result.voice))
+          setVoiceStates((current) => {
+            const next = { ...current };
+            for (const item of result.voice)
+              next[item.channelId] = item.participants;
+            return next;
+          });
+      });
+  }, [selectedServer]);
+  useEffect(() => {
+    socketRef.current = connectSocket(async (event) => {
+      if (event.type === "message.created")
+        setMessages((current) =>
+          event.message.channelId === selectedChannel?.id &&
+          !current.some((item) => item.id === event.message.id)
+            ? [...current, event.message]
+            : current,
+        );
+      if (event.type === "channel.created") {
+        setServers((current) =>
+          current.map((server) =>
+            server.id === event.serverId &&
+            !server.channels.some((item) => item.id === event.channel.id)
+              ? { ...server, channels: [...server.channels, event.channel] }
+              : server,
+          ),
+        );
+        setSelectedServer((current) =>
+          current?.id === event.serverId &&
+          !current.channels.some((item) => item.id === event.channel.id)
+            ? { ...current, channels: [...current.channels, event.channel] }
+            : current,
+        );
+      }
+      if (event.type === "channel.updated") {
+        setServers((current) =>
+          current.map((server) =>
+            server.id === event.serverId
+              ? {
+                  ...server,
+                  channels: server.channels.map((item) =>
+                    item.id === event.channel.id ? event.channel : item,
+                  ),
+                }
+              : server,
+          ),
+        );
+        setSelectedServer((current) =>
+          current?.id === event.serverId
+            ? {
+                ...current,
+                channels: current.channels.map((item) =>
+                  item.id === event.channel.id ? event.channel : item,
+                ),
+              }
+            : current,
+        );
+        setSelectedChannel((current) =>
+          current?.id === event.channel.id ? event.channel : current,
+        );
+      }
+      if (event.type === "channel.deleted") {
+        setServers((current) =>
+          current.map((server) =>
+            server.id === event.serverId
+              ? {
+                  ...server,
+                  channels: server.channels.filter(
+                    (item) => item.id !== event.channelId,
+                  ),
+                }
+              : server,
+          ),
+        );
+        setSelectedServer((current) =>
+          current?.id === event.serverId
+            ? {
+                ...current,
+                channels: current.channels.filter(
+                  (item) => item.id !== event.channelId,
+                ),
+              }
+            : current,
+        );
+      }
+      if (event.type === "server.updated") {
+        setServers((current) =>
+          current.map((server) =>
+            server.id === event.serverId
+              ? { ...server, ...event.server }
+              : server,
+          ),
+        );
+        setSelectedServer((current) =>
+          current?.id === event.serverId
+            ? { ...current, ...event.server }
+            : current,
+        );
+      }
+      if (event.type === "member.joined") {
+        api.me().then(() => {});
+        if (selectedServer?.id === event.serverId)
+          api
+            .server(event.serverId)
+            .then((result) => setMembers(result.members || []));
+      }
+      if (event.type === "user.updated") {
+        setMessages((current) =>
+          current.map((message) =>
+            message.author.id === event.user.id
+              ? { ...message, author: event.user }
+              : message,
+          ),
+        );
+        setMembers((current) =>
+          current.map((member) =>
+            member.id === event.user.id
+              ? {
+                  ...member,
+                  displayName: event.user.displayName,
+                  username: event.user.username,
+                  avatarColor: event.user.avatarColor,
+                  avatar: event.user.avatar,
+                }
+              : member,
+          ),
+        );
+        onUserUpdate(event.user);
+      }
+      if (event.type === "friends.updated")
+        api
+          .friends()
+          .then(setFriendsData)
+          .catch(() => {});
+      if (event.type === "presence.updated")
+        setPresenceMap((current) => ({
+          ...current,
+          [event.userId]: event.presence,
+        }));
+      if (event.type === "voice.state")
+        setVoiceStates((current) => ({
+          ...current,
+          [event.channelId]: event.participants,
+        }));
+      if (event.type === "voice.participants") {
+        setVoiceParticipants(event.participants);
+        if (!voiceActiveRef.current) return;
+        for (const participant of event.participants)
+          if (
+            participant.id !== currentUser.id &&
+            currentUser.id < participant.id &&
+            !peersRef.current.has(participant.id)
+          )
+            await createPeer(participant.id, true);
+        for (const peerId of [...peersRef.current.keys()])
+          if (
+            !event.participants.some((participant) => participant.id === peerId)
+          ) {
+            peersRef.current.get(peerId)?.close();
+            peersRef.current.delete(peerId);
+            setRemoteVideos((current) => {
+              const next = { ...current };
+              delete next[peerId];
+              return next;
+            });
+          }
+      }
+      if (event.type === "voice.offer" && voiceActiveRef.current) {
+        const peer = await createPeer(event.fromUserId, false);
+        await peer.setRemoteDescription(event.offer);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        socketRef.current?.send({
+          type: "voice.answer",
+          targetUserId: event.fromUserId,
+          answer,
+        });
+      }
+      if (event.type === "voice.answer") {
+        const peer = peersRef.current.get(event.fromUserId);
+        if (peer) await peer.setRemoteDescription(event.answer);
+      }
+      if (event.type === "voice.ice") {
+        const peer = peersRef.current.get(event.fromUserId);
+        if (peer && event.candidate)
+          await peer.addIceCandidate(event.candidate);
+      }
+    });
+    return () => {
+      socketRef.current?.close();
+      socketRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (!contextMenu && !badgeMenu) return;
+    const close = () => {
+      setContextMenu(null);
+      setBadgeMenu(null);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu, badgeMenu]);
+  async function createPeer(targetUserId, initiator) {
+    if (peersRef.current.has(targetUserId))
+      return peersRef.current.get(targetUserId);
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    localStreamRef.current
+      ?.getTracks()
+      .forEach((track) => peer.addTrack(track, localStreamRef.current));
+    const videoTransceiver = peer.addTransceiver("video", {
+      direction: "sendrecv",
+    });
+    const activeVideoTrack =
+      screenTrackRef.current || camTrackRef.current || null;
+    if (activeVideoTrack)
+      await videoTransceiver.sender.replaceTrack(activeVideoTrack);
+    peer.onicecandidate = (event) => {
+      if (event.candidate)
+        socketRef.current?.send({
+          type: "voice.ice",
+          targetUserId,
+          candidate: event.candidate,
+        });
+    };
+    peer.ontrack = (event) => {
+      const stream = event.streams[0] || new MediaStream([event.track]);
+      if (event.track.kind === "video") {
+        const showRemoteVideo = () =>
+          setRemoteVideos((current) => ({
+            ...current,
+            [targetUserId]: stream,
+          }));
+        showRemoteVideo();
+        event.track.onunmute = showRemoteVideo;
+        event.track.onmute = () =>
+          setRemoteVideos((current) => {
+            const next = { ...current };
+            delete next[targetUserId];
+            return next;
+          });
+        event.track.onended = () =>
+          setRemoteVideos((current) => {
+            const next = { ...current };
+            delete next[targetUserId];
+            return next;
+          });
+      } else {
+        const audio = audioRefs.current.get(targetUserId) || new Audio();
+        audio.autoplay = true;
+        audio.muted = deafenedRef.current;
+        audio.srcObject = stream;
+        const outputDevice = localStorage.getItem("sesh_audio_output");
+        if (outputDevice && typeof audio.setSinkId === "function")
+          audio.setSinkId(outputDevice).catch(() => {});
+        audioRefs.current.set(targetUserId, audio);
+        attachAnalyser(targetUserId, stream);
+      }
+    };
+    peersRef.current.set(targetUserId, peer);
+    if (initiator) {
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      socketRef.current?.send({ type: "voice.offer", targetUserId, offer });
+    }
+    return peer;
+  }
+  async function joinVoice(targetChannel) {
+    const target =
+      targetChannel && targetChannel.type ? targetChannel : selectedChannel;
+    if (!target || target.type !== "voice") return;
+    if (voiceConnected) {
+      if (voiceChannel?.id === target.id) return;
+      socketRef.current?.send({
+        type: "voice.leave",
+        channelId: voiceChannel.id,
+      });
+      peersRef.current.forEach((peer) => peer.close());
+      peersRef.current.clear();
+      audioRefs.current.forEach((audio) => {
+        audio.srcObject = null;
+      });
+      audioRefs.current.clear();
+      stopAnalysers();
+    }
+    if (!localStreamRef.current) {
+      try {
+        const audioInput = localStorage.getItem("sesh_audio_input");
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            ...(audioInput ? { deviceId: { exact: audioInput } } : {}),
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch {
+        setNotice("Você entrou no modo escuta (sem microfone detectado).");
+      }
+    }
+    voiceActiveRef.current = true;
+    attachAnalyser(currentUser.id, localStreamRef.current);
+    setVoiceChannel(target);
+    setVoiceConnected(true);
+    socketRef.current?.send({ type: "voice.join", channelId: target.id });
+    startSpeakingLoop();
+  }
+  function leaveVoice() {
+    if (!voiceConnected) return;
+    if (voiceChannel)
+      socketRef.current?.send({
+        type: "voice.leave",
+        channelId: voiceChannel.id,
+      });
+    peersRef.current.forEach((peer) => peer.close());
+    peersRef.current.clear();
+    audioRefs.current.forEach((audio) => {
+      audio.srcObject = null;
+    });
+    audioRefs.current.clear();
+    stopAnalysers();
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+    camTrackRef.current?.stop();
+    camTrackRef.current = null;
+    screenTrackRef.current?.stop();
+    screenTrackRef.current = null;
+    voiceActiveRef.current = false;
+    setVoiceConnected(false);
+    setVoiceChannel(null);
+    setMuted(false);
+    setDeafened(false);
+    deafenedRef.current = false;
+    setCamOn(false);
+    setScreenOn(false);
+    setVoiceParticipants([]);
+    setRemoteVideos({});
+    setFocusedVideoId(null);
+  }
+  function toggleMute() {
+    if (!voiceConnected)
+      return setNotice("Entre em uma chamada para usar o microfone.");
+    const next = !muted;
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = !next;
+    });
+    setMuted(next);
+  }
+  function toggleDeafen() {
+    if (!voiceConnected)
+      return setNotice("Entre em uma chamada para usar o áudio.");
+    const next = !deafened;
+    deafenedRef.current = next;
+    audioRefs.current.forEach((audio) => {
+      audio.muted = next;
+    });
+    setDeafened(next);
+  }
+  async function replaceVideoTrack(track) {
+    for (const [, peer] of peersRef.current) {
+      const transceiver = peer
+        .getTransceivers()
+        .find((item) => item.receiver?.track?.kind === "video");
+      if (transceiver) await transceiver.sender.replaceTrack(track);
+      else if (track) peer.addTrack(track, new MediaStream([track]));
+    }
+  }
+  async function toggleCam() {
+    if (!voiceConnected) return setNotice("Entre em uma chamada primeiro.");
+    if (camOn) {
+      if (camTrackRef.current) camTrackRef.current.onended = null;
+      camTrackRef.current?.stop();
+      camTrackRef.current = null;
+      setCamOn(false);
+      if (!screenTrackRef.current) await replaceVideoTrack(null);
+      return;
+    }
+    try {
+      const videoInput = localStorage.getItem("sesh_video_input");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          ...(videoInput ? { deviceId: { exact: videoInput } } : {}),
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+      });
+      camTrackRef.current = stream.getVideoTracks()[0];
+      camTrackRef.current.onended = async () => {
+        camTrackRef.current = null;
+        setCamOn(false);
+        if (!screenTrackRef.current) await replaceVideoTrack(null);
+      };
+      setCamOn(true);
+      if (!screenTrackRef.current) await replaceVideoTrack(camTrackRef.current);
+    } catch {
+      setNotice("Não foi possível acessar a câmera.");
+    }
+  }
+  async function toggleScreen() {
+    if (!voiceConnected) return setNotice("Entre em uma chamada primeiro.");
+    if (screenOn) {
+      if (screenTrackRef.current) screenTrackRef.current.onended = null;
+      screenTrackRef.current?.stop();
+      screenTrackRef.current = null;
+      setScreenOn(false);
+      await replaceVideoTrack(camTrackRef.current || null);
+      return;
+    }
+    try {
+      if (!navigator.mediaDevices?.getDisplayMedia)
+        return setNotice(
+          "Este ambiente não oferece compartilhamento de tela. Use Chrome, Edge ou o app desktop.",
+        );
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30, max: 30 } },
+        audio: false,
+      });
+      screenTrackRef.current = stream.getVideoTracks()[0];
+      if (!screenTrackRef.current)
+        throw new Error("Nenhuma tela foi selecionada.");
+      screenTrackRef.current.onended = async () => {
+        screenTrackRef.current = null;
+        setScreenOn(false);
+        await replaceVideoTrack(camTrackRef.current || null);
+      };
+      setScreenOn(true);
+      await replaceVideoTrack(screenTrackRef.current);
+    } catch (error) {
+      setNotice(
+        error?.name === "NotAllowedError"
+          ? "Compartilhamento de tela cancelado."
+          : "Não foi possível iniciar o compartilhamento de tela.",
+      );
+    }
+  }
+  function videoStreamFor(participant) {
+    return participant.id === currentUser.id
+      ? localVideoStream
+      : remoteVideos[participant.id] || null;
+  }
+  async function toggleVideoFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+      const viewer = document.querySelector(".voice-focus-panel");
+      if (viewer?.requestFullscreen) await viewer.requestFullscreen();
+      else setNotice("Tela cheia não está disponível neste ambiente.");
+    } catch {
+      setNotice("Não foi possível ativar o modo tela cheia.");
+    }
+  }
+  function attachAnalyser(userId, stream) {
+    if (!stream) return;
+    try {
+      audioCtxRef.current ||= new (window.AudioContext ||
+        window.webkitAudioContext)();
+      audioCtxRef.current.resume?.();
+      const source = audioCtxRef.current.createMediaStreamSource(stream);
+      const analyser = audioCtxRef.current.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      analysersRef.current.set(userId, {
+        source,
+        analyser,
+        data: new Uint8Array(analyser.frequencyBinCount),
+      });
+    } catch {
+      /* sem áudio analisável */
+    }
+  }
+  function stopAnalysers() {
+    analysersRef.current.forEach((item) => {
+      try {
+        item.source.disconnect();
+      } catch {
+        /* já desconectado */
+      }
+    });
+    analysersRef.current.clear();
+    speakingRef.current = {};
+    setSpeaking({});
+  }
+  function startSpeakingLoop() {
+    const tick = () => {
+      if (!voiceActiveRef.current) return;
+      const next = {};
+      analysersRef.current.forEach((item, userId) => {
+        item.analyser.getByteFrequencyData(item.data);
+        let sum = 0;
+        for (let i = 0; i < item.data.length; i++) sum += item.data[i];
+        if (sum / item.data.length > 12) next[userId] = true;
+      });
+      const prev = speakingRef.current;
+      const changed =
+        Object.keys(next).some((key) => !prev[key]) ||
+        Object.keys(prev).some((key) => !next[key]);
+      if (changed) {
+        speakingRef.current = next;
+        setSpeaking(next);
+      }
+      setTimeout(tick, 180);
+    };
+    tick();
+  }
+  const filteredMessages = useMemo(() => {
+    if (!search.trim()) return messages;
+    return messages.filter(
+      (message) =>
+        message.content.toLowerCase().includes(search.toLowerCase()) ||
+        message.author.displayName.toLowerCase().includes(search.toLowerCase()),
+    );
+  }, [messages, search]);
+  const orderedChannels = useMemo(() => {
+    if (!selectedServer) return [];
+    return [...selectedServer.channels].sort(
+      (a, b) =>
+        Number(pinnedChannels.includes(b.id)) -
+          Number(pinnedChannels.includes(a.id)) || a.position - b.position,
+    );
+  }, [selectedServer, pinnedChannels]);
+  const isOwner = selectedServer?.role === "owner";
+  function saveList(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  function toggleChannelFlag(list, setList, key, channelId) {
+    const next = list.includes(channelId)
+      ? list.filter((item) => item !== channelId)
+      : [...list, channelId];
+    setList(next);
+    saveList(key, next);
+  }
+  function copyText(text) {
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => setNotice("Copiado para a área de transferência."))
+      .catch(() => setNotice("Não foi possível copiar."));
+  }
+  function askText(title, placeholder, initialValue, callback) {
+    setDialog({ title, placeholder, value: initialValue || "", callback });
+  }
+  function submitDialog() {
+    if (!dialog.value.trim()) {
+      setDialog({ ...dialog, error: "Digite um nome." });
+      return;
+    }
+    const callback = dialog.callback;
+    setDialog(null);
+    callback(dialog.value.trim());
+  }
+  function applyServerChannels(serverId, updater) {
+    setServers((current) =>
+      current.map((server) =>
+        server.id === serverId
+          ? { ...server, channels: updater(server.channels) }
+          : server,
+      ),
+    );
+    setSelectedServer((current) =>
+      current?.id === serverId
+        ? { ...current, channels: updater(current.channels) }
+        : current,
+    );
+  }
+  function copyInvite() {
+    copyText(selectedServer.id);
+    setNotice(
+      `Convite copiado! Quem colar este ID no botão "+" entra em "${selectedServer.name}".`,
+    );
+  }
+  function openProfile(event, userId) {
+    event.stopPropagation();
+    setProfileView({
+      x: Math.min(event.clientX + 12, window.innerWidth - 352),
+      y: Math.min(event.clientY - 40, window.innerHeight - 500),
+      userId,
+    });
+  }
+  function presenceFor(userId) {
+    for (const list of Object.values(voiceStates))
+      if ((list || []).some((participant) => participant.id === userId))
+        return "voice";
+    if (userId === currentUser.id) {
+      if (voiceConnected) return "voice";
+      const own = currentUser.status || "online";
+      return own === "invisible" ? "offline" : own;
+    }
+    return (
+      presenceMap[userId] ||
+      friendsData.friends.find((person) => person.id === userId)?.presence ||
+      "offline"
+    );
+  }
+  async function setStatus(status) {
+    setStatusMenu(false);
+    try {
+      const result = await api.updateMe({ status });
+      onUserUpdate(result.user);
+      setNotice(
+        `Status alterado para ${status === "online" ? "Online" : status === "idle" ? "Ausente" : status === "dnd" ? "Não perturbar" : "Invisível"}.`,
+      );
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  function openSettings(tab = profileView ? "account" : "appearance") {
+    setAccountForm({
+      displayName: currentUser.displayName,
+      username: currentUser.username,
+      bio: currentUser.bio || "",
+      badges: currentUser.badges || [],
+      avatar: currentUser.avatar,
+      banner: currentUser.banner || null,
+      email: currentUser.email || "",
+      password: "",
+    });
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  }
+  function openBadgeEditor(user) {
+    if (!currentUser.isCreator) return;
+    setBadgeMenu(null);
+    setBadgeEditor({ user, badges: [...(user.badges || [])] });
+  }
+  async function saveBadges(badges) {
+    if (!badgeEditor) return;
+    try {
+      const result = await api.updateUserBadges(badgeEditor.user.id, badges);
+      setBadgeEditor(null);
+      setProfileView(null);
+      setNotice("Insígnias atualizadas!");
+      if (badgeEditor.user.id === currentUser.id) onUserUpdate(result.user);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  function onAvatarFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024)
+      return setNotice("Escolha uma imagem de até 3 MB (GIF funciona!).");
+    const reader = new FileReader();
+    reader.onload = () =>
+      setAccountForm((current) =>
+        current ? { ...current, avatar: String(reader.result) } : current,
+      );
+    reader.readAsDataURL(file);
+  }
+  function onBannerFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024)
+      return setNotice("Escolha uma imagem de até 3 MB (GIF funciona!).");
+    const reader = new FileReader();
+    reader.onload = () =>
+      setAccountForm((current) =>
+        current ? { ...current, banner: String(reader.result) } : current,
+      );
+    reader.readAsDataURL(file);
+  }
+  function bannerStyle(banner) {
+    if (!banner) return undefined;
+    return String(banner).startsWith("data:image/")
+      ? {
+          backgroundImage: `url(${banner})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }
+      : { background: banner };
+  }
+  async function saveProfile() {
+    if (!accountForm) return setNotice("Nada para salvar.");
+    try {
+      const input = {
+        displayName: accountForm.displayName,
+        username: accountForm.username,
+        bio: accountForm.bio,
+        avatar: accountForm.avatar,
+        banner: accountForm.banner,
+      };
+      if (currentUser.isCreator) input.badges = accountForm.badges;
+      const result = await api.updateMe(input);
+      onUserUpdate(result.user);
+      setNotice("Perfil atualizado!");
+      setSettingsOpen(false);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function saveProfileSettings(form) {
+    try {
+      const input = {
+        displayName: form.displayName,
+        username: form.username,
+        bio: form.bio,
+        avatar: form.avatar,
+        banner: form.banner,
+        email: form.email,
+        favoriteGame: form.favoriteGame,
+        activityText: form.activityText,
+        wishlist: form.wishlist,
+      };
+      if (form.password) input.password = form.password;
+      if (currentUser.isCreator) input.badges = form.badges;
+      const result = await api.updateMe(input);
+      onUserUpdate(result.user);
+      setNotice("Perfil atualizado!");
+      setSettingsOpen(false);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function saveProfileCustomization(values) {
+    try {
+      const result = await api.updateMe(values);
+      onUserUpdate(result.user);
+      setAccountForm((current) =>
+        current ? { ...current, ...result.user } : result.user,
+      );
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === result.user.id ? { ...member, ...result.user } : member,
+        ),
+      );
+      if (values.nameStyle)
+        localStorage.setItem("sesh_name_style", values.nameStyle);
+      if (values.nameEffect)
+        localStorage.setItem("sesh_name_effect", values.nameEffect);
+      if (values.nameColor)
+        localStorage.setItem("sesh_name_color", values.nameColor);
+      setNotice("Personalização aplicada!");
+      return result.user;
+    } catch (err) {
+      setNotice(err.message);
+      throw err;
+    }
+  }
+  function openVoiceFromProfile(voice) {
+    const found = servers
+      .map((server) => ({
+        server,
+        channel: server.channels.find((item) => item.id === voice.channelId),
+      }))
+      .find((item) => item.channel);
+    if (!found) return setNotice("Entre no servidor dessa chamada para abrir.");
+    if (voiceConnected) leaveVoice();
+    setSelectedServer(found.server);
+    setSelectedChannel(found.channel);
+    setProfileView(null);
+    joinVoice(found.channel);
+  }
+  async function sendMessage(event) {
+    event.preventDefault();
+    if (!draft.trim() || !selectedChannel) return;
+    try {
+      const result = await api.sendMessage(selectedChannel.id, draft.trim());
+      setMessages((current) =>
+        current.some((item) => item.id === result.message.id)
+          ? current
+          : [...current, result.message],
+      );
+      setDraft("");
+      if (guideServer === selectedChannel.serverId) dismissGuide();
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  function createServer() {
+    setServerModal({
+      step: "choice",
+      name: "",
+      icon: null,
+      template: null,
+      server: null,
+      busy: false,
+    });
+  }
+  function onServerIconFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 1.5 * 1024 * 1024)
+      return setNotice("Escolha uma imagem de até 1,5 MB.");
+    const reader = new FileReader();
+    reader.onload = () =>
+      setServerModal((current) =>
+        current ? { ...current, icon: String(reader.result) } : current,
+      );
+    reader.readAsDataURL(file);
+  }
+  async function submitCreateServer() {
+    const modal = serverModal;
+    if (!modal.name.trim() || modal.busy) return;
+    setServerModal({ ...modal, busy: true });
+    try {
+      const result = await api.createServer(modal.name.trim(), {
+        icon: modal.icon,
+        template: modal.template,
+      });
+      localStorage.setItem("sesh_onboarded", "1");
+      setServers((current) =>
+        current.some((item) => item.id === result.server.id)
+          ? current
+          : [...current, result.server],
+      );
+      setServerModal(null);
+      setSelectedServer(result.server);
+      setGuideServer(result.server.id);
+    } catch (err) {
+      setNotice(err.message);
+      setServerModal({ ...modal, busy: false });
+    }
+  }
+  async function uploadServerIcon(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 1.5 * 1024 * 1024)
+      return setNotice("Escolha uma imagem de até 1,5 MB.");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const result = await api.updateServer(selectedServer.id, {
+          icon: String(reader.result),
+        });
+        setServers((current) =>
+          current.map((item) =>
+            item.id === result.server.id
+              ? { ...item, icon: result.server.icon }
+              : item,
+          ),
+        );
+        setSelectedServer((current) =>
+          current?.id === result.server.id
+            ? { ...current, icon: result.server.icon }
+            : current,
+        );
+        setNotice("Ícone do servidor atualizado!");
+      } catch (err) {
+        setNotice(err.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  async function saveServerSettings(values) {
+    const result = await api.updateServer(selectedServer.id, values);
+    setServers((current) =>
+      current.map((server) =>
+        server.id === result.server.id
+          ? { ...server, ...result.server }
+          : server,
+      ),
+    );
+    setSelectedServer((current) =>
+      current?.id === result.server.id
+        ? { ...current, ...result.server }
+        : current,
+    );
+    setNotice("Configurações do servidor atualizadas!");
+    return result.server;
+  }
+  function dismissGuide() {
+    if (guideServer) localStorage.setItem(`sesh_guide_${guideServer}`, "1");
+    setGuideServer(null);
+  }
+  async function submitJoinServer() {
+    const modal = serverModal;
+    const invite = modal.invite.trim();
+    if (!invite || modal.busy) return;
+    setServerModal({ ...modal, busy: true });
+    try {
+      const result = await api.joinServer(invite);
+      localStorage.setItem("sesh_onboarded", "1");
+      setServers((current) =>
+        current.some((item) => item.id === result.server.id)
+          ? current
+          : [...current, result.server],
+      );
+      setSelectedServer(result.server);
+      setServerModal(null);
+      setNotice(`Você entrou em "${result.server.name}".`);
+    } catch (err) {
+      setNotice(err.message);
+      setServerModal({ ...modal, busy: false });
+    }
+  }
+  function skipOnboard() {
+    localStorage.setItem("sesh_onboarded", "1");
+    setOnboardOpen(false);
+  }
+  async function submitAddFriend(event) {
+    event.preventDefault();
+    if (!addFriendValue.trim()) return;
+    try {
+      const result = await api.addFriend(
+        addFriendValue.trim().replace(/^@/, ""),
+      );
+      setNotice(
+        result.accepted
+          ? "Vocês agora são amigos!"
+          : `Convite enviado para @${addFriendValue.trim().replace(/^@/, "")}.`,
+      );
+      setAddFriendValue("");
+      api
+        .friends()
+        .then(setFriendsData)
+        .catch(() => {});
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function acceptFriendRequest(friendshipId) {
+    try {
+      await api.acceptFriend(friendshipId);
+      api
+        .friends()
+        .then(setFriendsData)
+        .catch(() => {});
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function removeFriendRow(friendshipId) {
+    try {
+      await api.removeFriend(friendshipId);
+      api
+        .friends()
+        .then(setFriendsData)
+        .catch(() => {});
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function createChannel(preType = "text") {
+    if (!selectedServer) return;
+    if (!isOwner)
+      return setNotice("Somente o dono do servidor pode criar canais.");
+    setChannelModal({ type: preType, name: "", private: false });
+  }
+  async function submitChannelModal() {
+    const modal = channelModal;
+    const name = modal.name.trim();
+    if (!name) return;
+    await addChannel(name, modal.type);
+    setChannelModal(null);
+  }
+  async function addChannel(name, type) {
+    if (!selectedServer || !name?.trim()) return;
+    try {
+      const result = await api.createChannel(selectedServer.id, {
+        name: name.trim(),
+        type,
+      });
+      applyServerChannels(selectedServer.id, (channels) => [
+        ...channels,
+        result.channel,
+      ]);
+      setSelectedChannel(result.channel);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function editChannel(channel, name) {
+    try {
+      const result = await api.updateChannel(channel.id, { name });
+      applyServerChannels(channel.serverId, (channels) =>
+        channels.map((item) =>
+          item.id === channel.id ? result.channel : item,
+        ),
+      );
+      setSelectedChannel((current) =>
+        current?.id === channel.id ? result.channel : current,
+      );
+      setNotice("Canal atualizado.");
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function removeChannel(channel) {
+    try {
+      await api.deleteChannel(channel.id);
+      applyServerChannels(channel.serverId, (channels) =>
+        channels.filter((item) => item.id !== channel.id),
+      );
+      if (selectedChannel?.id === channel.id) {
+        const remaining = selectedServer.channels.filter(
+          (item) => item.id !== channel.id,
+        );
+        setSelectedChannel(
+          remaining.find((item) => item.type === "text") ||
+            remaining[0] ||
+            null,
+        );
+      }
+      setNotice("Canal excluído.");
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  const listFriends = friendsData.friends.filter(
+    (person) =>
+      (homeTab === "online" ? person.presence !== "offline" : true) &&
+      (!friendQuery.trim() ||
+        person.displayName.toLowerCase().includes(friendQuery.toLowerCase()) ||
+        person.username.includes(friendQuery.toLowerCase())),
+  );
+  const activeNow = friendsData.friends.filter(
+    (person) => person.presence === "voice" || person.presence === "online",
+  );
+  const statusMenuEl = () => (
+    <div className="status-menu" onClick={(event) => event.stopPropagation()}>
+      {[
+        ["online", "Online"],
+        ["idle", "Ausente"],
+        ["dnd", "Não perturbar"],
+        ["invisible", "Invisível"],
+      ].map(([value, label]) => (
+        <button
+          key={value}
+          className={`status-row ${currentUser.status === value ? "status-row-on" : ""}`}
+          onClick={() => setStatus(value)}
+        >
+          <span
+            className={`presence-dot presence-dot-menu presence-${value === "invisible" ? "offline" : value}`}
+          />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  const guideActive =
+    guideServer === selectedServer?.id &&
+    !localStorage.getItem(`sesh_guide_${selectedServer?.id}`);
+  const overlays = (
+    <>
+      {serverSettingsOpen && selectedServer && (
+        <ServerSettingsPanel
+          server={selectedServer}
+          onClose={() => setServerSettingsOpen(false)}
+          onSave={saveServerSettings}
+        />
+      )}
+      {settingsOpen && settingsTab === "appearance" && (
+        <VoiceSettingsPanel
+          user={currentUser}
+          onClose={() => setSettingsOpen(false)}
+          onAccount={() => setSettingsTab("account")}
+        />
+      )}
+      {settingsOpen && settingsTab === "account" && accountForm && (
+        <ProfileSettingsPanel
+          user={{ ...currentUser, ...accountForm }}
+          onClose={() => setSettingsOpen(false)}
+          onPrivacy={() => setSettingsTab("appearance")}
+          onSave={saveProfileSettings}
+          onCustomize={saveProfileCustomization}
+        />
+      )}
+      {dialog && (
+        <div className="modal-backdrop" onClick={() => setDialog(null)}>
+          <section
+            className="prompt-dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>{dialog.title}</h3>
+            <input
+              autoFocus
+              value={dialog.value}
+              placeholder={dialog.placeholder}
+              onChange={(event) =>
+                setDialog({ ...dialog, value: event.target.value })
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") submitDialog();
+                if (event.key === "Escape") setDialog(null);
+              }}
+            />
+            {dialog.error && <div className="form-error">{dialog.error}</div>}
+            <div className="prompt-actions">
+              <button className="prompt-cancel" onClick={() => setDialog(null)}>
+                Cancelar
+              </button>
+              <button className="prompt-confirm" onClick={submitDialog}>
+                Confirmar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {profileView && (
+        <div className="profile-backdrop" onClick={() => setProfileView(null)}>
+          <section
+            className="profile-card"
+            style={{ left: profileView.x, top: profileView.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {profileData === "loading" || !profileData ? (
+              <div className="profile-body">Carregando perfil...</div>
+            ) : (
+              <>
+                <div
+                  className="profile-banner"
+                  style={bannerStyle(profileData.user.banner)}
+                />
+                <div className="profile-body">
+                  <span className="avatar-dot-wrap profile-avatar-wrap">
+                    <Avatar
+                      user={profileData.user}
+                      color={profileData.user.avatarColor || "purple"}
+                    />
+                    <span
+                      className={`presence-dot presence-lg presence-${presenceFor(profileData.user.id)}`}
+                    />
+                  </span>
+                  <div className="profile-name">
+                    {profileData.user.displayName}
+                  </div>
+                  <div className="profile-username">
+                    <span>@{profileData.user.username}</span>
+                    {profileData.user.badges?.map((key) => {
+                      const badge = BADGES[key];
+                      return badge ? (
+                        <BadgeIcon
+                          className="profile-badge-img"
+                          key={key}
+                          badge={badge}
+                        />
+                      ) : null;
+                    })}
+                  </div>
+                  {profileData.user.bio && (
+                    <div className="profile-bio">{profileData.user.bio}</div>
+                  )}
+                  {(profileData.user.activityText ||
+                    profileData.user.favoriteGame) && (
+                    <div className="profile-entertainment">
+                      <strong>
+                        {profileData.user.activityText || "Jogando agora"}
+                      </strong>
+                      {profileData.user.favoriteGame && (
+                        <span>{profileData.user.favoriteGame}</span>
+                      )}
+                    </div>
+                  )}
+                  {(profileData.user.activityText ||
+                    profileData.user.favoriteGame) && (
+                    <div className="profile-entertainment">
+                      <strong>
+                        {profileData.user.activityText || "Jogando agora"}
+                      </strong>
+                      {profileData.user.favoriteGame && (
+                        <span>{profileData.user.favoriteGame}</span>
+                      )}
+                    </div>
+                  )}
+                  {profileData.user.bio && profileData.user.bio.length > 80 && (
+                    <button
+                      className="profile-bio-link"
+                      onClick={() => setNotice(profileData.user.bio)}
+                    >
+                      Ver biografia completa
+                    </button>
+                  )}
+                  {profileData.voice && (
+                    <div className="profile-voice">
+                      <div className="profile-voice-title">
+                        <Volume2 size={11} /> EM VOZ
+                      </div>
+                      <div className="profile-voice-channel">
+                        <Volume2 size={14} /> {profileData.voice.channelName}
+                      </div>
+                      <button
+                        className="profile-voice-join"
+                        onClick={() => openVoiceFromProfile(profileData.voice)}
+                      >
+                        Abrir chamada de voz
+                      </button>
+                    </div>
+                  )}
+                  {profileData.user.id === currentUser.id && (
+                    <button
+                      className="profile-voice-join"
+                      onClick={() => {
+                        setProfileView(null);
+                        openSettings();
+                      }}
+                    >
+                      Editar perfil
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+      {notice && (
+        <button className="notice" onClick={() => setNotice("")}>
+          {notice}
+        </button>
+      )}
+      {false && settingsOpen && (
+        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <section
+            className="settings-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              onClick={() => setSettingsOpen(false)}
+            >
+              <X size={18} />
+            </button>
+            <div className="settings-nav">
+              <strong>Configurações</strong>
+              <button
+                className={
+                  settingsTab === "account" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("account")}
+              >
+                Minha conta
+              </button>
+              <button
+                className={
+                  settingsTab === "appearance" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("appearance")}
+              >
+                Aparência
+              </button>
+              <button
+                className={
+                  settingsTab === "notifications" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("notifications")}
+              >
+                Notificações
+              </button>
+              <button
+                className={
+                  settingsTab === "privacy" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("privacy")}
+              >
+                Privacidade
+              </button>
+              <button className="settings-logout" onClick={onLogout}>
+                Sair da conta
+              </button>
+            </div>
+            <div className="settings-content">
+              {settingsTab === "account" && accountForm && (
+                <>
+                  <h2>Minha conta</h2>
+                  <div className="account-card">
+                    <Avatar
+                      user={{ ...currentUser, avatar: accountForm.avatar }}
+                      color="purple"
+                    />
+                    <div>
+                      <strong>
+                        {accountForm.displayName || currentUser.displayName}
+                      </strong>
+                      <span>
+                        @{accountForm.username || currentUser.username}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="account-actions">
+                    <label className="avatar-upload">
+                      Trocar foto / GIF
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={onAvatarFile}
+                      />
+                    </label>
+                    {accountForm.avatar && (
+                      <button
+                        className="secondary-setting"
+                        onClick={() =>
+                          setAccountForm({ ...accountForm, avatar: null })
+                        }
+                      >
+                        Remover foto
+                      </button>
+                    )}
+                  </div>
+                  <div className="banner-editor">
+                    <div className="account-actions">
+                      <label className="avatar-upload">
+                        Banner do perfil (imagem, GIF ou cor)
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={onBannerFile}
+                        />
+                      </label>
+                      {accountForm.banner && (
+                        <button
+                          className="secondary-setting"
+                          onClick={() =>
+                            setAccountForm({ ...accountForm, banner: null })
+                          }
+                        >
+                          Remover banner
+                        </button>
+                      )}
+                    </div>
+                    {accountForm.banner && (
+                      <div
+                        className="banner-preview"
+                        style={bannerStyle(accountForm.banner)}
+                      />
+                    )}
+                    <div className="banner-swatches">
+                      {[
+                        "#5865f2",
+                        "#23a55a",
+                        "#e4ad51",
+                        "#b24e64",
+                        "#7661e9",
+                        "#eb459e",
+                        "#1a1a1a",
+                      ].map((color) => (
+                        <button
+                          type="button"
+                          key={color}
+                          className={`banner-swatch ${accountForm.banner === color ? "banner-swatch-on" : ""}`}
+                          style={{ background: color }}
+                          title={color}
+                          onClick={() =>
+                            setAccountForm({ ...accountForm, banner: color })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <label>
+                    Nome de exibição
+                    <input
+                      value={accountForm.displayName}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          displayName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Nome de usuário
+                    <input
+                      value={accountForm.username}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          username: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Bio
+                    <input
+                      value={accountForm.bio}
+                      placeholder="Fale um pouco sobre você"
+                      maxLength={300}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          bio: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="badge-picker-title">Insígnias do perfil</div>
+                  <div className="badge-picker">
+                    {Object.entries(BADGES).map(([key, badge]) => (
+                      <label className="setting-check" key={key}>
+                        <input
+                          type="checkbox"
+                          checked={accountForm.badges.includes(key)}
+                          onChange={(event) =>
+                            setAccountForm({
+                              ...accountForm,
+                              badges: event.target.checked
+                                ? [...accountForm.badges, key]
+                                : accountForm.badges.filter(
+                                    (item) => item !== key,
+                                  ),
+                            })
+                          }
+                        />{" "}
+                        <img
+                          className="badge-picker-img"
+                          src={badge.image}
+                          alt={badge.label}
+                        />{" "}
+                        {badge.label}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              {settingsTab === "appearance" && (
+                <>
+                  <h2>Aparência</h2>
+                  <label>
+                    Tema
+                    <select
+                      value={theme}
+                      onChange={(event) => {
+                        setTheme(event.target.value);
+                        savePreference("orbit_theme", event.target.value);
+                      }}
+                    >
+                      <option value="dark">Escuro</option>
+                      <option value="midnight">Meia-noite</option>
+                      <option value="light">Claro</option>
+                    </select>
+                  </label>
+                  <label className="setting-check">
+                    <input
+                      type="checkbox"
+                      checked={compactMode}
+                      onChange={(event) => {
+                        setCompactMode(event.target.checked);
+                        savePreference("orbit_compact", event.target.checked);
+                      }}
+                    />{" "}
+                    Interface compacta
+                  </label>
+                </>
+              )}
+              {settingsTab === "notifications" && (
+                <>
+                  <h2>Notificações</h2>
+                  <label className="setting-check">
+                    <input
+                      type="checkbox"
+                      checked={notifications}
+                      onChange={(event) => {
+                        setNotifications(event.target.checked);
+                        savePreference(
+                          "orbit_notifications",
+                          event.target.checked,
+                        );
+                      }}
+                    />{" "}
+                    Mostrar notificações de novas mensagens
+                  </label>
+                  <p className="settings-help">
+                    As preferências são salvas neste dispositivo.
+                  </p>
+                </>
+              )}
+              {settingsTab === "privacy" && (
+                <>
+                  <h2>Privacidade</h2>
+                  <p className="settings-help">
+                    Você controla quem pode entrar nos servidores e participar
+                    das chamadas através das permissões do servidor.
+                  </p>
+                  <button
+                    className="secondary-setting"
+                    onClick={() =>
+                      setNotice(
+                        "As configurações de privacidade do servidor estão disponíveis para administradores.",
+                      )
+                    }
+                  >
+                    Ver permissões
+                  </button>
+                </>
+              )}
+              <button className="save-settings" onClick={saveProfile}>
+                Salvar alterações
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {serverModal && (
+        <div className="modal-backdrop" onClick={() => setServerModal(null)}>
+          <section
+            className={`channel-modal server-modal wizard ${serverModal.step === "customize" ? "wizard-customize" : ""}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="channel-modal-head center">
+              <div>
+                <h3>
+                  {serverModal.step === "purpose"
+                    ? "Conte-nos mais sobre o seu servidor"
+                    : serverModal.step === "customize"
+                      ? "Personalize o seu servidor"
+                      : serverModal.step === "invite"
+                        ? "Entrar em um servidor"
+                        : "Criar seu servidor"}
+                </h3>
+                <span className="channel-modal-sub">
+                  {serverModal.step === "purpose"
+                    ? "Para podermos te ajudar com as configurações, seu novo servidor é para alguns amigos ou uma grande comunidade?"
+                    : serverModal.step === "customize"
+                      ? "Deixe seu novo servidor com a sua cara dando um nome e um ícone a ele. Se quiser, é possível mudar depois."
+                      : serverModal.step === "invite"
+                        ? "Cole o ID de convite que você recebeu."
+                        : "Seu servidor é onde você e seus amigos se reúnem. Crie o seu e comece a interagir."}
+                </span>
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => setServerModal(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {serverModal.step === "choice" && (
+              <>
+                <button
+                  className="wizard-row"
+                  onClick={() =>
+                    setServerModal({
+                      ...serverModal,
+                      template: null,
+                      step: "purpose",
+                    })
+                  }
+                >
+                  <span className="wizard-emoji">🎨</span>
+                  <div>
+                    <strong>Criar o meu</strong>
+                  </div>
+                  <ChevronRight size={17} className="wizard-chevron" />
+                </button>
+                <div className="wizard-label">COMEÇAR DE UM MOLDE</div>
+                {[
+                  ["gaming", "🎮", "Jogos"],
+                  ["friends", "💗", "Amigos"],
+                  ["study", "📚", "Grupo de estudos"],
+                  ["school", "🎒", "Clube escolar"],
+                ].map(([tpl, emoji, label]) => (
+                  <button
+                    className="wizard-row"
+                    key={tpl}
+                    onClick={() =>
+                      setServerModal({
+                        ...serverModal,
+                        template: tpl,
+                        step: "purpose",
+                      })
+                    }
+                  >
+                    <span className="wizard-emoji">{emoji}</span>
+                    <div>
+                      <strong>{label}</strong>
+                    </div>
+                    <ChevronRight size={17} className="wizard-chevron" />
+                  </button>
+                ))}
+                <div className="wizard-invite-title">Já tem um convite?</div>
+                <button
+                  className="wizard-invite-btn"
+                  onClick={() =>
+                    setServerModal({ ...serverModal, step: "invite" })
+                  }
+                >
+                  Entrar em um servidor
+                </button>
+              </>
+            )}
+            {serverModal.step === "purpose" && (
+              <>
+                <button
+                  className="wizard-row"
+                  onClick={() =>
+                    setServerModal({ ...serverModal, step: "customize" })
+                  }
+                >
+                  <span className="wizard-emoji">👥</span>
+                  <div>
+                    <strong>Para meus amigos e eu</strong>
+                  </div>
+                  <ChevronRight size={17} className="wizard-chevron" />
+                </button>
+                <button
+                  className="wizard-row"
+                  onClick={() =>
+                    setServerModal({ ...serverModal, step: "customize" })
+                  }
+                >
+                  <span className="wizard-emoji">🌍</span>
+                  <div>
+                    <strong>Para um clube ou comunidade</strong>
+                  </div>
+                  <ChevronRight size={17} className="wizard-chevron" />
+                </button>
+                <div className="wizard-skip">
+                  Não sabe? Você pode{" "}
+                  <button
+                    className="wizard-skip-link"
+                    onClick={() =>
+                      setServerModal({ ...serverModal, step: "customize" })
+                    }
+                  >
+                    pular essa pergunta
+                  </button>{" "}
+                  por enquanto.
+                </div>
+                <div className="wizard-footer">
+                  <button
+                    className="wizard-back"
+                    onClick={() =>
+                      setServerModal({ ...serverModal, step: "choice" })
+                    }
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </>
+            )}
+            {serverModal.step === "customize" && (
+              <>
+                <div className="icon-upload-wrap">
+                  <button
+                    className="icon-upload"
+                    onClick={() =>
+                      document.getElementById("wizard-icon-input").click()
+                    }
+                  >
+                    {serverModal.icon ? (
+                      <img src={serverModal.icon} alt="" />
+                    ) : (
+                      <>
+                        <Camera size={22} />
+                        <span>ENVIAR</span>
+                      </>
+                    )}
+                    <span className="icon-plus">
+                      <Plus size={14} />
+                    </span>
+                  </button>
+                  <input
+                    id="wizard-icon-input"
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={onServerIconFile}
+                  />
+                </div>
+                <div className="channel-modal-label left">
+                  Nome do servidor <span className="required-star">*</span>
+                </div>
+                <div className="channel-name-box">
+                  <input
+                    autoFocus
+                    value={serverModal.name}
+                    placeholder={`Servidor de ${currentUser.displayName}`}
+                    onChange={(event) =>
+                      setServerModal({
+                        ...serverModal,
+                        name: event.target.value,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && serverModal.name.trim())
+                        submitCreateServer();
+                    }}
+                  />
+                </div>
+                <div className="wizard-footer">
+                  <button
+                    className="wizard-back"
+                    onClick={() =>
+                      setServerModal({ ...serverModal, step: "purpose" })
+                    }
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    className="prompt-confirm channel-create"
+                    disabled={!serverModal.name.trim() || serverModal.busy}
+                    onClick={submitCreateServer}
+                  >
+                    {serverModal.busy ? "Criando..." : "Criar"}
+                  </button>
+                </div>
+              </>
+            )}
+            {serverModal.step === "invite" && (
+              <>
+                <div className="channel-modal-label">ID do convite</div>
+                <div className="channel-name-box">
+                  <input
+                    autoFocus
+                    value={serverModal.invite}
+                    placeholder="Cole o ID aqui"
+                    onChange={(event) =>
+                      setServerModal({
+                        ...serverModal,
+                        invite: event.target.value,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && serverModal.invite.trim())
+                        submitJoinServer();
+                    }}
+                  />
+                </div>
+                <div className="server-modal-alt">
+                  Quer criar um servidor novo?{" "}
+                  <button
+                    onClick={() =>
+                      setServerModal({
+                        ...serverModal,
+                        step: "choice",
+                        invite: "",
+                      })
+                    }
+                  >
+                    Criar meu próprio
+                  </button>
+                </div>
+                <div className="channel-modal-actions">
+                  <button
+                    className="prompt-cancel channel-cancel"
+                    onClick={() => setServerModal(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="prompt-confirm channel-create"
+                    disabled={!serverModal.invite.trim() || serverModal.busy}
+                    onClick={submitJoinServer}
+                  >
+                    {serverModal.busy ? "Entrando..." : "Entrar no servidor"}
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+      {onboardOpen && (
+        <div className="modal-backdrop">
+          <section
+            className="channel-modal onboard-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img src="/branding/sesh-logo.gif" alt="" className="onboard-gif" />
+            <h3>Bem-vindo ao Sesh!</h3>
+            <p className="onboard-sub">
+              Crie seu próprio servidor ou entre em um existente com um convite.
+              Você também pode pular e explorar por sua conta.
+            </p>
+            <button
+              className="prompt-confirm channel-create onboard-btn"
+              onClick={() => {
+                setOnboardOpen(false);
+                createServer();
+              }}
+            >
+              Criar meu próprio servidor
+            </button>
+            <button
+              className="prompt-cancel channel-cancel onboard-btn"
+              onClick={() => {
+                setOnboardOpen(false);
+                setServerModal({
+                  step: "invite",
+                  name: "",
+                  invite: "",
+                  server: null,
+                  busy: false,
+                });
+              }}
+            >
+              Entrar com um convite
+            </button>
+            <button className="onboard-skip" onClick={skipOnboard}>
+              Pular por enquanto
+            </button>
+          </section>
+        </div>
+      )}
+    </>
+  );
+  if (selectedServer && !selectedChannel)
+    return (
+      <div className="loading-screen">
+        <div className="empty-onboard">
+          <h2>Nenhum canal por aqui</h2>
+          <p>Este servidor ainda não tem canais. Crie um para começar.</p>
+          <button
+            className="prompt-confirm"
+            onClick={() => createChannel("text")}
+          >
+            Criar canal de texto
+          </button>
+        </div>
+      </div>
+    );
+  if (!selectedServer)
+    return (
+      <div
+        className={`app-shell theme-${theme} ${compactMode ? "compact-mode" : ""}`}
+      >
+        <header className="mobile-header">
+          <button
+            className="icon-button"
+            onClick={() => setMobileNav(!mobileNav)}
+          >
+            <Menu size={20} />
+          </button>
+          <strong>Amigos</strong>
+          <button
+            className="icon-button"
+            onClick={() => setMemberListOpen(!memberListOpen)}
+          >
+            <Users size={20} />
+          </button>
+        </header>
+        <aside className={`server-rail ${mobileNav ? "mobile-open" : ""}`}>
+          <img
+            className="brand-mark brand-mark-img brand-home"
+            src="/branding/sesh-logo.gif"
+            alt="Sesh"
+            title="Início"
+          />
+          <div className="rail-divider" />
+          {servers.map((server, index) => (
+            <button
+              key={server.id}
+              className={`server-icon ${colors[index % colors.length]}`}
+              onClick={() => {
+                setSelectedServer(server);
+                setMobileNav(false);
+              }}
+              title={server.name}
+            >
+              {server.icon && String(server.icon).startsWith("data:") ? (
+                <img src={server.icon} alt="" className="server-icon-img" />
+              ) : (
+                server.icon || initials(server.name).slice(0, 1)
+              )}
+            </button>
+          ))}
+          <button
+            className="server-icon add-server"
+            onClick={createServer}
+            title="Criar servidor"
+          >
+            <Plus size={21} />
+          </button>
+        </aside>
+        <aside
+          className={`channel-sidebar home-sidebar ${mobileNav ? "mobile-open" : ""}`}
+        >
+          <div className="home-search">
+            <Search size={14} />
+            <span>Encontre ou comece uma conversa</span>
+          </div>
+          <button className="home-nav selected">
+            <Users size={17} /> Amigos
+          </button>
+          <div className="section-title" style={{ marginTop: 18 }}>
+            <span>MENSAGENS DIRETAS</span>
+            <button>
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="home-dm-list">
+            {friendsData.friends.length === 0 ? (
+              <div className="home-dm-hint">
+                Suas conversas diretas aparecerão aqui.
+              </div>
+            ) : (
+              friendsData.friends.map((person) => (
+                <button
+                  className="home-dm-row"
+                  key={person.id}
+                  onClick={() => setHomeTab(`dm:${person.id}`)}
+                >
+                  <span className="avatar-dot-wrap">
+                    <Avatar
+                      user={person}
+                      color={person.avatarColor || "purple"}
+                      small
+                    />
+                    <span
+                      className={`presence-dot presence-${person.presence}`}
+                    />
+                  </span>
+                  <span className="home-dm-name">{person.displayName}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
+        <main className="main-content">
+          <div className="channel-header home-header">
+            <div className="channel-title">
+              <Users size={20} />
+              <strong>Amigos</strong>
+              <span className="header-divider" />
+            </div>
+            <div className="home-tabs">
+              <button
+                className={homeTab === "online" ? "home-tab-selected" : ""}
+                onClick={() => setHomeTab("online")}
+              >
+                Online
+              </button>
+              <button
+                className={homeTab === "all" ? "home-tab-selected" : ""}
+                onClick={() => setHomeTab("all")}
+              >
+                Todos
+              </button>
+              <button
+                className={homeTab === "pending" ? "home-tab-selected" : ""}
+                onClick={() => setHomeTab("pending")}
+              >
+                Pendente{" "}
+                {friendsData.pending.length > 0 && (
+                  <span className="pending-count">
+                    {friendsData.pending.length}
+                  </span>
+                )}
+              </button>
+              <button
+                className={`home-add-tab ${homeTab === "add" ? "home-tab-selected" : ""}`}
+                onClick={() => setHomeTab("add")}
+              >
+                Adicionar amigo
+              </button>
+            </div>
+          </div>
+          <div className="content-body">
+            <div
+              className="chat-area friends-area"
+              onClick={(event) => {
+                const row = event.target.closest(".friend-row");
+                if (!row || event.target.closest("button")) return;
+                const name = row.querySelector(
+                  ".friend-info strong",
+                )?.textContent;
+                const friend = friendsData.friends.find(
+                  (person) => person.displayName === name,
+                );
+                if (friend) setHomeTab(`dm:${friend.id}`);
+              }}
+            >
+              {homeTab === "add" ? (
+                <div className="add-friend-box">
+                  <h3>Adicionar amigo</h3>
+                  <p>Você pode adicionar amigos com o nome de usuário deles.</p>
+                  <form className="add-friend-form" onSubmit={submitAddFriend}>
+                    <input
+                      value={addFriendValue}
+                      placeholder="Digite um nome de usuário"
+                      onChange={(event) =>
+                        setAddFriendValue(event.target.value)
+                      }
+                    />
+                    <button
+                      className="prompt-confirm"
+                      disabled={!addFriendValue.trim()}
+                    >
+                      Enviar solicitação de amizade
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <>
+                  <div className="friend-search">
+                    <Search size={15} />
+                    <input
+                      placeholder="Buscar"
+                      value={friendQuery}
+                      onChange={(event) => setFriendQuery(event.target.value)}
+                    />
+                  </div>
+                  {homeTab === "pending" && (
+                    <>
+                      <div className="friends-group-title">
+                        SOLICITAÇÕES — {friendsData.pending.length}
+                      </div>
+                      {friendsData.pending.map((person) => (
+                        <div className="friend-row" key={person.friendshipId}>
+                          <Avatar
+                            user={person}
+                            color={person.avatarColor || "purple"}
+                            small
+                          />
+                          <div className="friend-info">
+                            <strong>{person.displayName}</strong>
+                            <span>
+                              {person.direction === "incoming"
+                                ? "Solicitação recebida"
+                                : "Solicitação enviada"}
+                            </span>
+                          </div>
+                          <div className="friend-actions">
+                            {person.direction === "incoming" && (
+                              <button
+                                title="Aceitar"
+                                className="friend-accept"
+                                onClick={() =>
+                                  acceptFriendRequest(person.friendshipId)
+                                }
+                              >
+                                <UserPlus size={17} />
+                              </button>
+                            )}
+                            <button
+                              title={
+                                person.direction === "incoming"
+                                  ? "Recusar"
+                                  : "Cancelar"
+                              }
+                              onClick={() =>
+                                removeFriendRow(person.friendshipId)
+                              }
+                            >
+                              <X size={17} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {friendsData.pending.length === 0 && (
+                        <div className="friends-empty">
+                          Não há solicitações pendentes. Tente adicionar amigos
+                          pelo nome de usuário!
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {homeTab !== "pending" && (
+                    <>
+                      <div className="friends-group-title">
+                        {homeTab === "online" ? "ONLINE" : "TODOS OS AMIGOS"} —{" "}
+                        {listFriends.length}
+                      </div>
+                      {listFriends.map((person) => (
+                        <div className="friend-row" key={person.friendshipId}>
+                          <div className="friend-avatar-wrap">
+                            <Avatar
+                              user={person}
+                              color={person.avatarColor || "purple"}
+                              small
+                            />
+                            <span
+                              className={`presence-dot presence-${person.presence}`}
+                            />
+                          </div>
+                          <div className="friend-info">
+                            <strong>{person.displayName}</strong>
+                            <span>
+                              {person.presence === "voice"
+                                ? `Em voz • ${person.voice?.channelName}`
+                                : person.presence === "idle"
+                                  ? "Ausente"
+                                  : person.presence === "dnd"
+                                    ? "Não perturbar"
+                                    : person.presence === "online"
+                                      ? "Online"
+                                      : "Offline"}
+                            </span>
+                          </div>
+                          <div className="friend-actions">
+                            <button
+                              title="Mensagem"
+                              onClick={() =>
+                                setNotice("Mensagens diretas chegam em breve!")
+                              }
+                            >
+                              <MessageSquare size={17} />
+                            </button>
+                            <button
+                              title="Remover amigo"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Remover ${person.displayName} dos amigos?`,
+                                  )
+                                )
+                                  removeFriendRow(person.friendshipId);
+                              }}
+                            >
+                              <X size={17} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {listFriends.length === 0 && (
+                        <div className="friends-empty">
+                          <img
+                            src="/branding/sesh-logo.gif"
+                            alt=""
+                            className="onboard-gif"
+                          />
+                          <p>
+                            Ninguém por aqui ainda. Use a aba{" "}
+                            <strong>Adicionar amigo</strong> para convidar
+                            alguém pelo nome de usuário!
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            <aside className="member-sidebar active-now-sidebar">
+              <div className="member-title">ATIVO AGORA</div>
+              {activeNow.length === 0 && (
+                <div className="active-now-empty">
+                  É bem quieto por aqui... Quando um amigo entrar numa call ou
+                  ficar online, vai aparecer aqui!
+                </div>
+              )}
+              {activeNow.map((person) => (
+                <div className="active-now-card" key={person.friendshipId}>
+                  <Avatar
+                    user={person}
+                    color={person.avatarColor || "purple"}
+                    small
+                  />
+                  <div>
+                    <strong>{person.displayName}</strong>
+                    <span>
+                      {person.presence === "voice"
+                        ? `Em voz • ${person.voice?.channelName}`
+                        : "Online"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </aside>
+          </div>
+        </main>
+        <div className="user-panel">
+          {statusMenu && statusMenuEl()}
+          <span
+            className="user-avatar-btn"
+            title="Alterar meu status"
+            onClick={() => setStatusMenu((current) => !current)}
+          >
+            <span className="avatar-dot-wrap">
+              <Avatar user={currentUser} color="purple" small />
+              <span
+                className={`presence-dot presence-${presenceFor(currentUser.id)} ${speaking[currentUser.id] ? "presence-speaking" : ""}`}
+              />
+            </span>
+          </span>
+          <div
+            className="user-details"
+            onClick={(event) => openProfile(event, currentUser.id)}
+          >
+            <strong>{currentUser.displayName}</strong>
+            <span>@{currentUser.username}</span>
+          </div>
+          <div className="user-actions">
+            <button title="Silenciar">
+              <Mic size={17} />
+            </button>
+            <button title="Áudio">
+              <Headphones size={17} />
+            </button>
+            <button title="Configurações" onClick={openSettings}>
+              <Settings size={17} />
+            </button>
+          </div>
+        </div>
+        {overlays}
+        {homeTab.startsWith("dm:") && (
+          <DirectConversation
+            user={friendsData.friends.find(
+              (person) => person.id === homeTab.slice(3),
+            )}
+            onClose={() => setHomeTab("online")}
+            onOpenProfile={() =>
+              openProfile(
+                {
+                  stopPropagation: () => {},
+                  clientX: window.innerWidth / 2,
+                  clientY: window.innerHeight / 2,
+                },
+                homeTab.slice(3),
+              )
+            }
+          />
+        )}
+        {badgeMenu && (
+          <BadgeContextMenu
+            menu={badgeMenu}
+            onAdd={() => openBadgeEditor(badgeMenu.user)}
+          />
+        )}
+        {badgeEditor && (
+          <BadgeEditor
+            user={badgeEditor.user}
+            badges={badgeEditor.badges}
+            onCancel={() => setBadgeEditor(null)}
+            onSave={saveBadges}
+          />
+        )}
+      </div>
+    );
+  function savePreference(key, value) {
+    localStorage.setItem(key, value);
+  }
+  return (
+    <div
+      className={`app-shell theme-${theme} ${compactMode ? "compact-mode" : ""}`}
+    >
+      <header className="mobile-header">
+        <button
+          className="icon-button"
+          onClick={() => setMobileNav(!mobileNav)}
+        >
+          <Menu size={20} />
+        </button>
+        <strong>{selectedServer.name}</strong>
+        <button
+          className="icon-button"
+          onClick={() => setMemberListOpen(!memberListOpen)}
+        >
+          <Users size={20} />
+        </button>
+      </header>
+      <aside className={`server-rail ${mobileNav ? "mobile-open" : ""}`}>
+        <img
+          className="brand-mark brand-mark-img brand-home"
+          src="/branding/sesh-logo.gif"
+          alt="Sesh"
+          title="Início"
+          onClick={() => setSelectedServer(null)}
+        />
+        <div className="rail-divider" />
+        {servers.map((server, index) => (
+          <button
+            key={server.id}
+            className={`server-icon ${colors[index % colors.length]} ${selectedServer.id === server.id ? "active" : ""}`}
+            onClick={() => {
+              setSelectedServer(server);
+              setMobileNav(false);
+            }}
+            title={server.name}
+          >
+            {server.icon && String(server.icon).startsWith("data:") ? (
+              <img src={server.icon} alt="" className="server-icon-img" />
+            ) : (
+              server.icon || initials(server.name).slice(0, 1)
+            )}
+          </button>
+        ))}
+        <button
+          className="server-icon add-server"
+          onClick={createServer}
+          title="Criar servidor"
+        >
+          <Plus size={21} />
+        </button>
+      </aside>
+      <aside className={`channel-sidebar ${mobileNav ? "mobile-open" : ""}`}>
+        <div
+          className={`workspace-header ${selectedServer.banner ? "workspace-header-banner" : ""}`}
+          style={
+            selectedServer.banner
+              ? {
+                  backgroundImage: `linear-gradient(90deg, #09090be6, #09090b73), url("${selectedServer.banner}")`,
+                  borderBottomColor: selectedServer.accentColor || "#c93642",
+                }
+              : undefined
+          }
+        >
+          <span>{selectedServer.name}</span>
+          {selectedServer.tag && (
+            <span className="workspace-server-tag">{selectedServer.tag}</span>
+          )}
+          <div className="header-tools">
+            <button title="Copiar convite do servidor" onClick={copyInvite}>
+              <UserPlus size={17} />
+            </button>
+            {selectedServer.role === "owner" && (
+              <button
+                title="Configurações do servidor"
+                onClick={() => setServerSettingsOpen(true)}
+              >
+                <Settings size={17} />
+              </button>
+            )}
+            <ChevronDown size={17} />
+          </div>
+        </div>
+        <div className="channel-scroll">
+          <section className="channel-section">
+            <div className="section-title">
+              <span>CANAIS</span>
+              <button onClick={() => createChannel("text")}>
+                <Plus size={14} />
+              </button>
+            </div>
+            {orderedChannels.map((channel) => (
+              <React.Fragment key={channel.id}>
+                <button
+                  className={`channel-row ${selectedChannel.id === channel.id ? "selected" : ""} ${mutedChannels.includes(channel.id) ? "muted-row" : ""}`}
+                  onClick={() => {
+                    setSelectedChannel(channel);
+                    setMobileNav(false);
+                    if (channel.type === "text")
+                      api
+                        .messages(channel.id)
+                        .then((result) => setMessages(result.messages));
+                    if (
+                      channel.type === "voice" &&
+                      voiceConnected &&
+                      voiceChannel?.id !== channel.id
+                    )
+                      joinVoice(channel);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setContextMenu({
+                      x: Math.min(event.clientX, window.innerWidth - 250),
+                      y: Math.min(event.clientY, window.innerHeight - 440),
+                      channel,
+                    });
+                  }}
+                >
+                  {channel.type === "voice" ? (
+                    <Volume2 size={18} />
+                  ) : (
+                    <Hash size={19} />
+                  )}
+                  <span>{channel.name}</span>
+                  {channel.type === "voice" &&
+                  (voiceStates[channel.id] || []).length > 0 ? (
+                    <span className="voice-count">
+                      {(voiceStates[channel.id] || []).length}
+                    </span>
+                  ) : null}
+                  {pinnedChannels.includes(channel.id) ? (
+                    <Pin size={12} className="pin-indicator" />
+                  ) : null}
+                  {channel.type === "voice" &&
+                  voiceConnected &&
+                  selectedChannel.id === channel.id ? (
+                    <span className="voice-live-dot" />
+                  ) : null}
+                </button>
+                {channel.type === "voice" &&
+                  (voiceStates[channel.id] || []).length > 0 && (
+                    <div className="voice-members">
+                      {(voiceStates[channel.id] || []).map((participant) => (
+                        <div
+                          className="voice-member profile-click"
+                          key={participant.id}
+                          onClick={(event) =>
+                            openProfile(event, participant.id)
+                          }
+                        >
+                          <span className="avatar-dot-wrap">
+                            <Avatar
+                              user={participant}
+                              color={participant.avatarColor || "purple"}
+                              small
+                            />
+                            <span
+                              className={`presence-dot presence-${presenceFor(participant.id)} ${speaking[participant.id] ? "presence-speaking" : ""}`}
+                            />
+                          </span>
+                          <span>{participant.displayName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </React.Fragment>
+            ))}
+          </section>
+        </div>
+        {voiceConnected && (
+          <div className="voice-status">
+            <div className="voice-status-info">
+              <span className="voice-status-title">
+                <Volume2 size={13} /> Voz conectada
+              </span>
+              <strong>{voiceChannel?.name}</strong>
+            </div>
+            <button title="Desconectar da chamada" onClick={leaveVoice}>
+              <PhoneOff size={15} />
+            </button>
+          </div>
+        )}
+        <div className="user-panel">
+          {statusMenu && statusMenuEl}
+          <span
+            className="user-avatar-btn"
+            title="Alterar meu status"
+            onClick={() => setStatusMenu((current) => !current)}
+          >
+            <span className="avatar-dot-wrap">
+              <Avatar user={currentUser} color="purple" small />
+              <span
+                className={`presence-dot presence-${presenceFor(currentUser.id)}`}
+              />
+            </span>
+          </span>
+          <div
+            className="user-details"
+            onClick={(event) => openProfile(event, currentUser.id)}
+          >
+            <strong>{currentUser.displayName}</strong>
+            <span>@{currentUser.username}</span>
+          </div>
+          <div className="user-actions">
+            <button
+              title={muted ? "Ativar microfone" : "Silenciar microfone"}
+              className={muted ? "action-danger" : ""}
+              onClick={toggleMute}
+            >
+              {muted ? <MicOff size={17} /> : <Mic size={17} />}
+            </button>
+            <button
+              title={deafened ? "Ativar áudio" : "Silenciar áudio"}
+              className={deafened ? "action-danger" : ""}
+              onClick={toggleDeafen}
+            >
+              <Headphones size={17} />
+            </button>
+            <button title="Configurações" onClick={openSettings}>
+              <Settings size={17} />
+            </button>
+          </div>
+        </div>
+      </aside>
+      <main className="main-content">
+        <div className="channel-header">
+          <div className="channel-title">
+            {selectedChannel.type === "voice" ? (
+              <Volume2 size={23} />
+            ) : (
+              <Hash size={23} />
+            )}
+            <strong>{selectedChannel.name}</strong>
+            <span className="header-divider" />
+            <span className="channel-topic">
+              {selectedChannel.topic || "Converse, compartilhe e crie junto"}
+            </span>
+          </div>
+          <div className="header-actions">
+            <button className="header-action">
+              <Bell size={19} />
+            </button>
+            <button className="header-action">
+              <Pin size={19} />
+            </button>
+            <button
+              className={`header-action ${memberListOpen ? "selected-action" : ""}`}
+              onClick={() => setMemberListOpen(!memberListOpen)}
+            >
+              <Users size={19} />
+            </button>
+            <div className="search-box">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar"
+              />
+              <Search size={16} />
+            </div>
+            <button className="header-action">
+              <HelpCircle size={19} />
+            </button>
+          </div>
+        </div>
+        <div className="content-body">
+          <div className="chat-area">
+            {selectedChannel.type === "voice" ? (
+              <div className="voice-stage">
+                <div className="voice-topbar">
+                  <Volume2 size={17} />
+                  <strong>{selectedChannel.name}</strong>
+                  {voiceConnected &&
+                    voiceChannel?.id !== selectedChannel.id && (
+                      <span className="voice-topbar-hint">
+                        — você está conectado em "{voiceChannel?.name}", clique
+                        em Entrar para trocar
+                      </span>
+                    )}
+                </div>
+                {voiceConnected && voiceChannel?.id === selectedChannel.id ? (
+                  <>
+                    {focusedVideoId &&
+                      (() => {
+                        const participant = orderedVoiceParticipants.find(
+                          (item) => item.id === focusedVideoId,
+                        );
+                        const stream =
+                          participant && videoStreamFor(participant);
+                        return participant && stream ? (
+                          <div className="voice-focus-panel">
+                            <MediaStreamVideo
+                              stream={stream}
+                              muted={participant.id === currentUser.id}
+                            />
+                            <div className="voice-focus-label">
+                              <strong>{participant.displayName}</strong>
+                              <span>
+                                {participant.id === currentUser.id && screenOn
+                                  ? "Sua transmissão"
+                                  : participant.id === currentUser.id
+                                    ? "Sua câmera"
+                                    : "Vídeo ao vivo"}
+                              </span>
+                            </div>
+                            <div className="voice-focus-actions">
+                              <button
+                                title={
+                                  videoFullscreen
+                                    ? "Sair da tela cheia"
+                                    : "Abrir em tela cheia"
+                                }
+                                onClick={toggleVideoFullscreen}
+                              >
+                                <Maximize2 size={19} />
+                              </button>
+                              <button
+                                title="Fechar destaque"
+                                onClick={() => setFocusedVideoId(null)}
+                              >
+                                <X size={20} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                    <div
+                      className={`voice-participant-grid ${focusedVideoId ? "voice-participant-strip" : ""}`}
+                    >
+                      {orderedVoiceParticipants.map((participant) => {
+                        const videoStream = videoStreamFor(participant);
+                        return (
+                          <button
+                            type="button"
+                            className={`voice-tile ${videoStream ? "voice-tile-clickable" : ""} ${focusedVideoId === participant.id ? "voice-tile-focused" : ""} ${speaking[participant.id] ? "speaking" : ""}`}
+                            key={participant.id}
+                            title={
+                              videoStream
+                                ? "Clique para ampliar"
+                                : participant.displayName
+                            }
+                            onClick={() =>
+                              videoStream && setFocusedVideoId(participant.id)
+                            }
+                          >
+                            {videoStream ? (
+                              <MediaStreamVideo
+                                stream={videoStream}
+                                muted={participant.id === currentUser.id}
+                              />
+                            ) : (
+                              <Avatar
+                                user={participant}
+                                color={participant.avatarColor || "purple"}
+                              />
+                            )}
+                            <div className="voice-tile-label">
+                              <strong>{participant.displayName}</strong>
+                              <span>
+                                {participant.id === currentUser.id
+                                  ? muted
+                                    ? "Você (mudo)"
+                                    : "Você"
+                                  : speaking[participant.id]
+                                    ? "Falando..."
+                                    : "Conectado"}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="voice-controls">
+                      <button
+                        className={muted ? "control-danger" : ""}
+                        title={
+                          muted ? "Ativar microfone" : "Silenciar microfone"
+                        }
+                        onClick={toggleMute}
+                      >
+                        {muted ? <MicOff size={20} /> : <Mic size={20} />}
+                      </button>
+                      <button
+                        className={deafened ? "control-danger" : ""}
+                        title={deafened ? "Ativar áudio" : "Silenciar áudio"}
+                        onClick={toggleDeafen}
+                      >
+                        <Headphones size={20} />
+                      </button>
+                      <button
+                        className={camOn ? "control-active" : ""}
+                        title={camOn ? "Desligar câmera" : "Ligar câmera"}
+                        onClick={toggleCam}
+                      >
+                        {camOn ? <VideoOff size={20} /> : <Video size={20} />}
+                      </button>
+                      <button
+                        className={screenOn ? "control-active" : ""}
+                        title={
+                          screenOn
+                            ? "Parar compartilhamento"
+                            : "Compartilhar tela"
+                        }
+                        onClick={toggleScreen}
+                      >
+                        <MonitorUp size={20} />
+                      </button>
+                      <button
+                        className="control-danger"
+                        title="Sair da chamada"
+                        onClick={leaveVoice}
+                      >
+                        <PhoneOff size={20} />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="voice-hero">
+                    <Volume2 size={34} />
+                    <h1>{selectedChannel.name}</h1>
+                    <p>Conecte-se por voz com sua comunidade.</p>
+                    <button
+                      className="voice-join"
+                      onClick={() => joinVoice(selectedChannel)}
+                    >
+                      {voiceConnected
+                        ? "Trocar para esta chamada"
+                        : "Entrar na chamada"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : guideActive ? (
+              <>
+                <div className="welcome-guide">
+                  <button className="guide-close" onClick={dismissGuide}>
+                    <X size={17} />
+                  </button>
+                  <h1>
+                    Bem-vindo(a) a<br />
+                    {selectedServer.name}
+                  </h1>
+                  <p>
+                    Este é seu servidor, novinho em folha. Aqui vão algumas
+                    dicas para ajudar você a começar!
+                  </p>
+                  <div className="guide-cards">
+                    <button className="guide-card" onClick={copyInvite}>
+                      <span className="guide-emoji">👥</span>
+                      <span>Convide seus amigos</span>
+                      <ChevronRight size={17} className="guide-chevron" />
+                    </button>
+                    <button
+                      className="guide-card"
+                      onClick={() => guideIconRef.current?.click()}
+                    >
+                      <span className="guide-emoji">🖼️</span>
+                      <span>Personalize seu servidor com um ícone</span>
+                      <ChevronRight size={17} className="guide-chevron" />
+                    </button>
+                    <button
+                      className="guide-card"
+                      onClick={() => composerInputRef.current?.focus()}
+                    >
+                      <span className="guide-emoji">📨</span>
+                      <span>Envie sua primeira mensagem</span>
+                      <ChevronRight size={17} className="guide-chevron" />
+                    </button>
+                    <button
+                      className="guide-card"
+                      onClick={() => setNotice("Apps chegam em breve!")}
+                    >
+                      <span className="guide-emoji">🎮</span>
+                      <span>Adicione seu primeiro app</span>
+                      <ChevronRight size={17} className="guide-chevron" />
+                    </button>
+                    <button
+                      className="guide-card"
+                      onClick={() => setNotice("Impulsos chegam em breve!")}
+                    >
+                      <span className="guide-emoji">⚡</span>
+                      <span>Desbloqueie vantagens para todos com impulsos</span>
+                      <ChevronRight size={17} className="guide-chevron" />
+                    </button>
+                  </div>
+                </div>
+                <input
+                  ref={guideIconRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={uploadServerIcon}
+                />
+                <form className="composer" onSubmit={sendMessage}>
+                  <button type="button">
+                    <Paperclip size={20} />
+                  </button>
+                  <input
+                    ref={composerInputRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder={`Conversar em #${selectedChannel.name}`}
+                  />
+                  <button type="button">
+                    <Smile size={20} />
+                  </button>
+                  <button className="send-button" type="submit">
+                    <Send size={18} />
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <div className="welcome-block">
+                  <div className="welcome-icon">
+                    <Hash size={30} />
+                  </div>
+                  <h1>Bem-vindo a #{selectedChannel.name}!</h1>
+                  <p>
+                    Este é o começo deste canal. Compartilhe ideias e converse
+                    com a comunidade.
+                  </p>
+                </div>
+                <div className="messages-list">
+                  {filteredMessages.map((message) => (
+                    <article className="message" key={message.id}>
+                      <Avatar
+                        user={message.author}
+                        color={message.author.avatarColor || "purple"}
+                        onClick={(event) =>
+                          openProfile(event, message.author.id)
+                        }
+                      />
+                      <div className="message-body">
+                        <div className="message-meta">
+                          <strong
+                            onClick={(event) =>
+                              openProfile(event, message.author.id)
+                            }
+                          >
+                            {message.author.displayName}
+                          </strong>
+                          {selectedServer.tag && (
+                            <span
+                              className="server-tag"
+                              style={{
+                                "--server-tag-color":
+                                  selectedServer.accentColor || "#c93642",
+                              }}
+                            >
+                              {selectedServer.tag}
+                            </span>
+                          )}
+                          <time>
+                            {new Date(message.createdAt).toLocaleString(
+                              "pt-BR",
+                            )}
+                          </time>
+                        </div>
+                        <p>{message.content}</p>
+                      </div>
+                      <button className="message-more">
+                        <MoreVertical size={17} />
+                      </button>
+                    </article>
+                  ))}
+                  {filteredMessages.length === 0 && (
+                    <div className="empty-search">
+                      Nenhuma mensagem encontrada.
+                    </div>
+                  )}
+                </div>
+                <form className="composer" onSubmit={sendMessage}>
+                  <button type="button">
+                    <Paperclip size={20} />
+                  </button>
+                  <input
+                    ref={composerInputRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder={`Conversar em #${selectedChannel.name}`}
+                  />
+                  <button type="button">
+                    <Smile size={20} />
+                  </button>
+                  <button className="send-button" type="submit">
+                    <Send size={18} />
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+          {memberListOpen && (
+            <aside className="member-sidebar">
+              <div className="member-title">MEMBROS — {members.length}</div>
+              {members.map((member) => (
+                <div
+                  className="member profile-click"
+                  key={member.id}
+                  onClick={(event) => openProfile(event, member.id)}
+                >
+                  <span className="avatar-dot-wrap">
+                    <Avatar
+                      user={member}
+                      color={member.avatarColor || "purple"}
+                      small
+                    />
+                    <span
+                      className={`presence-dot presence-${presenceFor(member.id)}`}
+                    />
+                  </span>
+                  <div>
+                    <strong>
+                      {member.displayName}
+                      {selectedServer.tag && (
+                        <span
+                          className="server-tag"
+                          style={{
+                            "--server-tag-color":
+                              selectedServer.accentColor || "#c93642",
+                          }}
+                        >
+                          {selectedServer.tag}
+                        </span>
+                      )}
+                    </strong>
+                    <span className="member-role">@{member.username}</span>
+                  </div>
+                </div>
+              ))}
+            </aside>
+          )}
+        </div>
+      </main>
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button className="context-item disabled" disabled>
+            Marcar como lida
+          </button>
+          <button
+            className="context-item"
+            onClick={() => {
+              copyInvite();
+              setContextMenu(null);
+            }}
+          >
+            Convite para o servidor
+          </button>
+          <button
+            className="context-item"
+            onClick={() => {
+              toggleChannelFlag(
+                pinnedChannels,
+                setPinnedChannels,
+                "sesh_pinned",
+                contextMenu.channel.id,
+              );
+              setContextMenu(null);
+            }}
+          >
+            {pinnedChannels.includes(contextMenu.channel.id)
+              ? "Desafixar do topo"
+              : "Fixar canal no topo"}
+          </button>
+          <button
+            className="context-item"
+            onClick={() => {
+              copyText(`${location.origin}/#canal-${contextMenu.channel.id}`);
+              setContextMenu(null);
+            }}
+          >
+            Copiar link
+          </button>
+          <div className="context-sep" />
+          <button
+            className="context-item"
+            onClick={() => {
+              toggleChannelFlag(
+                mutedChannels,
+                setMutedChannels,
+                "sesh_muted",
+                contextMenu.channel.id,
+              );
+              setContextMenu(null);
+            }}
+          >
+            {mutedChannels.includes(contextMenu.channel.id)
+              ? "Reativar notificações"
+              : "Silenciar canal"}
+            <span className="context-arrow">›</span>
+          </button>
+          {isOwner && (
+            <button
+              className="context-item"
+              onClick={() => {
+                const channel = contextMenu.channel;
+                setContextMenu(null);
+                askText(
+                  "Editar canal — novo nome",
+                  channel.name,
+                  channel.name,
+                  (name) => {
+                    if (name !== channel.name) editChannel(channel, name);
+                  },
+                );
+              }}
+            >
+              Editar canal
+            </button>
+          )}
+          <div className="context-sep" />
+          {isOwner && (
+            <button
+              className="context-item"
+              onClick={() => {
+                const name = `${contextMenu.channel.name}-copia`;
+                setContextMenu(null);
+                addChannel(name, contextMenu.channel.type);
+              }}
+            >
+              Duplicar canal
+            </button>
+          )}
+          {isOwner && (
+            <button
+              className="context-item"
+              onClick={() => {
+                setContextMenu(null);
+                createChannel("text");
+              }}
+            >
+              Criar canal de texto
+            </button>
+          )}
+          {isOwner && (
+            <button
+              className="context-item"
+              onClick={() => {
+                setContextMenu(null);
+                createChannel("voice");
+              }}
+            >
+              Criar call (canal de voz)
+            </button>
+          )}
+          {isOwner && (
+            <button
+              className="context-item context-danger"
+              onClick={() => {
+                const channel = contextMenu.channel;
+                if (
+                  window.confirm(
+                    `Excluir o canal "${channel.name}"? Esta ação não pode ser desfeita.`,
+                  )
+                )
+                  removeChannel(channel);
+                setContextMenu(null);
+              }}
+            >
+              Excluir canal
+            </button>
+          )}
+          <div className="context-sep" />
+          <button
+            className="context-item"
+            onClick={() => {
+              copyText(contextMenu.channel.id);
+              setContextMenu(null);
+            }}
+          >
+            <span className="context-id">ID</span>Copiar ID do canal
+          </button>
+        </div>
+      )}
+      {dialog && (
+        <div className="modal-backdrop" onClick={() => setDialog(null)}>
+          <section
+            className="prompt-dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3>{dialog.title}</h3>
+            <input
+              autoFocus
+              value={dialog.value}
+              placeholder={dialog.placeholder}
+              onChange={(event) =>
+                setDialog({ ...dialog, value: event.target.value })
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") submitDialog();
+                if (event.key === "Escape") setDialog(null);
+              }}
+            />
+            {dialog.error && <div className="form-error">{dialog.error}</div>}
+            <div className="prompt-actions">
+              <button className="prompt-cancel" onClick={() => setDialog(null)}>
+                Cancelar
+              </button>
+              <button className="prompt-confirm" onClick={submitDialog}>
+                Confirmar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {profileView && (
+        <div className="profile-backdrop" onClick={() => setProfileView(null)}>
+          <section
+            className="profile-card"
+            style={{ left: profileView.x, top: profileView.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {profileData === "loading" || !profileData ? (
+              <div className="profile-body">Carregando perfil...</div>
+            ) : (
+              <>
+                <div
+                  className="profile-banner"
+                  style={bannerStyle(profileData.user.banner)}
+                />
+                <div className="profile-body">
+                  <span className="avatar-dot-wrap profile-avatar-wrap">
+                    <Avatar
+                      user={profileData.user}
+                      color={profileData.user.avatarColor || "purple"}
+                    />
+                    <span
+                      className={`presence-dot presence-lg presence-${presenceFor(profileData.user.id)}`}
+                    />
+                  </span>
+                  <div className="profile-name">
+                    {profileData.user.displayName}
+                  </div>
+                  <div className="profile-username">
+                    <span>@{profileData.user.username}</span>
+                    {profileData.user.badges?.map((key) => {
+                      const badge = BADGES[key];
+                      return badge ? (
+                        <BadgeIcon
+                          className="profile-badge-img"
+                          key={key}
+                          badge={badge}
+                        />
+                      ) : null;
+                    })}
+                  </div>
+                  {profileData.user.bio && (
+                    <div className="profile-bio">{profileData.user.bio}</div>
+                  )}
+                  {profileData.user.bio && profileData.user.bio.length > 80 && (
+                    <button
+                      className="profile-bio-link"
+                      onClick={() => setNotice(profileData.user.bio)}
+                    >
+                      Ver biografia completa
+                    </button>
+                  )}
+                  {profileData.voice && (
+                    <div className="profile-voice">
+                      <div className="profile-voice-title">
+                        <Volume2 size={11} /> EM VOZ
+                      </div>
+                      <div className="profile-voice-channel">
+                        <Volume2 size={14} /> {profileData.voice.channelName}
+                      </div>
+                      <button
+                        className="profile-voice-join"
+                        onClick={() => openVoiceFromProfile(profileData.voice)}
+                      >
+                        Abrir chamada de voz
+                      </button>
+                    </div>
+                  )}
+                  {profileData.user.id === currentUser.id && (
+                    <button
+                      className="profile-voice-join"
+                      onClick={() => {
+                        setProfileView(null);
+                        openSettings();
+                      }}
+                    >
+                      Editar perfil
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+      {channelModal && (
+        <div className="modal-backdrop" onClick={() => setChannelModal(null)}>
+          <section
+            className="channel-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="channel-modal-head">
+              <div>
+                <h3>Criar canal</h3>
+                <span className="channel-modal-sub">
+                  em {selectedServer.name}
+                </span>
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => setChannelModal(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="channel-modal-label">Tipo de canal</div>
+            {[
+              [
+                "text",
+                Hash,
+                "Texto",
+                "Envie mensagens, imagens, GIFs, emojis, opiniões e piadas",
+              ],
+              [
+                "voice",
+                Volume2,
+                "Voz",
+                "Passe tempo com a turma com voz, vídeo e compartilhamento de tela",
+              ],
+              [
+                "forum",
+                MessagesSquare,
+                "Fórum",
+                "Crie um espaço para discussões organizadas",
+              ],
+              [
+                "announcement",
+                Megaphone,
+                "Announcement",
+                "Atualizações importantes para pessoas dentro e fora do servidor",
+              ],
+              [
+                "stage",
+                Radio,
+                "Palco",
+                "Ofereça eventos, painéis, e P&Rs para uma plateia",
+              ],
+            ].map(([value, Icon, title, desc]) => {
+              const disabled = !["text", "voice"].includes(value);
+              return (
+                <label
+                  key={value}
+                  className={`channel-type-row ${channelModal.type === value ? "selected-type" : ""} ${disabled ? "type-disabled" : ""}`}
+                  onClick={() => {
+                    if (!disabled)
+                      setChannelModal({ ...channelModal, type: value });
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="channel-type"
+                    disabled={disabled}
+                    checked={channelModal.type === value}
+                    readOnly
+                  />
+                  <Icon size={17} />
+                  <div>
+                    <strong>{title}</strong>
+                    <span>{desc}</span>
+                  </div>
+                </label>
+              );
+            })}
+            <div className="channel-modal-label">Nome do canal</div>
+            <div className="channel-name-box">
+              <span>
+                {channelModal.type === "voice" ? (
+                  <Volume2 size={16} />
+                ) : (
+                  <Hash size={16} />
+                )}
+              </span>
+              <input
+                autoFocus
+                value={channelModal.name}
+                placeholder="novo-canal"
+                onChange={(event) =>
+                  setChannelModal({ ...channelModal, name: event.target.value })
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") submitChannelModal();
+                  if (event.key === "Escape") setChannelModal(null);
+                }}
+              />
+            </div>
+            <div className="channel-modal-private">
+              <div>
+                <strong>
+                  <Lock size={12} /> Canal privado
+                </strong>
+                <span>
+                  Somente membros e cargos selecionados poderão visualizar esse
+                  canal.
+                </span>
+              </div>
+              <button
+                className={`toggle-switch ${channelModal.private ? "on" : ""}`}
+                onClick={() =>
+                  setChannelModal({
+                    ...channelModal,
+                    private: !channelModal.private,
+                  })
+                }
+              />
+            </div>
+            <div className="channel-modal-actions">
+              <button
+                className="prompt-cancel channel-cancel"
+                onClick={() => setChannelModal(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="prompt-confirm channel-create"
+                disabled={!channelModal.name.trim()}
+                onClick={submitChannelModal}
+              >
+                Criar canal
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {notice && (
+        <button className="notice" onClick={() => setNotice("")}>
+          {notice}
+        </button>
+      )}
+      {false && settingsOpen && (
+        <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <section
+            className="settings-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              className="modal-close"
+              onClick={() => setSettingsOpen(false)}
+            >
+              <X size={18} />
+            </button>
+            <div className="settings-nav">
+              <strong>Configurações</strong>
+              <button
+                className={
+                  settingsTab === "account" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("account")}
+              >
+                Minha conta
+              </button>
+              <button
+                className={
+                  settingsTab === "appearance" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("appearance")}
+              >
+                Aparência
+              </button>
+              <button
+                className={
+                  settingsTab === "notifications" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("notifications")}
+              >
+                Notificações
+              </button>
+              <button
+                className={
+                  settingsTab === "privacy" ? "settings-nav-active" : ""
+                }
+                onClick={() => setSettingsTab("privacy")}
+              >
+                Privacidade
+              </button>
+              <button className="settings-logout" onClick={onLogout}>
+                Sair da conta
+              </button>
+            </div>
+            <div className="settings-content">
+              {settingsTab === "account" && accountForm && (
+                <>
+                  <h2>Minha conta</h2>
+                  <div className="account-card">
+                    <Avatar
+                      user={{ ...currentUser, avatar: accountForm.avatar }}
+                      color="purple"
+                    />
+                    <div>
+                      <strong>
+                        {accountForm.displayName || currentUser.displayName}
+                      </strong>
+                      <span>
+                        @{accountForm.username || currentUser.username}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="account-actions">
+                    <label className="avatar-upload">
+                      Trocar foto / GIF
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={onAvatarFile}
+                      />
+                    </label>
+                    {accountForm.avatar && (
+                      <button
+                        className="secondary-setting"
+                        onClick={() =>
+                          setAccountForm({ ...accountForm, avatar: null })
+                        }
+                      >
+                        Remover foto
+                      </button>
+                    )}
+                  </div>
+                  <div className="banner-editor">
+                    <div className="account-actions">
+                      <label className="avatar-upload">
+                        Banner do perfil (imagem, GIF ou cor)
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={onBannerFile}
+                        />
+                      </label>
+                      {accountForm.banner && (
+                        <button
+                          className="secondary-setting"
+                          onClick={() =>
+                            setAccountForm({ ...accountForm, banner: null })
+                          }
+                        >
+                          Remover banner
+                        </button>
+                      )}
+                    </div>
+                    {accountForm.banner && (
+                      <div
+                        className="banner-preview"
+                        style={bannerStyle(accountForm.banner)}
+                      />
+                    )}
+                    <div className="banner-swatches">
+                      {[
+                        "#5865f2",
+                        "#23a55a",
+                        "#e4ad51",
+                        "#b24e64",
+                        "#7661e9",
+                        "#eb459e",
+                        "#1a1a1a",
+                      ].map((color) => (
+                        <button
+                          type="button"
+                          key={color}
+                          className={`banner-swatch ${accountForm.banner === color ? "banner-swatch-on" : ""}`}
+                          style={{ background: color }}
+                          title={color}
+                          onClick={() =>
+                            setAccountForm({ ...accountForm, banner: color })
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <label>
+                    Nome de exibição
+                    <input
+                      value={accountForm.displayName}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          displayName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Nome de usuário
+                    <input
+                      value={accountForm.username}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          username: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Bio
+                    <input
+                      value={accountForm.bio}
+                      placeholder="Fale um pouco sobre você"
+                      maxLength={300}
+                      onChange={(event) =>
+                        setAccountForm({
+                          ...accountForm,
+                          bio: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <div className="badge-picker-title">Insígnias do perfil</div>
+                  <div className="badge-picker">
+                    {Object.entries(BADGES).map(([key, badge]) => (
+                      <label className="setting-check" key={key}>
+                        <input
+                          type="checkbox"
+                          checked={accountForm.badges.includes(key)}
+                          onChange={(event) =>
+                            setAccountForm({
+                              ...accountForm,
+                              badges: event.target.checked
+                                ? [...accountForm.badges, key]
+                                : accountForm.badges.filter(
+                                    (item) => item !== key,
+                                  ),
+                            })
+                          }
+                        />{" "}
+                        <img
+                          className="badge-picker-img"
+                          src={badge.image}
+                          alt={badge.label}
+                        />{" "}
+                        {badge.label}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+              {settingsTab === "appearance" && (
+                <>
+                  <h2>Aparência</h2>
+                  <label>
+                    Tema
+                    <select
+                      value={theme}
+                      onChange={(event) => {
+                        setTheme(event.target.value);
+                        savePreference("orbit_theme", event.target.value);
+                      }}
+                    >
+                      <option value="dark">Escuro</option>
+                      <option value="midnight">Meia-noite</option>
+                      <option value="light">Claro</option>
+                    </select>
+                  </label>
+                  <label className="setting-check">
+                    <input
+                      type="checkbox"
+                      checked={compactMode}
+                      onChange={(event) => {
+                        setCompactMode(event.target.checked);
+                        savePreference("orbit_compact", event.target.checked);
+                      }}
+                    />{" "}
+                    Interface compacta
+                  </label>
+                </>
+              )}
+              {settingsTab === "notifications" && (
+                <>
+                  <h2>Notificações</h2>
+                  <label className="setting-check">
+                    <input
+                      type="checkbox"
+                      checked={notifications}
+                      onChange={(event) => {
+                        setNotifications(event.target.checked);
+                        savePreference(
+                          "orbit_notifications",
+                          event.target.checked,
+                        );
+                      }}
+                    />{" "}
+                    Mostrar notificações de novas mensagens
+                  </label>
+                  <p className="settings-help">
+                    As preferências são salvas neste dispositivo.
+                  </p>
+                </>
+              )}
+              {settingsTab === "privacy" && (
+                <>
+                  <h2>Privacidade</h2>
+                  <p className="settings-help">
+                    Você controla quem pode entrar nos servidores e participar
+                    das chamadas através das permissões do servidor.
+                  </p>
+                  <button
+                    className="secondary-setting"
+                    onClick={() =>
+                      setNotice(
+                        "As configurações de privacidade do servidor estão disponíveis para administradores.",
+                      )
+                    }
+                  >
+                    Ver permissões
+                  </button>
+                </>
+              )}
+              <button className="save-settings" onClick={saveProfile}>
+                Salvar alterações
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Root() {
+  const onAppRoute = window.location.pathname.startsWith("/app");
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
+  useEffect(() => {
+    if (localStorage.getItem("orbit_token"))
+      api
+        .me()
+        .then((result) => setUser(result.user))
+        .catch(() => localStorage.removeItem("orbit_token"))
+        .finally(() => setChecking(false));
+    else setChecking(false);
+  }, []);
+  if (!onAppRoute) return <LandingPage />;
+  if (checking)
+    return <div className="loading-screen">Verificando sessão...</div>;
+  if (!user) return <AuthScreen onLogin={setUser} />;
+  return (
+    <App
+      currentUser={user}
+      onLogout={() => {
+        localStorage.removeItem("orbit_token");
+        setUser(null);
+      }}
+      onUserUpdate={setUser}
+    />
+  );
+}
+const rootElement = document.getElementById("root");
+const appRoot = rootElement.__seshRoot || createRoot(rootElement);
+rootElement.__seshRoot = appRoot;
+appRoot.render(<Root />);

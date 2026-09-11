@@ -1,0 +1,56 @@
+{
+  "name": "sesh",
+  "version": "1.0.0",
+  "description": "Sesh - comunidades, voz, vídeo e compartilhamento",
+  "author": "Sesh",
+  "private": true,
+  "main": "electron-main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm run server\" \"npm run web\"",
+    "web": "vite --host 127.0.0.1",
+    "server": "node server.js",
+    "desktop": "concurrently --kill-others-on-fail \"npm run web\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "vite build",
+    "dist:win": "npm run build && electron-builder --win portable --x64",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "electron": "latest",
+    "electron-builder": "^26.15.3",
+    "vite": "latest",
+    "wait-on": "latest"
+  },
+  "dependencies": {
+    "lucide-react": "latest",
+    "pg": "^8.23.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "ws": "latest"
+  },
+  "build": {
+    "appId": "com.sesh.desktop",
+    "productName": "Sesh",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "server.js",
+      "electron-main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "icon": "public/branding/sesh.ico",
+      "target": [
+        "portable"
+      ],
+      "artifactName": "Sesh-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}
