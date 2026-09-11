@@ -10,8 +10,9 @@ const dataDir = path.join(__dirname, "data");
 const dataFile = path.resolve(
   process.env.DATA_FILE || path.join(dataDir, "database.json"),
 );
-const port = Number(process.env.PORT || 3001);
-const host = process.env.HOST || "127.0.0.1";
+const isProduction = process.env.NODE_ENV === "production";
+const port = Number(process.env.PORT || (isProduction ? 8080 : 3001));
+const host = process.env.HOST || (isProduction ? "0.0.0.0" : "127.0.0.1");
 const DATABASE_URL = String(process.env.DATABASE_URL || "").trim();
 const CORS_ORIGIN = String(process.env.CORS_ORIGIN || "").trim();
 const DATA_ENCRYPTION_KEY = String(
