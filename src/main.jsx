@@ -3491,7 +3491,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           onCustomize={saveProfileCustomization}
         />
       )}
-      {dialog && (
+      {dialog && !selectedServer && (
         <div className="modal-backdrop" onClick={() => setDialog(null)}>
           <section
             className="prompt-dialog"
@@ -3522,7 +3522,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </section>
         </div>
       )}
-      {profileView && (
+      {profileView && !selectedServer && (
         <div className="profile-backdrop" onClick={() => setProfileView(null)}>
           <section
             className="profile-card"
@@ -3629,7 +3629,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </section>
         </div>
       )}
-      {notice && (
+      {notice && !selectedServer && (
         <button className="notice" onClick={() => setNotice("")}>
           {notice}
         </button>
@@ -4219,6 +4219,20 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </section>
         </div>
       )}
+      {badgeMenu && (
+        <BadgeContextMenu
+          menu={badgeMenu}
+          onAdd={() => openBadgeEditor(badgeMenu.user)}
+        />
+      )}
+      {badgeEditor && (
+        <BadgeEditor
+          user={badgeEditor.user}
+          badges={badgeEditor.badges}
+          onCancel={() => setBadgeEditor(null)}
+          onSave={saveBadges}
+        />
+      )}
     </>
   );
   if (selectedServer && !selectedChannel)
@@ -4628,20 +4642,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             }
           />
         )}
-        {badgeMenu && (
-          <BadgeContextMenu
-            menu={badgeMenu}
-            onAdd={() => openBadgeEditor(badgeMenu.user)}
-          />
-        )}
-        {badgeEditor && (
-          <BadgeEditor
-            user={badgeEditor.user}
-            badges={badgeEditor.badges}
-            onCancel={() => setBadgeEditor(null)}
-            onSave={saveBadges}
-          />
-        )}
       </div>
     );
   function savePreference(key, value) {
@@ -4832,7 +4832,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </div>
         )}
         <div className="user-panel">
-          {statusMenu && statusMenuEl}
+          {statusMenu && statusMenuEl()}
           <span
             className="user-avatar-btn"
             title="Alterar meu status"
@@ -5282,6 +5282,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           )}
         </div>
       </main>
+      {overlays}
       {contextMenu && (
         <div
           className="context-menu"
