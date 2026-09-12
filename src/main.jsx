@@ -1125,7 +1125,7 @@ function VoiceSettingsPanel({ user, onClose, onAccount, onLogout }) {
     </div>
   );
 }
-function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onClose }) {
+function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, saving, onClose }) {
   const [tab, setTab] = useState("display");
   const [query, setQuery] = useState("");
   const permissions = ROLE_PERMISSION_GROUPS.map((group) => ({
@@ -1163,7 +1163,8 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onClose }) {
           </section>
         )}
         {tab === "links" && <section className="role-empty-tab"><h3>Links do cargo</h3><p>Este cargo ainda não possui links vinculados.</p></section>}
-        {tab === "members" && <section className="role-member-manager"><p>Escolha quem terá este cargo. Um membro usa um cargo por vez.</p>{members.map((member) => <label key={member.id} className="role-member-row"><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><input type="checkbox" checked={member.roleId === role.id} onChange={(event) => onAssignMember(member.id, event.target.checked ? role.id : "member")} /></label>)}</section>}
+        {tab === "members" && <section className="role-member-manager"><div className="role-member-manager-head"><p>Escolha quem terá este cargo. Um membro usa um cargo por vez.</p><strong>{roleMembers.length} membro{roleMembers.length === 1 ? "" : "s"}</strong></div>{members.map((member) => <label key={member.id} className="role-member-row"><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><input type="checkbox" checked={member.roleId === role.id} onChange={(event) => onAssignMember(member.id, event.target.checked ? role.id : "member")} /></label>)}</section>}
+        <footer className="role-config-actions"><button type="button" onClick={onClose}>Fechar</button><button type="button" className="prompt-confirm" disabled={saving} onClick={async () => { const saved = await onSave(); if (saved) onClose(); }}>{saving ? "Salvando..." : "Salvar cargo"}</button></footer>
       </section>
     </div>
   );
@@ -1218,8 +1219,8 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   }
   async function saveRoles() {
     setError(""); setRolesSaved(false); setBusy(true);
-    try { await onSave({ roles: form.roles, memberRoles: form.memberRoles }); setRolesSaved(true); }
-    catch (err) { setError(err.message); }
+    try { await onSave({ roles: form.roles, memberRoles: form.memberRoles }); setRolesSaved(true); return true; }
+    catch (err) { setError(err.message); return false; }
     finally { setBusy(false); }
   }
   async function submit(event) {
@@ -1280,7 +1281,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar membros"}</button></div>
           </section>}
         </main>
-        {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} onUpdate={updateRole} onAssignMember={assignRoleMember} onClose={() => setRoleEditorId(null)} />}
+        {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} onUpdate={updateRole} onAssignMember={assignRoleMember} onSave={saveRoles} saving={busy} onClose={() => setRoleEditorId(null)} />}
       </section>
     </div>
   );
