@@ -89,9 +89,16 @@ input[type=range],input[type=checkbox]{accent-color:#9380ff}
 .app-shell .workspace-header-banner{background-size:cover!important;background-position:center!important;min-height:164px;align-items:flex-end;padding-bottom:18px;position:relative;background-color:#211c34}
 .app-shell .workspace-header-banner::before{content:"";position:absolute;inset:0;background:linear-gradient(transparent,#11121bdc);pointer-events:none}
 .app-shell .workspace-header-banner>*{position:relative;z-index:1}
-.app-shell>.user-panel{left:84px;width:234px;bottom:8px;min-height:66px;border-radius:10px;border:1px solid #ffffff14;background:#24242f;box-shadow:0 6px 24px #0005}
+.app-shell>.user-panel,.app-shell .channel-sidebar>.user-panel{height:66px;min-height:66px;flex:0 0 66px;border-radius:10px;border:1px solid #ffffff14;background:#24242f;box-shadow:0 6px 24px #0005}
+.app-shell>.user-panel{left:84px;width:234px;bottom:8px}
+.app-shell .channel-sidebar>.user-panel{position:relative;bottom:auto;margin:0 8px}
 .app-shell .user-panel .user-details{min-width:0}.app-shell .user-panel .user-details strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.app-shell .channel-sidebar{padding-bottom:80px}.app-shell .user-panel .user-actions{gap:1px}.app-shell .user-panel .user-actions button{padding:5px}
+/* Home has a fixed footer; server pages keep theirs in the sidebar's flex flow. */
+.app-shell .home-sidebar{padding-bottom:80px}
+.app-shell .channel-sidebar:not(.home-sidebar){padding-bottom:8px;min-height:0}
+.app-shell .channel-sidebar>.channel-scroll{min-height:0}
+.app-shell .channel-sidebar>.workspace-header{flex-shrink:0}
+.app-shell .user-panel .user-actions{gap:1px}.app-shell .user-panel .user-actions button{padding:5px}
 .profile-effect-layer{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
 .profile-effect-layer i{position:absolute;left:var(--effect-x);bottom:-10px;width:var(--effect-size);height:var(--effect-size);animation:sesh-float 5s linear infinite;animation-delay:var(--effect-delay);background:#d6c3ff;border-radius:50%;box-shadow:0 0 9px currentColor;opacity:0}
 @keyframes sesh-float{0%{transform:translateY(0) rotate(0deg);opacity:0}15%,75%{opacity:.75}100%{transform:translateY(-400px) translateX(28px) rotate(180deg);opacity:0}}
@@ -132,9 +139,10 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);max-height:235px;overflow:auto;gap:3px}.emoji-grid button{background:none;font-size:25px!important;padding:5px!important}.emoji-grid button:hover{background:#ffffff12}
 .emoji-message{font-size:34px!important;line-height:1.4!important;margin:6px 0}.member-game{display:flex;align-items:center;gap:5px;font-size:10px;color:#979fb6;max-width:160px;overflow:hidden;text-overflow:ellipsis}.member-game .game-icon{width:16px;height:16px;border-radius:4px}
 .composer{position:relative}.profile-backdrop{z-index:80}.profile-settings-backdrop,.voice-settings-backdrop{z-index:100}
-.favorite-game-activity{position:fixed;left:84px;bottom:78px;width:234px;z-index:32;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:12px;background:#222327;border:1px solid #303137;border-radius:10px 10px 0 0}
+.favorite-game-activity{position:fixed;left:84px;bottom:74px;width:234px;z-index:32;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:12px;background:#222327;border:1px solid #303137;border-radius:10px 10px 0 0}
+.channel-sidebar>.favorite-game-activity{position:static;flex:0 0 auto;width:auto;margin:0 8px}
 .favorite-game-activity strong{display:block;font-size:13px;color:#f1f1f4}.favorite-game-activity small{color:#9a9ba7;font-size:11px}
-.favorite-game-activity+.user-panel{border-radius:0 0 10px 10px}
+.app-shell .favorite-game-activity+.user-panel{border-radius:0 0 10px 10px}
 .profile-game-chips a{display:inline-flex;gap:6px;align-items:center;color:inherit;text-decoration:none;background:#282930;padding:6px 8px;border-radius:8px;font-size:12px}
 .member-game .game-icon{width:16px;height:16px}
 .server-settings-nav button:disabled,.role-edit:disabled,.role-move:disabled,.role-remove:disabled{opacity:.4;cursor:not-allowed}
