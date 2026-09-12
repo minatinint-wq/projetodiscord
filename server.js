@@ -451,10 +451,19 @@ function json(res, status, payload) {
   res.writeHead(status, headers);
   res.end(JSON.stringify(payload));
 }
+function userTag(user) {
+  if (/^\d{4}$/.test(String(user?.tag || ""))) return String(user.tag);
+  const source = String(user?.id || user?.username || "sesh");
+  let hash = 0;
+  for (const character of source)
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return String(1000 + (hash % 9000));
+}
 function publicUser(user) {
   return {
     id: user.id,
     username: user.username,
+    tag: userTag(user),
     displayName: user.displayName,
     avatarColor: user.avatarColor,
     avatar: user.avatar || null,
@@ -1636,10 +1645,20 @@ async function handler(req, res) {
     }
     if (url.pathname === "/api/friends" && req.method === "POST") {
       const input = await body(req);
-      const uname = String(input.username || "")
+      const friendId = String(input.username || "")
         .trim()
         .toLowerCase();
-      const target = database.users.find((item) => item.username === uname);
+      const match = friendId.match(/^@?([a-z0-9_.-]{1,20})(?:#(\d{4}))?$/i);
+      if (!match)
+        return json(res, 400, {
+          error: "Use o formato nome#0000 para adicionar um amigo.",
+        });
+      const [, username, tag] = match;
+      const target = database.users.find(
+        (item) =>
+          item.username === username &&
+          (!tag || userTag(item) === tag),
+      );
       if (!target)
         return json(res, 404, {
           error: "Usuário não encontrado. Confira o nome (sem o @).",

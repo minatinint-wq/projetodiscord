@@ -6519,3 +6519,16 @@ body[data-profile-plate="neon"] .profile-card {
   .role-editor-main { grid-template-columns: 1fr 42px; }
   .role-editor-main select, .role-editor-main .role-remove { grid-column: span 1; }
 }
+.voice-settings-scroll[class*="settings-section-"]:not(.settings-section-voice) > :not(.settings-section-card) {
+  display: none;
+}
+.settings-section-card {
+  margin: 4px 0;
+  padding: 22px;
+  border: 1px solid #3b2630;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #18171c, #211417);
+}
+.settings-section-card h1 { margin: 0 0 8px; }
+.settings-section-card p { margin: 0; color: #a9adb7; line-height: 1.5; }
+.channel-sidebar { display: flex; flex-direction: column; }

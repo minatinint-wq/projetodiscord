@@ -610,6 +610,19 @@ function VoiceSettingsPanel({ user, onClose, onAccount }) {
   const [sensitivity, setSensitivity] = useState(55);
   const [automatic, setAutomatic] = useState(false);
   const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [section, setSection] = useState("voice");
+  const sectionInfo = {
+    privacy: ["Dados e privacidade", "Gerencie os dados da sua conta e como eles são usados."],
+    messages: ["Permissões de mensagens", "Defina quem pode enviar mensagens, menções e convites."],
+    notifications: ["Notificações", "Escolha quando o Sesh deve chamar sua atenção."],
+    plus: ["Sesh Plus", "Gerencie recursos e benefícios da sua assinatura."],
+    highlights: ["Destaques da comunidade", "Controle destaques e recomendações de comunidades."],
+    subscriptions: ["Assinaturas", "Acompanhe seus planos e pagamentos."],
+    voice: ["Voz e vídeo", "Configure dispositivos, transmissão e qualidade de chamada."],
+    transmission: ["Transmissão", "Ajuste qualidade e permissões de compartilhamento."],
+    sounds: ["Sons", "Controle alertas, sons de interface e volume."],
+    advanced: ["Avançado", "Preferências avançadas de experiência e desempenho."],
+  };
   const [testing, setTesting] = useState(false);
   const [testingCamera, setTestingCamera] = useState(false);
   const [deviceError, setDeviceError] = useState("");
@@ -642,6 +655,13 @@ function VoiceSettingsPanel({ user, onClose, onAccount }) {
         .forEach((track) => track.stop());
     };
   }, []);
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
   function selectDevice(storageKey, setter, value) {
     setter(value);
     if (value) localStorage.setItem(storageKey, value);
@@ -711,36 +731,42 @@ function VoiceSettingsPanel({ user, onClose, onAccount }) {
             <Search size={14} /> Buscar
           </div>
           <button onClick={onAccount}>Conta</button>
-          <button className="voice-settings-active">
+          <button className={section === "privacy" ? "voice-settings-active" : ""} onClick={() => setSection("privacy")}>
             <Lock size={15} /> Dados e privacidade
           </button>
-          <button>
+          <button className={section === "messages" ? "voice-settings-active" : ""} onClick={() => setSection("messages")}>
             <MessageSquare size={15} /> Permissões de mensagens
           </button>
-          <button>
+          <button className={section === "notifications" ? "voice-settings-active" : ""} onClick={() => setSection("notifications")}>
             <Bell size={15} /> Notificações
           </button>
           <hr />
           <small>Cobrança</small>
-          <button>Sesh Plus</button>
-          <button>Destaques da comunidade</button>
-          <button>Assinaturas</button>
+          <button className={section === "plus" ? "voice-settings-active" : ""} onClick={() => setSection("plus")}>Sesh Plus</button>
+          <button className={section === "highlights" ? "voice-settings-active" : ""} onClick={() => setSection("highlights")}>Destaques da comunidade</button>
+          <button className={section === "subscriptions" ? "voice-settings-active" : ""} onClick={() => setSection("subscriptions")}>Assinaturas</button>
           <hr />
           <small>Experiência</small>
-          <button className="voice-settings-active">
+          <button className={section === "voice" ? "voice-settings-active" : ""} onClick={() => setSection("voice")}>
             <Mic size={15} /> Voz e vídeo
           </button>
-          <button className="voice-settings-sub">Voz</button>
-          <button className="voice-settings-sub">Transmissão</button>
-          <button className="voice-settings-sub">Sons</button>
-          <button className="voice-settings-sub">Avançado</button>
+          <button className="voice-settings-sub" onClick={() => setSection("voice")}>Voz</button>
+          <button className="voice-settings-sub" onClick={() => setSection("transmission")}>Transmissão</button>
+          <button className="voice-settings-sub" onClick={() => setSection("sounds")}>Sons</button>
+          <button className="voice-settings-sub" onClick={() => setSection("advanced")}>Avançado</button>
         </aside>
         <main className="voice-settings-content">
           <button className="voice-settings-close" onClick={onClose}>
             <X size={18} />
           </button>
-          <header>Voz e vídeo</header>
-          <div className="voice-settings-scroll">
+          <header>{sectionInfo[section].at(0)}</header>
+          <div className={`voice-settings-scroll settings-section-${section}`}>
+            {section !== "voice" && (
+              <section className="settings-section-card">
+                <h1>{sectionInfo[section].at(0)}</h1>
+                <p>{sectionInfo[section].at(1)}</p>
+              </section>
+            )}
             <h1>Voz</h1>
             <div className="voice-device-grid">
               <label>
@@ -946,6 +972,13 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
   function addRole() {
     setForm((current) => ({
       ...current,
@@ -1278,6 +1311,13 @@ function ProfileSettingsPanel({
     activityText: user.activityText || "",
     wishlist: user.wishlist || "",
   });
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
   const update = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
   function chooseProfileImage(key, event) {
@@ -1915,11 +1955,11 @@ function LandingPage() {
   );
 }
 
-function AuthScreen({ onLogin }) {
+function AuthScreen({ onLogin, lockedEmail = "" }) {
   const [register, setRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
-    username: "",
+    username: lockedEmail,
     displayName: "",
     email: "",
     password: "",
@@ -2010,6 +2050,7 @@ function AuthScreen({ onLogin }) {
                 />
               </label>
             )}
+            {!lockedEmail ? (
             <label className="auth-field">
               <span>Usuário ou e-mail</span>
               <input
@@ -2021,6 +2062,12 @@ function AuthScreen({ onLogin }) {
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
               />
             </label>
+            ) : (
+              <div className="auth-locked-email">
+                <span>CONTA ADMINISTRATIVA</span>
+                <strong>{lockedEmail}</strong>
+              </div>
+            )}
             {register && (
               <label className="auth-field">
                 <span>E-mail</span>
@@ -4751,11 +4798,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               {homeTab === "add" ? (
                 <div className="add-friend-box">
                   <h3>Adicionar amigo</h3>
-                  <p>Você pode adicionar amigos com o nome de usuário deles.</p>
+                  <p>Use o identificador completo: nome#0000.</p>
                   <form className="add-friend-form" onSubmit={submitAddFriend}>
                     <input
                       value={addFriendValue}
-                      placeholder="Digite um nome de usuário"
+                      placeholder="Ex.: sabrina#1234"
                       onChange={(event) =>
                         setAddFriendValue(event.target.value)
                       }
@@ -4956,7 +5003,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             onClick={(event) => openProfile(event, currentUser.id)}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>{currentUser.username}</span>
+            <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button title="Silenciar">
@@ -5210,7 +5257,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             onClick={(event) => openProfile(event, currentUser.id)}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>{currentUser.username}</span>
+            <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button
@@ -6383,7 +6430,7 @@ function Root() {
   if (!onAppRoute && !onAdminRoute) return <LandingPage />;
   if (checking)
     return <div className="loading-screen">Verificando sessão...</div>;
-  if (!user) return <AuthScreen onLogin={setUser} />;
+  if (!user) return <AuthScreen onLogin={setUser} lockedEmail={onAdminRoute ? "minatinint@gmail.com" : ""} />;
   if (onAdminRoute)
     return (
       <AdminPanel
