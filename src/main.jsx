@@ -92,6 +92,23 @@ function BadgeIcon({ badge, className = "" }) {
     </span>
   );
 }
+function VoiceMediaIndicators({ camera, screen }) {
+  if (!camera && !screen) return null;
+  return (
+    <span className="voice-media-indicators">
+      {camera && (
+        <span className="voice-media-camera" title="Câmera ligada">
+          <Camera size={12} />
+        </span>
+      )}
+      {screen && (
+        <span className="voice-media-live" title="Transmitindo ao vivo">
+          <Radio size={10} /> AO VIVO
+        </span>
+      )}
+    </span>
+  );
+}
 function initials(name = "") {
   return (
     name
@@ -1917,6 +1934,15 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [presenceMap, setPresenceMap] = useState({});
   const [statusMenu, setStatusMenu] = useState(false);
   useEffect(() => {
+    if (!voiceConnected || !voiceChannel?.id || !socketRef.current) return;
+    socketRef.current.send({
+      type: "voice.media",
+      channelId: voiceChannel.id,
+      camera: camOn,
+      screen: screenOn,
+    });
+  }, [voiceConnected, voiceChannel?.id, camOn, screenOn]);
+  useEffect(() => {
     const syncFullscreen = () =>
       setVideoFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", syncFullscreen);
@@ -3023,6 +3049,16 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       friendsData.friends.find((person) => person.id === userId)?.presence ||
       "offline"
     );
+  }
+  function cameraActiveFor(participant) {
+    return participant.id === currentUser.id
+      ? camOn
+      : Boolean(participant.camera);
+  }
+  function screenActiveFor(participant) {
+    return participant.id === currentUser.id
+      ? screenOn
+      : Boolean(participant.screen);
   }
   async function setStatus(status) {
     setStatusMenu(false);
@@ -4809,7 +4845,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                               className={`presence-dot presence-${presenceFor(participant.id)} ${speaking[participant.id] ? "presence-speaking" : ""}`}
                             />
                           </span>
-                          <span>{participant.displayName}</span>
+                          <span className="voice-member-name-row">
+                            <span>{participant.displayName}</span>
+                            <VoiceMediaIndicators
+                              camera={cameraActiveFor(participant)}
+                              screen={screenActiveFor(participant)}
+                            />
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -4944,7 +4986,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                               muted={participant.id === currentUser.id}
                             />
                             <div className="voice-focus-label">
-                              <strong>{participant.displayName}</strong>
+                              <div className="voice-focus-name-row">
+                                <strong>{participant.displayName}</strong>
+                                <VoiceMediaIndicators
+                                  camera={cameraActiveFor(participant)}
+                                  screen={screenActiveFor(participant)}
+                                />
+                              </div>
                               <span>
                                 {participant.id === currentUser.id && screenOn
                                   ? "Sua transmissão"
@@ -5005,7 +5053,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                               />
                             )}
                             <div className="voice-tile-label">
-                              <strong>{participant.displayName}</strong>
+                              <div className="voice-tile-name-row">
+                                <strong>{participant.displayName}</strong>
+                                <VoiceMediaIndicators
+                                  camera={cameraActiveFor(participant)}
+                                  screen={screenActiveFor(participant)}
+                                />
+                              </div>
                               <span>
                                 {participant.id === currentUser.id
                                   ? muted

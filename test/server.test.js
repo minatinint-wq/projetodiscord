@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import WebSocket from "ws";
 
 const projectRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -38,6 +39,33 @@ async function request(pathname, options = {}) {
   });
   const payload = await response.json();
   return { response, payload };
+}
+
+function connectVoice(token) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(
+      `${baseUrl.replace("http", "ws")}/ws?token=${token}`,
+    );
+    socket.once("open", () => resolve(socket));
+    socket.once("error", reject);
+  });
+}
+
+function waitForSocketEvent(socket, predicate, timeout = 3000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.off("message", onMessage);
+      reject(new Error("Evento WebSocket não recebido a tempo."));
+    }, timeout);
+    const onMessage = (raw) => {
+      const event = JSON.parse(raw.toString());
+      if (!predicate(event)) return;
+      clearTimeout(timer);
+      socket.off("message", onMessage);
+      resolve(event);
+    };
+    socket.on("message", onMessage);
+  });
 }
 
 before(async () => {
@@ -150,6 +178,91 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     body: JSON.stringify({ name: "sem-permissao", type: "text" }),
   });
   assert.equal(forbidden.response.status, 403);
+
+  const joined = await request(
+    `/api/servers/${created.payload.server.id}/join`,
+    { method: "POST", headers: secondAuth },
+  );
+  assert.equal(joined.response.status, 200);
+  const voiceChannel = created.payload.server.channels.find(
+    (channel) => channel.type === "voice",
+  );
+  assert.ok(voiceChannel);
+
+  const ownerSocket = await connectVoice(login.payload.token);
+  const visitorSocket = await connectVoice(secondUser.payload.token);
+  try {
+    const ownerJoined = waitForSocketEvent(
+      ownerSocket,
+      (event) =>
+        event.type === "voice.participants" &&
+        event.participants.length === 1,
+    );
+    ownerSocket.send(
+      JSON.stringify({ type: "voice.join", channelId: voiceChannel.id }),
+    );
+    await ownerJoined;
+
+    const roomReady = waitForSocketEvent(
+      ownerSocket,
+      (event) =>
+        event.type === "voice.participants" &&
+        event.participants.length === 2,
+    );
+    visitorSocket.send(
+      JSON.stringify({ type: "voice.join", channelId: voiceChannel.id }),
+    );
+    const orderedRoom = await roomReady;
+    assert.deepEqual(
+      orderedRoom.participants.map((participant) => participant.id),
+      [login.payload.user.id, secondUser.payload.user.id],
+    );
+
+    const mediaUpdated = waitForSocketEvent(
+      ownerSocket,
+      (event) =>
+        event.type === "voice.participants" &&
+        event.participants.some(
+          (participant) =>
+            participant.id === secondUser.payload.user.id &&
+            participant.camera &&
+            participant.screen,
+        ),
+    );
+    visitorSocket.send(
+      JSON.stringify({
+        type: "voice.media",
+        channelId: voiceChannel.id,
+        camera: true,
+        screen: true,
+      }),
+    );
+    const mediaEvent = await mediaUpdated;
+    const visitorState = mediaEvent.participants.find(
+      (participant) => participant.id === secondUser.payload.user.id,
+    );
+    assert.equal(visitorState.camera, true);
+    assert.equal(visitorState.screen, true);
+
+    const offerRelayed = waitForSocketEvent(
+      ownerSocket,
+      (event) =>
+        event.type === "voice.offer" &&
+        event.fromUserId === secondUser.payload.user.id,
+    );
+    visitorSocket.send(
+      JSON.stringify({
+        type: "voice.offer",
+        targetUserId: login.payload.user.id,
+        offer: { type: "offer", sdp: "smoke-test" },
+      }),
+    );
+    const offer = await offerRelayed;
+    assert.equal(offer.offer.sdp, "smoke-test");
+  } finally {
+    ownerSocket.close();
+    visitorSocket.close();
+  }
 
   const encryptedDatabase = await readFile(
     path.join(tempDir, "database.json"),

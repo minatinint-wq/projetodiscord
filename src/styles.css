@@ -2322,6 +2322,53 @@ button {
   color: #8d97ac;
   font-size: 13px;
 }
+.voice-member-name-row,
+.voice-tile-name-row,
+.voice-focus-name-row,
+.voice-media-indicators {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.voice-member-name-row,
+.voice-tile-name-row,
+.voice-focus-name-row {
+  gap: 6px;
+}
+.voice-media-indicators {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.voice-media-camera {
+  display: inline-flex;
+  align-items: center;
+  color: #ff6975;
+}
+.voice-media-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px solid #ff6672;
+  border-radius: 4px;
+  background: #b6202b;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  box-shadow: 0 0 10px #d02e3b4d;
+}
+.voice-tile-label .voice-media-live,
+.voice-focus-label .voice-media-live {
+  color: #fff;
+  font-size: 8px;
+}
+.voice-tile-label .voice-media-camera,
+.voice-focus-label .voice-media-camera {
+  color: #ff6975;
+}
 .voice-member:hover {
   background: #222b3c;
   color: #e7eaf0;

@@ -483,10 +483,19 @@ function broadcastServer(serverId, event) {
   }
 }
 function voiceParticipants(channelId) {
-  return [...(voiceRooms.get(channelId)?.keys() || [])]
-    .map((userId) =>
-      publicUser(database.users.find((user) => user.id === userId)),
-    )
+  return [...(voiceRooms.get(channelId)?.entries() || [])]
+    .map(([userId, media]) => {
+      const user = publicUser(
+        database.users.find((item) => item.id === userId),
+      );
+      return user
+        ? {
+            ...user,
+            camera: Boolean(media?.camera),
+            screen: Boolean(media?.screen),
+          }
+        : null;
+    })
     .filter(Boolean);
 }
 function broadcastVoice(channelId, event) {
@@ -1298,7 +1307,8 @@ wss.on("connection", (socket, req) => {
         const room = voiceRooms.get(channel.id);
         const wasPresent = room.has(userId);
         const changing = event.type === "voice.join" ? !wasPresent : wasPresent;
-        if (event.type === "voice.join") room.set(userId, true);
+        if (event.type === "voice.join")
+          room.set(userId, { camera: false, screen: false });
         else room.delete(userId);
         if (changing) {
           broadcastVoice(channel.id, {
@@ -1310,6 +1320,22 @@ wss.on("connection", (socket, req) => {
         }
         if (event.type === "voice.leave" && room.size === 0)
           voiceRooms.delete(channel.id);
+      } else if (event.type === "voice.media") {
+        const channel = database.channels.find(
+          (item) => item.id === event.channelId && item.type === "voice",
+        );
+        const room = channel && voiceRooms.get(channel.id);
+        if (!room?.has(userId)) return;
+        room.set(userId, {
+          camera: Boolean(event.camera),
+          screen: Boolean(event.screen),
+        });
+        broadcastVoice(channel.id, {
+          type: "voice.participants",
+          channelId: channel.id,
+          participants: voiceParticipants(channel.id),
+        });
+        broadcastVoiceState(channel);
       } else if (
         ["voice.offer", "voice.answer", "voice.ice"].includes(event.type)
       ) {
