@@ -3945,6 +3945,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       icon: null,
       template: null,
       server: null,
+      invite: "",
       busy: false,
     });
   }
@@ -3981,7 +3982,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setGuideServer(result.server.id);
     } catch (err) {
       setNotice(err.message);
-      setServerModal({ ...modal, busy: false });
+      setServerModal({ ...modal, busy: false, error: err.message });
     }
   }
   async function uploadServerIcon(event) {
@@ -4040,7 +4041,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   async function submitJoinServer() {
     const modal = serverModal;
-    const inviteValue = modal.invite.trim();
+    const inviteValue = String(modal?.invite || "").trim();
     let decodedInvite = inviteValue;
     try {
       decodedInvite = decodeURIComponent(inviteValue);
@@ -4067,7 +4068,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setNotice(`Você entrou em "${result.server.name}".`);
     } catch (err) {
       setNotice(err.message);
-      setServerModal({ ...modal, busy: false });
+      setServerModal({ ...modal, busy: false, error: err.message });
     }
   }
   function skipOnboard() {
@@ -4771,7 +4772,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                 <button
                   className="wizard-invite-btn"
                   onClick={() =>
-                    setServerModal({ ...serverModal, step: "invite" })
+                    setServerModal({ ...serverModal, step: "invite", invite: "", error: "" })
                   }
                 >
                   Entrar em um servidor
@@ -4898,12 +4899,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             )}
             {serverModal.step === "invite" && (
               <>
-                <div className="channel-modal-label">ID do convite</div>
+                <div className="channel-modal-label">Link do convite</div>
                 <div className="channel-name-box">
                   <input
                     autoFocus
-                    value={serverModal.invite}
-                    placeholder="Cole o ID aqui"
+                    value={serverModal.invite || ""}
+                    placeholder="Cole a URL completa do convite aqui"
                     onChange={(event) =>
                       setServerModal({
                         ...serverModal,
@@ -4911,11 +4912,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                       })
                     }
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && serverModal.invite.trim())
+                      if (event.key === "Enter" && String(serverModal.invite || "").trim())
                         submitJoinServer();
                     }}
                   />
                 </div>
+                {serverModal.error && <div className="form-error">{serverModal.error}</div>}
                 <div className="server-modal-alt">
                   Quer criar um servidor novo?{" "}
                   <button
@@ -4939,7 +4941,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                   </button>
                   <button
                     className="prompt-confirm channel-create"
-                    disabled={!serverModal.invite.trim() || serverModal.busy}
+                    disabled={!String(serverModal.invite || "").trim() || serverModal.busy}
                     onClick={submitJoinServer}
                   >
                     {serverModal.busy ? "Entrando..." : "Entrar no servidor"}
