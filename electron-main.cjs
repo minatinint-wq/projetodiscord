@@ -16,6 +16,8 @@ const { pathToFileURL } = require("node:url");
 let backend;
 let window;
 const backendPort = app.isPackaged ? 38471 : 3001;
+const remoteAppUrl = "https://sesh-web-08o6.onrender.com/app";
+const remoteOrigin = new URL(remoteAppUrl).origin;
 function isNewerVersion(candidate, current) {
   const parse = (value) => String(value || "0.0.0").split(".").map((part) => Number.parseInt(part, 10) || 0);
   const next = parse(candidate);
@@ -26,7 +28,7 @@ function isNewerVersion(candidate, current) {
   return false;
 }
 async function checkForUpdates() {
-  const manifestUrl = String(process.env.SESH_UPDATE_MANIFEST_URL || "https://sesh-web.onrender.com/releases/latest.json").trim();
+  const manifestUrl = String(process.env.SESH_UPDATE_MANIFEST_URL || `${remoteOrigin}/releases/latest.json`).trim();
   if (!app.isPackaged || !manifestUrl) return;
   try {
     const response = await fetch(manifestUrl, {
@@ -34,7 +36,7 @@ async function checkForUpdates() {
       signal: AbortSignal.timeout(8_000),
     });
     const manifest = await response.json();
-    if (!response.ok || !isNewerVersion(manifest.version, app.getVersion()) || !/^https?:\/\//.test(manifest.downloadUrl || "")) return;
+    if (!response.ok || !isNewerVersion(manifest.version, app.getVersion()) || !/^https:\/\//.test(manifest.downloadUrl || "")) return;
     const result = await dialog.showMessageBox(window, {
       type: "info",
       title: "Atualização do Sesh disponível",
@@ -93,6 +95,7 @@ function waitForBackend(attempt = 0) {
 }
 function createWindow() {
   window = new BrowserWindow({
+    show: process.env.SESH_DESKTOP_SMOKE_TEST !== "1",
     width: 1400,
     height: 900,
     minWidth: 900,
@@ -109,11 +112,19 @@ function createWindow() {
   window.webContents.on("will-navigate", (event, url) => {
     if (!isTrustedUrl(url)) event.preventDefault();
   });
-  waitForBackend();
+  if (app.isPackaged) {
+    window.webContents.on("did-fail-load", async (_event, code, description, _url, isMainFrame) => {
+      if (!isMainFrame || code === -3) return;
+      const result = await dialog.showMessageBox(window, { type: "warning", title: "Conectar ao Sesh", message: "Não foi possível conectar ao servidor.", detail: `${description}\nConfira sua conexão. O servidor pode estar iniciando.`, buttons: ["Tentar novamente", "Fechar"], defaultId: 0, cancelId: 1 });
+      if (result.response === 0) window.loadURL(remoteAppUrl).catch(() => {}); else app.quit();
+    });
+    window.loadURL(remoteAppUrl).catch(() => {});
+  } else waitForBackend();
 }
 function isTrustedUrl(value) {
   try {
     const url = new URL(value);
+    if (app.isPackaged) return url.origin === remoteOrigin;
     return (
       ["127.0.0.1", "localhost"].includes(url.hostname) &&
       ["5173", String(backendPort)].includes(url.port)
@@ -168,7 +179,7 @@ app.whenReady().then(async () => {
     },
   );
   try {
-    await startBackend();
+    if (!app.isPackaged) await startBackend();
   } catch (error) {
     dialog.showErrorBox(
       "Sesh",

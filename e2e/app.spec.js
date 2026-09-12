@@ -1,0 +1,62 @@
+import {test,expect} from "@playwright/test";
+test.beforeEach(async({page})=>{
+ const response=await page.request.post("/api/auth/login",{data:{username:"demo",password:"demo123"}});
+ expect(response.ok()).toBeTruthy();await page.goto("/app");
+ await expect(page.getByTitle("Configurações",{exact:true})).toBeVisible();
+});
+test("perfil salva avatar, banner e efeitos sem fechar",{tag:"@profile"},async({page})=>{
+ const errors=[];page.on("pageerror",e=>errors.push(e.message));
+ await page.getByTitle("Configurações",{exact:true}).click();
+ await page.getByRole("button",{name:"Editar perfil e conta"}).click();
+ const editor=page.getByRole("dialog",{name:"Editar perfil",exact:true});await expect(editor).toBeVisible();
+ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
+ await editor.locator('input[type=file]').nth(0).setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:png});
+ await editor.locator('input[type=file]').nth(1).setInputFiles({name:"banner.png",mimeType:"image/png",buffer:png});
+ await editor.getByRole("button",{name:"Salvar alterações"}).click();
+ await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+ await expect(editor).toBeVisible();
+ const me=await(await page.request.get("/api/auth/me")).json();
+ expect(me.user.avatar).toContain("data:image/png");expect(me.user.banner).toContain("data:image/png");
+ await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
+ await editor.getByRole("button",{name:"Vagalumes",exact:true}).click();
+ await editor.getByRole("button",{name:"Rainbow RGB",exact:true}).click();
+ await editor.getByRole("button",{name:"Salvar alterações"}).click();
+ await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+ await page.screenshot({path:"test-results/profile-studio.png",fullPage:true});
+ expect(errors).toEqual([]);
+});
+test("microfone mede áudio real e libera captura",async({page})=>{
+ await page.getByTitle("Configurações",{exact:true}).click();
+ await page.getByRole("button",{name:"Testar microfone",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Parar teste"})).toBeVisible();
+ await expect.poll(async()=>Number(await page.getByRole("meter").getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+ await page.getByRole("button",{name:"Parar teste"}).click();
+ await expect(page.getByRole("button",{name:"Testar microfone",exact:true})).toBeVisible();
+ await expect(page.locator("audio[controls]")).toBeVisible();
+ await page.screenshot({path:"test-results/microphone-settings.png",fullPage:true});
+});
+test("cargo criado permanece após salvar e reabrir",async({page})=>{
+ const result=await(await page.request.post("/api/servers",{data:{name:"Comunidade de teste"}})).json();
+ await page.reload();await page.getByTitle("Comunidade de teste",{exact:true}).click();
+ await page.getByTitle("Configurações do servidor",{exact:true}).click();
+ await page.getByRole("button",{name:"Cargos",exact:true}).click();
+ await page.getByRole("button",{name:"Criar cargo",exact:true}).click();
+ await page.getByLabel("Nome do cargo",{exact:true}).fill("Guardiões");
+ await page.getByRole("button",{name:"Salvar cargo",exact:true}).click();
+ await expect(page.locator(".settings-role-item").filter({hasText:"Guardiões"})).toBeVisible();
+ await page.getByLabel("Fechar configurações",{exact:true}).click();
+ await page.getByTitle("Configurações do servidor",{exact:true}).click();
+ await page.getByRole("button",{name:"Cargos",exact:true}).click();
+ await expect(page.locator(".settings-role-item").filter({hasText:"Guardiões"})).toBeVisible();
+ const server=await(await page.request.get("/api/servers/"+result.server.id)).json();
+ expect(server.server.roles.some(role=>role.name==="Guardiões")).toBeTruthy();
+ await page.screenshot({path:"test-results/roles.png",fullPage:true});
+});
+test("emoji picker insere e envia mensagem",async({page})=>{
+ await page.getByTitle("Comunidade de teste",{exact:true}).click();
+ await page.getByRole("button",{name:"Escolher emoji"}).click();
+ await page.getByRole("button",{name:"😀",exact:true}).click();
+ await expect(page.locator(".composer input:not([type=file])")).toHaveValue("😀");
+ await page.locator(".send-button").click();
+ await expect(page.locator(".emoji-message").filter({hasText:"😀"})).toBeVisible();
+});

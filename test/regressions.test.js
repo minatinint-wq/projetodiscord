@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import {test,before,after} from "node:test";
+import {spawn} from "node:child_process";
+import {mkdtemp,rm} from "node:fs/promises";
+import path from "node:path";import os from "node:os";
+const port=35500+Math.floor(Math.random()*400),url="http://127.0.0.1:"+port;
+let proc,temp,owner,guest,server;
+const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const gif="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+async function req(route,method="GET",data,token){const response=await fetch(url+route,{method,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})});
+
+
+
+
+
+
+
+return {status:response.status,...await response.json()};}
+before(async()=>{
+ temp=await mkdtemp(path.join(os.tmpdir(),"sesh-regressions-"));
+ proc=spawn(process.execPath,["server.js"],{cwd:process.cwd(),env:{...process.env,HOST:"127.0.0.1",PORT:String(port),DATABASE_URL:"",DATA_FILE:path.join(temp,"data.json"),SEED_DEMO_USER:"true",MASTER_ADMIN_EMAIL:"test-admin@sesh.local",MASTER_ADMIN_PASSWORD:"test-admin-password",MASTER_ADMIN_EMAILS:"",CREATOR_EMAIL:"",CREATOR_EMAILS:"",RESEND_API_KEY:""},stdio:"ignore"});
+
+ for(let i=0;i<100;i++){try{if((await fetch(url+"/api/health")).ok)break;}catch{}await new Promise(r=>setTimeout(r,50));}
+ owner=await req("/api/auth/login","POST",{username:"demo",password:"demo123"});
+
+ guest=await req("/api/auth/register","POST",{username:"testguest",email:"testguest@sesh.local",password:"test1234",displayName:"Visitante"});
+
+ server=(await req("/api/servers","POST",{name:"Regressions"},owner.token)).server;
+ await req("/api/servers/"+server.inviteCode+"/join","POST",{},guest.token);
+});
+after(async()=>{if(proc&&!proc.killed){const ended=new Promise(r=>proc.once("exit",r));proc.kill();await ended;}if(temp)await rm(temp,{recursive:true,force:true});
+
+});
+test("perfil é atômico e imagem estática persiste",async()=>{
+ assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
+ const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);
+ assert.equal(failed.status,400);const result=await req("/api/auth/me","GET",undefined,guest.token);
+ assert.equal(result.user.bio,"");assert.equal(result.user.banner,png);assert.equal(result.user.avatar,png);
+ assert.equal((await req("/api/auth/me","PATCH",null,guest.token)).status,400);
+});
+test("GIF exige Nitro ativo no backend",async()=>{
+ assert.equal((await req("/api/auth/me","PATCH",{avatar:gif},guest.token)).status,403);
+ const admin=await req("/api/auth/login","POST",{username:"test-admin@sesh.local",password:"test-admin-password"});
+
+ const granted=await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"active"},admin.token);
+ assert.equal(granted.status,200);
+ const result=await req("/api/auth/me","PATCH",{avatar:gif,banner:gif},guest.token);assert.equal(result.status,200);assert.equal(result.user.avatar,gif);
+});
+test("e-mail não permite assumir privilégio administrativo",async()=>{
+ const result=await req("/api/auth/me","PATCH",{email:"test-admin@sesh.local"},guest.token);assert.equal(result.status,403);
+});
+test("cargos e permissões padrão persistem; anexos são validados",async()=>{
+ const roles=[...server.roles.map(role=>role.id==="member"?{...role,permissions:{...role.permissions,attachFiles:false}}:role),{id:"moderator",name:"Guardiões",color:"#ab88ff",permissions:{sendMessages:true,connectVoice:true},hoist:true}];
+ const changed=await req("/api/servers/"+server.id,"PATCH",{roles},owner.token);assert.equal(changed.status,200);
+ const reloaded=await req("/api/servers/"+server.id,"GET",undefined,owner.token);
+ assert.ok(reloaded.server.roles.some(role=>role.id==="moderator"));assert.equal(reloaded.server.roles.find(role=>role.id==="member").permissions.attachFiles,false);
+ assert.equal((await req("/api/channels/"+server.channels[0].id+"/messages","POST",{attachment:png},guest.token)).status,403);
+ const invalid=await req("/api/servers/"+server.id,"PATCH",{name:"nao deve salvar",memberRoles:{[guest.user.id]:"missing"}},owner.token);assert.equal(invalid.status,400);
+ assert.equal((await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server.name,"Regressions");
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{icon:"RG",memberRoles:{[guest.user.id]:"moderator"}},owner.token)).status,200);
+});
+test("DM persiste texto e imagem e respeita preferências",async()=>{
+ assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"oi"},guest.token)).status,403);
+ await req("/api/friends","POST",{username:"demo"},guest.token);
+ await req("/api/friends","POST",{username:"testguest"},owner.token);
+ const sent=await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"Olá 🎮 ❤️",attachment:png},guest.token);assert.equal(sent.status,201);
+ const inbox=await req("/api/direct/"+guest.user.id+"/messages","GET",undefined,owner.token);assert.equal(inbox.messages[0].content,"Olá 🎮 ❤️");assert.equal(inbox.messages[0].attachment,png);
+ await req("/api/auth/me","PATCH",{preferences:{allowDirectMessages:false}},owner.token);
+ assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"bloqueada"},guest.token)).status,403);
+});
+test("novos cosméticos são aceitos e persistidos",async()=>{
+ const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"fireflies",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
+ assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"fireflies");assert.equal(result.user.nameEffect,"rainbow");
+});
+test("gestor cria cargo inferior sem elevar privilégios",async()=>{
+ const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;
+ const manager={id:"manager",name:"Gestor",permissions:{...current.roles.find(r=>r.id==="owner").permissions}};
+ let roles=[current.roles.find(r=>r.id==="owner"),manager,...current.roles.filter(r=>r.id!=="owner")];
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{roles,memberRoles:{[guest.user.id]:"manager"}},owner.token)).status,200);
+ roles=(await req("/api/servers/"+server.id,"GET",undefined,guest.token)).server.roles;
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{roles:[...roles,{id:"helper",name:"Ajudante",permissions:{sendMessages:true}}]},guest.token)).status,200);
+ const latest=(await req("/api/servers/"+server.id,"GET",undefined,guest.token)).server;
+ const selfChange=latest.roles.map(r=>r.id==="manager"?{...r,name:"Não autorizado"}:r);
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{roles:selfChange},guest.token)).status,403);
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{memberRoles:{[guest.user.id]:"helper"}},guest.token)).status,403);
+ assert.equal((await req("/api/servers/"+server.id,"PATCH",{roles:{}},owner.token)).status,400);
+});

@@ -1,85 +1,55 @@
 # Sesh
 
-MVP de uma plataforma de comunidades inspirada em apps de chat modernos, com identidade visual própria.
+Aplicativo de comunidades, mensagens, perfis e chamadas, com identidade própria.
+Versão 1.2.0. Veja [notas da versão](RELEASE_NOTES.md) e [distribuição](DISTRIBUICAO.md).
 
-## Executar localmente
-
-Instale as dependências:
-
-```bash
-npm install
-```
-
-Inicie o backend e o frontend no navegador:
-
-```bash
+## Desenvolvimento
+Use Node.js 22.22.x e npm:
+```sh
+npm ci
 npm run dev
 ```
+Frontend: http://127.0.0.1:5173/app. Backend: http://127.0.0.1:3001.
+`npm run desktop` abre a versão de desenvolvimento Electron com backend local.
+Dados locais ficam em `data/database.json`. Nunca versione dados reais ou arquivos .env.
 
-Depois abra `http://127.0.0.1:5173` para a landing ou
-`http://127.0.0.1:5173/app` para entrar. O backend fica em
-`http://127.0.0.1:3001`.
+## Produção
+`npm run build && npm start` serve o cliente compilado e a API.
+Configure PostgreSQL com DATABASE_URL antes de usar hospedagem com disco efêmero.
+O endpoint `/api/health` informa versão e modo de armazenamento, sem credenciais.
+Veja [.env.example](.env.example) e [Render](RENDER.md).
 
-O comando `npm run dev` inicia os dois serviços automaticamente.
+O portátil Windows acessa https://sesh-web-08o6.onrender.com/app e compartilha
+o backend remoto com o navegador. Não cria um servidor separado por computador.
 
-Para abrir como aplicativo desktop do Windows, com seletor de janela/tela:
-
-```bash
-npm run desktop
-npm run dist:win
-```
-
-O Electron abrirá uma janela própria do Sesh e iniciará o backend local automaticamente.
-
-## Login local de teste
-
-- Usuário: `demo`
-- Senha: `demo123`
-
-A conta é criada automaticamente no JSON local quando ainda não existe. Para impedir
-essa criação, defina `SEED_DEMO_USER=false`.
-
-## Comandos
-
-Se preferir usar dois terminais separados:
-
-```bash
-npm run server
-npm run web
-```
-
-Outros comandos:
-
-```bash
+## Testes
+```sh
 npm test
 npm run build
-npm run desktop
-npm start
+npm run test:ui
+npm run dist:win
 ```
+Os testes usam bancos temporários isolados. A suíte UI usa Chrome instalado em
+Windows; configure SESH_TEST_BROWSER para outro executável compatível.
+Microfone e câmera são simulados nos testes automatizados; valide hardware real
+no seu ambiente. Imagens do catálogo vêm de fontes externas.
 
-No desenvolvimento, os dados ficam em `data/database.json`; nenhum banco remoto
-é acessado. No executável Windows, o banco usa AES-256-GCM e fica em
-`%APPDATA%\Sesh\sesh-data.enc`. A chave é protegida pelo cofre do Windows.
-PostgreSQL é opcional e só é ativado quando `DATABASE_URL` é informado.
+## Catálogo e personalização
+400 jogos com IDs estáveis, URLs de imagens e fontes em game-artwork.js.
+Seleção de até 12 favoritos por perfil. 15 opções de efeito, 17 de moldura e
+18 de nome, incluindo Rainbow RGB, degradês e pulsação.
+As opções incluem o estado padrão/sem efeito.
+Os scripts sync-game-artwork, complete-game-artwork e resolve-game-covers
+atualizam metadados públicos. Respeite os limites das fontes; não rode em loop.
 
-O executável portátil é gerado em:
+## Segurança e limites
+GIF de perfil exige assinatura ativa no backend. Membros só podem moderar
+cargos inferiores; gestores não podem alterar seu próprio cargo nem conceder
+permissões superiores. Apenas permissões implementadas são mostradas.
+As configurações de privacidade são persistidas na conta.
 
-`release\Sesh-Portable-1.0.0-x64.exe`
-
-## Funcionalidades atuais
-
-- Navegação entre servidores e canais
-- Lista de membros com status
-- Busca local de mensagens
-- Envio de mensagens na interface
-- Layout responsivo para telas menores
-- Autenticação local com senha derivada por scrypt
-- Persistência local em JSON e PostgreSQL opcional
-- Atualizações em tempo real com WebSockets
-- Voz, câmera e compartilhamento de tela P2P em fase de MVP
-- Destaque e tela cheia para câmera e transmissão
-- Personalização de perfil, molduras, entretenimento e insígnias
-- Tag, banner e cor de destaque do servidor
-
-Consulte `DISTRIBUICAO.md` antes de publicar para outras pessoas e
-`RENDER.md` para criar o Web Service e o PostgreSQL no Render.
+WebRTC P2P não substitui infraestrutura TURN/SFU. Cobrança, bots, tópicos,
+detecção automática de jogos e mesa de som não fazem parte desta entrega.
+Não publique conta demo em produção: configure SEED_DEMO_USER=false.
+As imagens e marcas de jogos pertencem aos respectivos titulares; fontes
+estão registradas no catálogo. Não há afiliação ao Discord ou aos jogos.

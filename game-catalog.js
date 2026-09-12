@@ -1,3 +1,5 @@
+import { GAME_ARTWORK } from "./game-artwork.js";
+
 const GAME_TITLES = `
 Fortnite
 Minecraft
@@ -615,6 +617,8 @@ export const GAME_CATALOG = GAME_TITLES.slice(0, 400).map((name, index) => ({
   id: `${slug(name)}-${index + 1}`,
   name,
   icon: `game-${hue(name)}`,
+  iconUrl: GAME_ARTWORK[name]?.url || null,
+  iconSource: GAME_ARTWORK[name]?.source || null,
   accent: `hsl(${hue(name)} 72% 55%)`,
 }));
 export const GAME_IDS = new Set(GAME_CATALOG.map((game) => game.id));

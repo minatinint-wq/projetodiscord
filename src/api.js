@@ -7,6 +7,7 @@ async function request(path, options = {}) {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
       credentials: "include",
+      signal: options.signal || AbortSignal.timeout(60_000),
       headers: {
         "Content-Type": "application/json",
         ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
@@ -14,7 +15,7 @@ async function request(path, options = {}) {
       },
     });
   } catch {
-    throw new Error("Não foi possível conectar ao servidor local do Sesh.");
+    throw new Error("Não foi possível conectar ao Sesh. Verifique sua conexão e tente novamente.");
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok)
@@ -105,6 +106,8 @@ export const api = {
     }),
   deleteChannel: (channelId) =>
     request(`/api/channels/${channelId}`, { method: "DELETE" }),
+  directMessages: (userId) => request(`/api/direct/${userId}/messages`),
+  sendDirectMessage: (userId, input) => request(`/api/direct/${userId}/messages`, { method: "POST", body: JSON.stringify(input) }),
   messages: (channelId) => request(`/api/channels/${channelId}/messages`),
   sendMessage: (channelId, input) =>
     request(`/api/channels/${channelId}/messages`, {
@@ -114,44 +117,40 @@ export const api = {
 };
 
 export function connectSocket(onEvent) {
-  const socketUrl = API_URL
-    ? `${API_URL.replace(/^http/, "ws")}/ws`
+  const socketUrl = API_URL ? `${API_URL.replace(/^http/, "ws")}/ws`
     : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
-  let socket = null;
-  let closed = false;
+  let socket, timer, closed = false, attempts = 0;
   const pending = [];
-  const connection = {
-    send: (event) => {
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify(event));
-      } else if (!closed) {
-        pending.push(event);
-      }
-    },
-    close: () => {
-      closed = true;
-      pending.length = 0;
-      socket?.close();
-    },
-    get socket() {
-      return socket;
-    },
+  const emit = (event) => Promise.resolve().then(() => onEvent(event)).catch((error) => console.error("Sesh realtime:", error));
+  const reconnect = () => {
+    if (closed) return;
+    emit({ type: "connection.status", connected: false });
+    clearTimeout(timer);
+    timer = setTimeout(open, Math.min(15000, 750 * 2 ** attempts++) + Math.random() * 400);
   };
-  api
-    .wsTicket()
-    .then(({ ticket }) => {
+  async function open() {
+    try {
+      const { ticket } = await api.wsTicket();
       if (closed) return;
-      socket = new WebSocket(
-        `${socketUrl}?ticket=${encodeURIComponent(ticket)}`,
-      );
+      socket = new WebSocket(`${socketUrl}?ticket=${encodeURIComponent(ticket)}`);
       socket.onopen = () => {
-        for (const event of pending.splice(0))
-          socket.send(JSON.stringify(event));
+        const recovered = attempts > 0;
+        attempts = 0;
+        emit({ type: "connection.status", connected: true, recovered });
+        for (const event of pending.splice(0)) socket.send(JSON.stringify(event));
       };
-      socket.onmessage = (event) => onEvent(JSON.parse(event.data));
-      socket.onerror = () =>
-        console.error("WebSocket: conexão indisponível.");
-    })
-    .catch((error) => console.error("WebSocket:", error.message));
-  return connection;
+      socket.onmessage = ({ data }) => { try { emit(JSON.parse(data)); } catch {} };
+      socket.onclose = reconnect;
+      socket.onerror = () => socket?.close();
+    } catch { reconnect(); }
+  }
+  open();
+  return {
+    send(event) {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
+      else if (!closed && pending.length < 50 && !event.type?.startsWith("voice.")) pending.push(event);
+    },
+    close() { closed = true; clearTimeout(timer); pending.length = 0; socket?.close(); },
+    get socket() { return socket; },
+  };
 }

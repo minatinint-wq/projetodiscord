@@ -1,36 +1,30 @@
-# Distribuição do Sesh
+# Distribuição do Sesh Desktop 1.2.0
 
-## Teste local
+## Compartilhar
+Gere com `npm run dist:win`. O resultado é `release/SeshDesktop.exe`.
+É um executável portátil Windows x64: o usuário não precisa instalar Node.js.
+Ele acessa o servidor compartilhado https://sesh-web-08o6.onrender.com/app.
+É necessária conexão à internet.
 
-Envie `release/Sesh-Portable-1.0.0-x64.exe`. Cada pessoa consegue abrir sem
-instalar Node.js. Nessa modalidade cada computador possui um banco local próprio;
-as pessoas ainda não compartilham as mesmas comunidades.
+A release do GitHub contém o executável e seu SHA-256. O aplicativo consulta
+`/releases/latest.json` e oferece o download quando há versão mais nova.
+A atualização do portátil é manual: fechar o app e substituir o arquivo.
 
-Antes de disponibilizar o arquivo, publique também o hash SHA-256 para que os
-usuários possam verificar a integridade do download.
+## Armazenamento
+O portátil não inicia o antigo backend local. A autenticação e os dados ficam
+no servidor remoto. O desenvolvimento continua com backend local.
+Contas e mensagens locais antigas não são migradas silenciosamente.
 
-## Colocar todos na mesma comunidade
+Não empacote .env, credenciais, cookies ou dados de usuários. A lista de arquivos
+do Electron inclui os módulos de catálogo/cosméticos para evitar imports ausentes.
 
-Para usuários diferentes conversarem entre si, use uma instância central:
+## Publicar
+1. Executar testes de API, UI, build e smoke test do Electron.
+2. Gerar o executável, calcular SHA-256 e publicar na release v1.2.0.
+3. Fazer commit/push; verificar a versão de /api/health depois do deploy Render.
+4. Confirmar armazenamento PostgreSQL e backups fora do disco efêmero.
+5. Testar áudio, câmera e compartilhamento com duas redes reais.
 
-1. Hospede `server.js` em um serviço compatível com Node.js e WebSocket.
-2. Configure PostgreSQL por `DATABASE_URL`; não use o JSON local em produção.
-3. Exponha somente HTTPS e WSS por um domínio próprio.
-4. Configure `CORS_ORIGIN` com a origem exata do frontend.
-5. Defina `CREATOR_EMAIL` no ambiente do servidor, nunca no código.
-6. Adicione um servidor TURN com credenciais temporárias para câmera e
-   compartilhamento funcionarem entre redes e operadoras diferentes.
-7. Troque a configuração do frontend para usar a URL pública da API e gere
-   novamente o executável.
-
-## Antes de divulgar
-
-- Assine o executável com um certificado de assinatura de código.
-- Implemente recuperação de senha, verificação de email e limitação de tentativas.
-- Use backups criptografados do PostgreSQL.
-- Adicione política de privacidade, termos, denúncia e moderação.
-- Faça teste de carga e auditoria das permissões.
-
-O ASAR dificulta alterações casuais no código distribuído, mas não substitui
-segredos no servidor. Tokens, senhas de banco e chaves nunca devem ser incluídos
-no executável.
+O executável não tem certificado de assinatura de código nesta entrega.
+Não desative proteções do Windows: confira origem e hash antes de abrir.
+Para voz em redes restritivas, configure TURN com credenciais temporárias.

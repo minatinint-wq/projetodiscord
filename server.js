@@ -5,8 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
+import { PROFILE_EFFECTS, AVATAR_FRAMES } from "./cosmetics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
 const dataDir = path.join(__dirname, "data");
 const dataFile = path.resolve(
   process.env.DATA_FILE || path.join(dataDir, "database.json"),
@@ -32,6 +34,7 @@ const COLLECTIONS = [
   "subscriptions",
   "friendships",
   "emailVerifications",
+  "directMessages",
 ];
 const sessions = new Map();
 const wsTickets = new Map();
@@ -148,8 +151,18 @@ function defaultRoles() {
 function normalizedRoles(roles) {
   const defaults = defaultRoles();
   if (!Array.isArray(roles)) return defaults;
+  const member = roles.find((role) => role?.id === "member");
+  if (member?.permissions) defaults[1].permissions = Object.fromEntries(
+    ROLE_PERMISSIONS.map((key) => [key, member.permissions[key] === undefined
+      ? Boolean(DEFAULT_MEMBER_PERMISSIONS[key]) : Boolean(member.permissions[key])]),
+  );
+  const seen = new Set();
   const custom = roles
-    .filter((role) => !["owner", "member"].includes(role?.id))
+    .filter((role) => {
+      if (!role || typeof role !== "object" || ["owner", "member"].includes(role.id) || seen.has(role.id)) return false;
+      seen.add(role.id);
+      return true;
+    })
     .slice(0, 23)
     .map((role, index) => ({
       id: /^[a-zA-Z0-9_-]{1,50}$/.test(String(role.id || ""))
@@ -372,8 +385,8 @@ async function loadDatabase() {
     let loaded = null;
     try {
       loaded = decodeDatabase(await fs.readFile(dataFile, "utf8"));
-    } catch {
-      /* primeiro uso local */
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
     database = normalizeDatabase(loaded || blankDatabase());
   }
@@ -441,17 +454,23 @@ async function loadDatabase() {
   );
 }
 async function persistDatabase() {
+  const snapshot = structuredClone(database);
   if (pgClient) {
+    await pgClient.query("BEGIN");
+    try {
     for (const key of COLLECTIONS) {
       await pgClient.query(
         "INSERT INTO app_state (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-        [key, JSON.stringify(database[key] || [])],
+        [key, JSON.stringify(snapshot[key] || [])],
       );
     }
+    await pgClient.query("COMMIT");
+    } catch (error) { await pgClient.query("ROLLBACK"); throw error; }
     return;
   }
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
-  await fs.writeFile(dataFile, encodeDatabase(database), "utf8");
+  await fs.writeFile(`${dataFile}.tmp`, encodeDatabase(snapshot), "utf8");
+  await fs.rename(`${dataFile}.tmp`, dataFile);
 }
 function saveDatabase() {
   saveQueue = saveQueue.catch(() => {}).then(persistDatabase);
@@ -604,6 +623,7 @@ function sessionUser(user) {
     emailVerified: Boolean(user.emailVerifiedAt),
     isCreator: isCreator(user),
     isMasterAdmin: isMasterAdmin(user),
+    preferences: user.preferences || {},
   };
 }
 function broadcastAll(event) {
@@ -754,7 +774,7 @@ function requestOriginAllowed(req) {
   return origin === protocol + "://" + req.headers.host;
 }
 async function body(req) {
-  let raw = "";
+  const chunks = [];
   let bytes = 0;
   for await (const chunk of req) {
     bytes += chunk.length;
@@ -764,11 +784,14 @@ async function body(req) {
       error.status = 413;
       throw error;
     }
-    raw += chunk;
+    chunks.push(chunk);
   }
+  const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {};
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid body");
+    return parsed;
   } catch {
     const error = new Error("JSON inválido.");
     error.status = 400;
@@ -807,6 +830,7 @@ function hasServerPermission(user, server, permission) {
   if (!user || !server) return false;
   if (server.ownerId === user.id) return true;
   const membership = membershipFor(user, server.id);
+  if (!membership) return false;
   return Boolean(
     roleForMembership(server, membership)?.permissions?.[permission],
   );
@@ -842,6 +866,9 @@ function decorateServer(server, user) {
       (item) => item.serverId === server.id && item.userId === user.id,
     )?.role,
     channels,
+    permissions: roleForMembership(server, membershipFor(user, server.id))?.permissions || {},
+    actorRoleId: roleForMembership(server, membershipFor(user, server.id))?.id,
+    actorPosition: roleForMembership(server, membershipFor(user, server.id))?.position ?? 999,
   };
 }
 function escapeRegExp(value) {
@@ -895,7 +922,7 @@ function broadcastServer(serverId, event) {
         serverId,
       )
     )
-      socket.send(JSON.stringify(event));
+      socket.send(JSON.stringify(event.type === "server.updated" ? { ...event, server: decorateServer(database.servers.find(item => item.id === serverId), database.users.find(item => item.id === userId)) } : event));
   }
 }
 function voiceParticipants(channelId) {
@@ -952,7 +979,7 @@ async function handler(req, res) {
   try {
     if (url.pathname === "/api/health") {
       if (pgClient) await pgClient.query("SELECT 1");
-      return json(res, 200, { ok: true });
+      return json(res, 200, { ok: true, version: APP_VERSION, storage: pgClient ? "postgresql" : "local" });
     }
     if (url.pathname === "/api/auth/verify-email" && req.method === "GET") {
       const token = String(url.searchParams.get("token") || "");
@@ -1098,7 +1125,7 @@ async function handler(req, res) {
         }
       }
     }
-    const user = getUser(req);
+    let user = getUser(req);
     if (!user) return json(res, 401, { error: "Autenticação necessária." });
     if (url.pathname === "/api/auth/logout" && req.method === "POST") {
       sessions.delete(sessionToken(req));
@@ -1225,6 +1252,15 @@ async function handler(req, res) {
     }
     if (url.pathname === "/api/auth/me" && req.method === "PATCH") {
       const input = await body(req);
+      const storedUser = user;
+      user = { ...user };
+      if (!badgesForUser(user).includes("nitro_classic") &&
+          [input.avatar, input.banner].some(value => typeof value === "string" && /^data:image\/gif;/i.test(value)))
+        return json(res, 403, { error: "GIF no avatar ou banner é exclusivo de contas com a insígnia Nitro Classic." });
+      // Never allow changing a profile email to claim an administrator identity.
+      if (input.email !== undefined && String(input.email).trim().toLowerCase() !== user.email &&
+          (isCreator(user) || MASTER_ADMIN_EMAILS.has(String(input.email).trim().toLowerCase()) || CREATOR_EMAILS.has(String(input.email).trim().toLowerCase())))
+        return json(res, 403, { error: "O e-mail de uma conta administrativa não pode ser alterado por este formulário." });
       const displayName =
         input.displayName !== undefined
           ? String(input.displayName).trim()
@@ -1364,13 +1400,13 @@ async function handler(req, res) {
           ? input.profilePlate
           : "default";
       if (input.profileEffect !== undefined)
-        user.profileEffect = ["none", "sparkles", "glow", "embers", "aurora", "confetti", "hearts", "cosmic", "lightning"].includes(
+        user.profileEffect = PROFILE_EFFECTS.map(([value]) => value).includes(
           input.profileEffect,
         )
           ? input.profileEffect
           : "none";
       if (input.avatarFrame !== undefined)
-        user.avatarFrame = ["none", "ruby", "gold", "neon", "ice", "rainbow", "sakura", "galaxy", "inferno", "ocean", "cyber"].includes(
+        user.avatarFrame = AVATAR_FRAMES.map(([value]) => value).includes(
           input.avatarFrame,
         )
           ? input.avatarFrame
@@ -1409,8 +1445,16 @@ async function handler(req, res) {
           ? input.status
           : "online";
       }
+      if (input.preferences !== undefined) {
+        if (!input.preferences || typeof input.preferences !== "object" || Array.isArray(input.preferences))
+          return json(res, 400, { error: "Preferências inválidas." });
+        user.preferences = { ...user.preferences };
+        for (const key of ["allowDirectMessages", "notificationSounds", "reducedMotion"])
+          if (input.preferences[key] !== undefined) user.preferences[key] = Boolean(input.preferences[key]);
+      }
       user.displayName = displayName;
       user.username = username;
+      Object.assign(storedUser, user);
       await saveDatabase();
       const output = publicUser(user);
       broadcastAll({ type: "user.updated", user: output });
@@ -1545,13 +1589,17 @@ async function handler(req, res) {
     }
     const serverRootMatch = url.pathname.match(/^\/api\/servers\/([^/]+)$/);
     if (serverRootMatch && req.method === "PATCH") {
-      const server = serverForUser(user, serverRootMatch[1]);
+      const storedServer = serverForUser(user, serverRootMatch[1]);
+      const server = storedServer && structuredClone(storedServer);
       if (!server) return json(res, 404, { error: "Servidor não encontrado." });
-      if (server.ownerId !== user.id)
-        return json(res, 403, {
-          error: "Somente o dono pode editar o servidor.",
-        });
       const input = await body(req);
+      const isOwner = server.ownerId === user.id;
+      const actorRole = roleForMembership(server, membershipFor(user, server.id));
+      if (["name", "icon", "tag", "inviteCode", "banner", "accentColor"].some(key => input[key] !== undefined) && !hasServerPermission(user, server, "manageServer"))
+        return json(res, 403, { error: "Seu cargo não pode gerenciar este servidor." });
+      if ((input.roles !== undefined || input.memberRoles !== undefined) && !hasServerPermission(user, server, "manageRoles"))
+        return json(res, 403, { error: "Seu cargo não pode gerenciar cargos." });
+      const membershipUpdates = new Map();
       if (input.name !== undefined) {
         const name = String(input.name).trim().slice(0, 80);
         if (!name) return json(res, 400, { error: "Nome é obrigatório." });
@@ -1560,7 +1608,7 @@ async function handler(req, res) {
       if (input.icon !== undefined) {
         if (input.icon === null || input.icon === "")
           server.icon = initials(server.name).slice(0, 1);
-        else if (typeof input.icon === "string" && /^[\\p{L}\\p{N}]{1,2}$/u.test(input.icon))
+        else if (typeof input.icon === "string" && /^[\p{L}\p{N}]{1,2}$/u.test(input.icon))
           // O editor reenviava as iniciais atuais do servidor, que são válidas.
           server.icon = input.icon;
         else if (safeImageDataUrl(input.icon))
@@ -1609,15 +1657,27 @@ async function handler(req, res) {
         server.accentColor = color;
       }
       if (input.roles !== undefined) {
-        server.roles = normalizedRoles(input.roles);
+        if (!Array.isArray(input.roles)) return json(res, 400, { error: "Lista de cargos inválida." });
+        const nextRoles = normalizedRoles(input.roles);
+        if (!isOwner) {
+          const previous = normalizedRoles(server.roles);
+          const protectedRoles = previous.filter(role => role.position <= actorRole.position || role.id === "member");
+          for (const role of protectedRoles)
+            if (JSON.stringify({ ...nextRoles.find(item => item.id === role.id), ...(role.id === "member" ? { position: 0 } : {}) }) !== JSON.stringify({ ...role, ...(role.id === "member" ? { position: 0 } : {}) }))
+              return json(res, 403, { error: "Você não pode alterar seu cargo, cargos superiores ou permissões padrão." });
+          for (const role of nextRoles.filter(role => !protectedRoles.some(item => item.id === role.id))) {
+            if (role.position <= actorRole.position || ROLE_PERMISSIONS.some(key => role.permissions[key] && !actorRole.permissions[key]))
+              return json(res, 403, { error: "Você só pode criar cargos inferiores com permissões que já possui." });
+          }
+        }
+        server.roles = nextRoles;
         const validRoleIds = new Set(server.roles.map((role) => role.id));
         for (const membership of database.memberships)
           if (
             membership.serverId === server.id &&
             !validRoleIds.has(membership.roleId)
           )
-            membership.roleId =
-              membership.userId === server.ownerId ? "owner" : "member";
+            membershipUpdates.set(membership, membership.userId === server.ownerId ? "owner" : "member");
       }
       if (input.memberRoles !== undefined) {
         if (!input.memberRoles || typeof input.memberRoles !== "object")
@@ -1629,12 +1689,18 @@ async function handler(req, res) {
           const membership = database.memberships.find(
             (item) => item.serverId === server.id && item.userId === userId,
           );
-          if (!membership || userId === server.ownerId) continue;
+          if (!membership || userId === server.ownerId || membership.roleId === roleId) continue;
+          if (!isOwner && (roleForMembership(storedServer, membership)?.position <= actorRole.position || normalizedRoles(server.roles).find(role => role.id === roleId)?.position <= actorRole.position))
+            return json(res, 403, { error: "Você só pode atribuir cargos inferiores a membros abaixo do seu cargo." });
           if (!validRoleIds.has(roleId) || roleId === "owner")
             return json(res, 400, { error: "Cargo inválido." });
-          membership.roleId = roleId;
-          membership.role = roleId === "member" ? "member" : "custom";
+          membershipUpdates.set(membership, roleId);
         }
+      }
+      Object.assign(storedServer, server);
+      for (const [membership, roleId] of membershipUpdates) {
+        membership.roleId = roleId;
+        membership.role = roleId === "owner" ? "owner" : roleId === "member" ? "member" : "custom";
       }
       await saveDatabase();
       broadcastServer(server.id, {
@@ -1682,6 +1748,16 @@ async function handler(req, res) {
       if (input.textMuted !== undefined) target.textMuted = Boolean(input.textMuted);
       if (input.voiceMuted !== undefined) target.voiceMuted = Boolean(input.voiceMuted);
       await saveDatabase();
+      if (target.voiceMuted) {
+        for (const channel of database.channels.filter(channel => channel.serverId === server.id && channel.type === "voice")) {
+          const room = voiceRooms.get(channel.id);
+          if (!room?.delete(target.userId)) continue;
+          const socket = sockets.get(target.userId);
+          if (socket?.readyState === 1) socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: "Sua voz foi silenciada pela moderação." }));
+          broadcastVoice(channel.id, { type: "voice.participants", channelId: channel.id, participants: voiceParticipants(channel.id) });
+          broadcastVoiceState(channel);
+        }
+      }
       const member = memberView(server, target);
       broadcastServer(server.id, {
         type: "member.moderation.updated",
@@ -1854,6 +1930,8 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
       if (membership.textMuted)
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
+      if (attachment && !hasServerPermission(user, server, "attachFiles"))
+        return json(res, 403, { error: "Seu cargo não pode enviar anexos." });
       const mentions = mentionInfoFor(server, content, user.id);
       if (mentions.requiresMentionPermission && !hasServerPermission(user, server, "mentionEveryone"))
         return json(res, 403, { error: "Seu cargo não pode mencionar @everyone, @here ou cargos." });
@@ -1878,6 +1956,35 @@ async function handler(req, res) {
           channelName: channel.name,
           message: output,
         });
+      return json(res, 201, { message: output });
+    }
+    const dmMatch = url.pathname.match(/^\/api\/direct\/([^/]+)\/messages$/);
+    if (dmMatch && ["GET", "POST"].includes(req.method)) {
+      const recipient = database.users.find((item) => item.id === dmMatch[1]);
+      const friendship = database.friendships.some((item) => item.status === "accepted" &&
+        [item.requesterId, item.addresseeId].includes(user.id) &&
+        [item.requesterId, item.addresseeId].includes(recipient?.id));
+      if (!recipient || recipient.id === user.id || !friendship)
+        return json(res, 403, { error: "Adicione e aceite esta pessoa como amiga para conversar." });
+      if (req.method === "GET") {
+        const messages = database.directMessages.filter((item) =>
+          (item.authorId === user.id && item.recipientId === recipient.id) ||
+          (item.authorId === recipient.id && item.recipientId === user.id));
+        return json(res, 200, { messages: messages.slice(-100).map(decorateMessage) });
+      }
+      if (recipient.preferences?.allowDirectMessages === false)
+        return json(res, 403, { error: "Esta pessoa pausou o recebimento de mensagens diretas." });
+      const input = await body(req);
+      const content = String(input.content || "").trim();
+      const attachment = input.attachment || null;
+      if ((!content && !attachment) || content.length > 4000 || (attachment && !safeImageDataUrl(attachment)))
+        return json(res, 400, { error: "Envie até 4000 caracteres ou uma imagem PNG, JPEG, GIF ou WebP de até 3 MB." });
+      const message = { id: id(), authorId: user.id, recipientId: recipient.id, content, attachment, createdAt: now(), editedAt: null };
+      database.directMessages.push(message);
+      await saveDatabase();
+      const output = decorateMessage(message);
+      notifyUser(recipient.id, { type: "direct.created", message: output });
+      notifyUser(user.id, { type: "direct.created", message: output });
       return json(res, 201, { message: output });
     }
     if (url.pathname === "/api/friends" && req.method === "GET") {
@@ -2017,7 +2124,7 @@ function validRealtimeRelay(event) {
     description.sdp.length <= 100_000
   );
 }
-const wss = new WebSocketServer({ server, path: "/ws" });
+const wss = new WebSocketServer({ server, path: "/ws", maxPayload: 150_000 });
 wss.on("connection", (socket, req) => {
   const ticket = new URL(
     req.url,
@@ -2133,7 +2240,8 @@ wss.on("connection", (socket, req) => {
     }
   });
   socket.on("close", () => {
-    if (sockets.get(userId) === socket) sockets.delete(userId);
+    if (sockets.get(userId) !== socket) return;
+    sockets.delete(userId);
     for (const [channelId, room] of voiceRooms)
       if (room.delete(userId)) {
         const channel = database.channels.find((item) => item.id === channelId);

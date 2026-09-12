@@ -40,7 +40,13 @@ import {
   X,
 } from "lucide-react";
 import { api, connectSocket } from "./api";
+import SettingsHub from "./SettingsHub";
+import ProfileEditor, { StyledName, GameIcon } from "./ProfileEditor";
+import DirectMessages from "./DirectMessages";
+import EmojiPicker from "./EmojiPicker";
+import { microphone, mediaError } from "./media";
 import "./styles.css";
+import "./refinement.css";
 
 const colors = ["purple", "orange", "green", "blue"];
 const PROFILE_NAME_COLORS = [
@@ -55,50 +61,21 @@ const PROFILE_NAME_COLORS = [
   "#f0442e",
 ];
 const ROLE_PERMISSION_GROUPS = [
-  { title: "Permissões gerais do servidor", permissions: [
-    ["viewChannels", "Ver canais", "Permite ver os canais públicos do servidor."],
+  { title: "Administração", permissions: [
     ["manageChannels", "Gerenciar canais", "Criar, editar e excluir canais."],
-    ["manageRoles", "Gerenciar cargos", "Criar e editar cargos abaixo deste cargo."],
-    ["manageExpressions", "Gerenciar expressões", "Gerenciar emojis, figurinhas e sons do servidor."],
-    ["manageWebhooks", "Gerenciar webhooks", "Criar, editar e excluir webhooks."],
-    ["manageServer", "Gerenciar servidor", "Editar nome, identidade e configurações do servidor."],
-    ["createInvite", "Criar convite", "Convidar novas pessoas para este servidor."],
-    ["changeNickname", "Alterar apelido", "Alterar o próprio apelido neste servidor."],
+    ["manageRoles", "Gerenciar cargos", "Criar e editar cargos inferiores, sem conceder permissões que você não possui."],
+    ["manageServer", "Gerenciar servidor", "Editar nome, ícone, banner, tag e convite."],
+    ["manageMembers", "Moderar membros", "Silenciar chat ou remover da voz membros com cargo inferior."],
   ]},
-  { title: "Permissões de membros", permissions: [
-    ["manageMembers", "Gerenciar membros", "Atribuir cargos e aplicar ações de moderação."],
-    ["manageNicknames", "Gerenciar apelidos", "Alterar os apelidos de outros membros."],
-    ["kickMembers", "Expulsar membros", "Remover membros do servidor."],
-    ["banMembers", "Banir membros", "Banir membros e remover histórico."],
-    ["timeoutMembers", "Membros de castigo", "Impedir temporariamente chat e voz."],
+  { title: "Chat", permissions: [
+    ["sendMessages", "Enviar mensagens", "Conversar nos canais do servidor."],
+    ["attachFiles", "Anexar imagens", "Enviar PNG, JPEG, WebP e GIF no chat."],
+    ["mentionEveryone", "Mencionar grupos", "Notificar @everyone, @here e cargos."],
   ]},
-  { title: "Permissões de canal de texto", permissions: [
-    ["sendMessages", "Enviar mensagens e criar postagens", "Enviar mensagens nos canais de texto."],
-    ["sendMessagesThreads", "Enviar mensagens em tópicos e postagens", "Responder em tópicos e fóruns."],
-    ["createPublicThreads", "Criar tópicos públicos", "Criar tópicos visíveis para todos."],
-    ["createPrivateThreads", "Criar tópicos privados", "Criar tópicos controlados por convite."],
-    ["embedLinks", "Incorporar links", "Exibir prévias de links."],
-    ["attachFiles", "Anexar arquivos", "Enviar imagens, GIFs e arquivos."],
-    ["addReactions", "Adicionar reações", "Usar reações nas mensagens."],
-    ["useExternalEmojis", "Usar emojis externos", "Usar emojis de outros servidores."],
-    ["useExternalStickers", "Usar figurinhas externas", "Usar figurinhas de outros servidores."],
-    ["mentionEveryone", "Mencionar @everyone, @here e cargos", "Notificar todos, quem está online ou membros de um cargo."],
-    ["manageMessages", "Gerenciar mensagens", "Excluir mensagens de outros membros."],
-    ["pinMessages", "Fixar mensagens", "Fixar ou desafixar mensagens."],
-    ["bypassSlowmode", "Ignorar modo lento", "Enviar mensagens sem esperar o modo lento."],
-  ]},
-  { title: "Permissões de canais de voz", permissions: [
-    ["connectVoice", "Conectar", "Entrar em canais de voz."],
-    ["speakVoice", "Falar", "Transmitir áudio em chamadas."],
-    ["useCamera", "Usar câmera", "Ligar a câmera durante a chamada."],
-    ["shareScreen", "Compartilhar tela", "Transmitir a tela em uma chamada."],
-    ["prioritySpeaker", "Voz prioritária", "Dar prioridade à própria voz."],
-    ["muteMembers", "Silenciar membros", "Silenciar participantes na voz."],
-    ["deafenMembers", "Ensurdecer membros", "Desativar o áudio de participantes."],
-    ["moveMembers", "Mover membros", "Mover participantes entre canais."],
-    ["useVoiceActivity", "Usar atividade de voz", "Transmitir por detecção de voz."],
-    ["useSoundboard", "Usar mesa de som", "Usar sons do servidor."],
-    ["useExternalSounds", "Usar sons externos", "Usar sons de outros servidores."],
+  { title: "Voz e vídeo", permissions: [
+    ["connectVoice", "Conectar à voz", "Entrar em chamadas do servidor."],
+    ["useCamera", "Usar câmera", "Ligar a câmera durante chamadas."],
+    ["shareScreen", "Compartilhar tela", "Transmitir uma janela ou tela."],
   ]},
 ];
 const DEFAULT_CUSTOM_ROLE_PERMISSIONS = {
@@ -212,9 +189,10 @@ function Avatar({ user, color = "purple", small = false, onClick }) {
 }
 
 function MessageContent({ content, members, onProfile }) {
+  const emojiOnly = /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|\s)+$/u.test(content) && /\p{Extended_Pictographic}/u.test(content) && [...content].length < 40;
   const fragments = String(content || "").split(/(@[a-zA-Z0-9_.-]+)/g);
   return (
-    <p>
+    <p className={emojiOnly ? "emoji-message" : ""}>
       {fragments.map((fragment, index) => {
         const member = fragment.startsWith("@")
           ? members.find((item) => item.username.toLowerCase() === fragment.slice(1).toLowerCase())
@@ -304,7 +282,7 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
             onChange={(event) => onAssignRole(event.target.value)}
           >
             {menu.assignableRoles.map((role) => (
-              <option key={role.id} value={role.id}>{role.name}</option>
+              <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>
             ))}
           </select>
         </label>}
@@ -762,368 +740,8 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItem
     </div>
   );
 }
-function VoiceSettingsPanel({ user, onClose, onAccount, onLogout }) {
-  const [micVolume, setMicVolume] = useState(80);
-  const [outputVolume, setOutputVolume] = useState(80);
-  const [sensitivity, setSensitivity] = useState(55);
-  const [automatic, setAutomatic] = useState(false);
-  const [noiseSuppression, setNoiseSuppression] = useState(true);
-  const [section, setSection] = useState("voice");
-  const sectionInfo = {
-    privacy: ["Dados e privacidade", "Gerencie os dados da sua conta e como eles são usados."],
-    messages: ["Permissões de mensagens", "Defina quem pode enviar mensagens, menções e convites."],
-    notifications: ["Notificações", "Escolha quando o Sesh deve chamar sua atenção."],
-    plus: ["Sesh Plus", "Gerencie recursos e benefícios da sua assinatura."],
-    highlights: ["Destaques da comunidade", "Controle destaques e recomendações de comunidades."],
-    subscriptions: ["Assinaturas", "Acompanhe seus planos e pagamentos."],
-    voice: ["Voz e vídeo", "Configure dispositivos, transmissão e qualidade de chamada."],
-    transmission: ["Transmissão", "Ajuste qualidade e permissões de compartilhamento."],
-    sounds: ["Sons", "Controle alertas, sons de interface e volume."],
-    advanced: ["Avançado", "Preferências avançadas de experiência e desempenho."],
-  };
-  const [testing, setTesting] = useState(false);
-  const [testingCamera, setTestingCamera] = useState(false);
-  const [deviceError, setDeviceError] = useState("");
-  const [devices, setDevices] = useState([]);
-  const [selectedMic, setSelectedMic] = useState(
-    localStorage.getItem("sesh_audio_input") || "",
-  );
-  const [selectedOutput, setSelectedOutput] = useState(
-    localStorage.getItem("sesh_audio_output") || "",
-  );
-  const [selectedCamera, setSelectedCamera] = useState(
-    localStorage.getItem("sesh_video_input") || "",
-  );
-  const cameraPreviewRef = useRef(null);
-  const cameraPreviewStreamRef = useRef(null);
-  useEffect(() => {
-    navigator.mediaDevices
-      ?.enumerateDevices?.()
-      .then((items) =>
-        setDevices(
-          items.filter((item) =>
-            ["audioinput", "audiooutput", "videoinput"].includes(item.kind),
-          ),
-        ),
-      )
-      .catch(() => {});
-    return () => {
-      cameraPreviewStreamRef.current
-        ?.getTracks()
-        .forEach((track) => track.stop());
-    };
-  }, []);
-  useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-  function selectDevice(storageKey, setter, value) {
-    setter(value);
-    if (value) localStorage.setItem(storageKey, value);
-    else localStorage.removeItem(storageKey);
-  }
-  async function testMicrophone() {
-    setTesting(true);
-    setDeviceError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: selectedMic ? { deviceId: { exact: selectedMic } } : true,
-      });
-      stream.getTracks().forEach((track) => track.stop());
-    } catch {
-      setDeviceError("Não foi possível acessar o microfone selecionado.");
-    }
-    setTimeout(() => setTesting(false), 1200);
-  }
-  async function toggleCameraPreview() {
-    if (testingCamera) {
-      cameraPreviewStreamRef.current
-        ?.getTracks()
-        .forEach((track) => track.stop());
-      cameraPreviewStreamRef.current = null;
-      if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = null;
-      setTestingCamera(false);
-      return;
-    }
-    setDeviceError("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          ...(selectedCamera ? { deviceId: { exact: selectedCamera } } : {}),
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
-      cameraPreviewStreamRef.current = stream;
-      if (cameraPreviewRef.current) cameraPreviewRef.current.srcObject = stream;
-      setTestingCamera(true);
-      const updated = await navigator.mediaDevices.enumerateDevices();
-      setDevices(
-        updated.filter((item) =>
-          ["audioinput", "audiooutput", "videoinput"].includes(item.kind),
-        ),
-      );
-    } catch {
-      setDeviceError("Não foi possível acessar a câmera selecionada.");
-    }
-  }
-  return (
-    <div className="voice-settings-backdrop">
-      <section className="voice-settings-modal">
-        <aside className="voice-settings-nav">
-          <div className="voice-settings-user">
-            <Avatar
-              user={user || { displayName: "Sesh" }}
-              color="purple"
-              small
-            />
-            <div>
-              <strong>{user?.displayName || "Sesh"}</strong>
-              <span>Editar perfil</span>
-            </div>
-          </div>
-          <div className="voice-settings-search">
-            <Search size={14} /> Buscar
-          </div>
-          <button onClick={onAccount}>Conta</button>
-          <button className={section === "privacy" ? "voice-settings-active" : ""} onClick={() => setSection("privacy")}>
-            <Lock size={15} /> Dados e privacidade
-          </button>
-          <button className={section === "messages" ? "voice-settings-active" : ""} onClick={() => setSection("messages")}>
-            <MessageSquare size={15} /> Permissões de mensagens
-          </button>
-          <button className={section === "notifications" ? "voice-settings-active" : ""} onClick={() => setSection("notifications")}>
-            <Bell size={15} /> Notificações
-          </button>
-          <hr />
-          <small>Cobrança</small>
-          <button className={section === "plus" ? "voice-settings-active" : ""} onClick={() => setSection("plus")}>Sesh Plus</button>
-          <button className={section === "highlights" ? "voice-settings-active" : ""} onClick={() => setSection("highlights")}>Destaques da comunidade</button>
-          <button className={section === "subscriptions" ? "voice-settings-active" : ""} onClick={() => setSection("subscriptions")}>Assinaturas</button>
-          <hr />
-          <small>Experiência</small>
-          <button className={section === "voice" ? "voice-settings-active" : ""} onClick={() => setSection("voice")}>
-            <Mic size={15} /> Voz e vídeo
-          </button>
-          <button className="voice-settings-sub" onClick={() => setSection("voice")}>Voz</button>
-          <button className="voice-settings-sub" onClick={() => setSection("transmission")}>Transmissão</button>
-          <button className="voice-settings-sub" onClick={() => setSection("sounds")}>Sons</button>
-          <button className="voice-settings-sub" onClick={() => setSection("advanced")}>Avançado</button>
-          <hr />
-          <button
-            className="voice-settings-logout"
-            onClick={() => {
-              if (window.confirm("Deseja sair da sua conta?")) onLogout();
-            }}
-          >
-            <LogOut size={15} /> Sair da conta
-          </button>
-        </aside>
-        <main className="voice-settings-content">
-          <button className="voice-settings-close" onClick={onClose}>
-            <X size={18} />
-          </button>
-          <header>{sectionInfo[section].at(0)}</header>
-          <div className={`voice-settings-scroll settings-section-${section}`}>
-            {section !== "voice" && (
-              <section className="settings-section-card">
-                <h1>{sectionInfo[section].at(0)}</h1>
-                <p>{sectionInfo[section].at(1)}</p>
-              </section>
-            )}
-            <h1>Voz</h1>
-            <div className="voice-device-grid">
-              <label>
-                Microfone
-                <select
-                  value={selectedMic}
-                  onChange={(event) =>
-                    selectDevice(
-                      "sesh_audio_input",
-                      setSelectedMic,
-                      event.target.value,
-                    )
-                  }
-                >
-                  <option value="">Dispositivo padrão</option>
-                  {devices
-                    .filter((item) => item.kind === "audioinput")
-                    .map((item) => (
-                      <option key={item.deviceId} value={item.deviceId}>
-                        {item.label || "Microfone"}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Alto-falante
-                <select
-                  value={selectedOutput}
-                  onChange={(event) =>
-                    selectDevice(
-                      "sesh_audio_output",
-                      setSelectedOutput,
-                      event.target.value,
-                    )
-                  }
-                >
-                  <option value="">Dispositivo padrão</option>
-                  {devices
-                    .filter((item) => item.kind === "audiooutput")
-                    .map((item) => (
-                      <option key={item.deviceId} value={item.deviceId}>
-                        {item.label || "Alto-falante"}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Câmera
-                <select
-                  value={selectedCamera}
-                  onChange={(event) =>
-                    selectDevice(
-                      "sesh_video_input",
-                      setSelectedCamera,
-                      event.target.value,
-                    )
-                  }
-                >
-                  <option value="">Dispositivo padrão</option>
-                  {devices
-                    .filter((item) => item.kind === "videoinput")
-                    .map((item) => (
-                      <option key={item.deviceId} value={item.deviceId}>
-                        {item.label || "Câmera"}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </div>
-            <div className="voice-slider-grid">
-              <label>
-                Volume do Microfone
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={micVolume}
-                  onChange={(event) => setMicVolume(event.target.value)}
-                />
-              </label>
-              <label>
-                Volume do Alto-falante
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={outputVolume}
-                  onChange={(event) => setOutputVolume(event.target.value)}
-                />
-              </label>
-            </div>
-            <div className="voice-test-row">
-              <button onClick={testMicrophone}>
-                {testing ? "Testando..." : "Teste do microfone"}
-              </button>
-              <div className="voice-meter">
-                {Array.from({ length: 34 }, (_, index) => (
-                  <i key={index} />
-                ))}
-              </div>
-            </div>
-            <div className="camera-test">
-              <video
-                ref={cameraPreviewRef}
-                autoPlay
-                muted
-                playsInline
-                className={testingCamera ? "camera-preview-on" : ""}
-              />
-              <button onClick={toggleCameraPreview}>
-                {testingCamera ? "Encerrar prévia" : "Testar câmera"}
-              </button>
-            </div>
-            {deviceError && <div className="form-error">{deviceError}</div>}
-            <p className="voice-help">
-              Precisa de ajuda? Confira nosso{" "}
-              <span>guia de solução de problemas</span>
-            </p>
-            <hr />
-            <h2>Perfil de entrada</h2>
-            {[
-              [
-                "isolated",
-                "Isolamento de Voz",
-                "Só a sua voz: deixe o Sesh equilibrar o ruído",
-              ],
-              [
-                "studio",
-                "Estúdio",
-                "Áudio puro: microfone aberto e sem processamento",
-              ],
-              [
-                "custom",
-                "Personalizado",
-                "Modo avançado: use de todos os botões e mostradores!",
-              ],
-            ].map(([value, label, help]) => (
-              <label className="voice-radio" key={value}>
-                <input
-                  type="radio"
-                  name="profile"
-                  defaultChecked={value === "custom"}
-                />{" "}
-                <span>
-                  <strong>{label}</strong>
-                  <small>{help}</small>
-                </span>
-              </label>
-            ))}
-            <div className="voice-toggle-row">
-              <div>
-                <strong>
-                  Ajustar Automaticamente a Sensibilidade de Entrada
-                </strong>
-                <small>
-                  Controla quanto o Sesh transmite do seu microfone.
-                </small>
-              </div>
-              <button
-                className={`voice-toggle ${automatic ? "on" : ""}`}
-                onClick={() => setAutomatic((value) => !value)}
-              >
-                <span />
-              </button>
-            </div>
-            <input
-              className="voice-full-slider"
-              type="range"
-              min="0"
-              max="100"
-              value={sensitivity}
-              onChange={(event) => setSensitivity(event.target.value)}
-            />
-            <div className="voice-toggle-row">
-              <div>
-                <strong>Supressão de ruído</strong>
-                <small>Reduz sons indesejados durante a conversa.</small>
-              </div>
-              <button
-                className={`voice-toggle ${noiseSuppression ? "on" : ""}`}
-                onClick={() => setNoiseSuppression((value) => !value)}
-              >
-                <span />
-              </button>
-            </div>
-          </div>
-        </main>
-      </section>
-    </div>
-  );
+function VoiceSettingsPanel(props) {
+  return <SettingsHub {...props} Avatar={Avatar} />;
 }
 function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, saving, onClose }) {
   const [tab, setTab] = useState("display");
@@ -1194,15 +812,19 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [error, setError] = useState("");
   const [rolesSaved, setRolesSaved] = useState(false);
   const [roleEditorId, setRoleEditorId] = useState(null);
-  const [settingsSection, setSettingsSection] = useState("overview");
+  const canEditOverview = server.role === "owner" || server.permissions?.manageServer;
+  const canEditRoles = server.role === "owner" || server.permissions?.manageRoles;
+  const canEditRole = role => canEditRoles && (server.role === "owner" || (role.id !== "member" && role.position > server.actorPosition));
+  const [settingsSection, setSettingsSection] = useState(canEditOverview ? "overview" : "roles");
   useEffect(() => {
     const handleEscape = (event) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
   function addRole() {
-    const roleId = `role_${Date.now()}`;
-    setForm((current) => ({ ...current, roles: [...current.roles, { id: roleId, name: "Novo cargo", color: "#c93642", style: "solid", permissions: { ...DEFAULT_CUSTOM_ROLE_PERMISSIONS } }] }));
+    const roleId = `role_${crypto.randomUUID()}`;
+    setRolesSaved(false); setSettingsSection("roles");
+    setForm((current) => ({ ...current, roles: [...current.roles, { id: roleId, name: "Novo cargo", color: "#c93642", style: "solid", permissions: Object.fromEntries(Object.entries(DEFAULT_CUSTOM_ROLE_PERMISSIONS).map(([key, value]) => [key, value && (server.role === "owner" || Boolean(server.permissions?.[key]))])) }] }));
     setRoleEditorId(roleId);
   }
   function updateRole(roleId, patch) {
@@ -1234,30 +856,31 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   }
   async function saveRoles() {
     setError(""); setRolesSaved(false); setBusy(true);
-    try { await onSave({ roles: form.roles, memberRoles: form.memberRoles }); setRolesSaved(true); return true; }
+    try { const saved = await onSave({ roles: form.roles, memberRoles: form.memberRoles }); setForm(current => ({ ...current, roles: saved.roles })); setRolesSaved(true); return true; }
     catch (err) { setError(err.message); return false; }
     finally { setBusy(false); }
   }
   async function submit(event) {
     event.preventDefault(); setError(""); setBusy(true);
     try {
-      await onSave({ name: form.name.trim(), tag: form.tag.trim().toUpperCase(), icon: form.icon, banner: form.banner, accentColor: form.accentColor, roles: form.roles, memberRoles: form.memberRoles });
+      await onSave({ name: form.name.trim(), tag: form.tag.trim().toUpperCase(), icon: form.icon, banner: form.banner, accentColor: form.accentColor });
       onClose();
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
   const customRoles = form.roles.filter((role) => !["owner", "member"].includes(role.id));
   const defaultRole = form.roles.find((role) => role.id === "member");
-  const configurableMembers = members.filter((member) => member.id !== server.ownerId);
+  const configurableMembers = members.filter((member) => member.id !== server.ownerId).map(member => ({ ...member, roleId: form.memberRoles[member.id] || member.roleId }));
+  const [memberSearch, setMemberSearch] = useState("");
   return (
     <div className="modal-backdrop server-settings-backdrop" onClick={onClose}>
       <section className="server-settings-modal server-settings-workspace" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="modal-close" onClick={onClose} aria-label="Fechar configurações"><X size={18} /></button>
         <aside className="server-settings-nav" aria-label="Configurações do servidor">
           <div className="server-settings-nav-title">SERVIDOR DE {String(form.name || "SESH").toUpperCase()}</div>
-          <button type="button" className={settingsSection === "overview" ? "active" : ""} onClick={() => setSettingsSection("overview")}>Visão geral</button>
-          <button type="button" className={settingsSection === "roles" ? "active" : ""} onClick={() => setSettingsSection("roles")}>Cargos</button>
-          <button type="button" className={settingsSection === "members" ? "active" : ""} onClick={() => setSettingsSection("members")}>Membros</button>
+          <button type="button" className={settingsSection === "overview" ? "active" : ""} disabled={!canEditOverview} onClick={() => setSettingsSection("overview")}>Visão geral</button>
+          <button type="button" className={settingsSection === "roles" ? "active" : ""} disabled={!canEditRoles} onClick={() => setSettingsSection("roles")}>Cargos</button>
+          <button type="button" className={settingsSection === "members" ? "active" : ""} disabled={!canEditRoles} onClick={() => setSettingsSection("members")}>Membros</button>
           <div className="server-settings-nav-divider" />
           <p>As alterações são salvas em cada seção.</p>
         </aside>
@@ -1282,8 +905,8 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <div className="server-roles-toolbar"><span>{customRoles.length} cargo{customRoles.length === 1 ? "" : "s"} criado{customRoles.length === 1 ? "" : "s"}</span><button type="button" className="role-create" onClick={addRole}>Criar cargo</button></div>
             <p className="server-role-hint">A lista define a prioridade: cargos mais acima aparecem primeiro. Use “Separar membros” dentro de cada cargo para criar uma seção na lateral.</p>
             <section className="settings-roles-list">
-              {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>@everyone · aplicadas a todos os membros</small></span></div><button type="button" className="role-edit" onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
-              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>Permissões de quem ainda não tem cargo personalizado</small></span></div><button type="button" className="role-edit" disabled={server.role !== "owner"} onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
+              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
               {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
             </section>
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
@@ -1291,7 +914,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
           </section>}
           {settingsSection === "members" && <section className="server-members-page">
             <header><span>MEMBROS</span><h2>Gerenciar membros</h2><p>Defina um cargo para cada pessoa. O dono do servidor permanece no topo.</p></header>
-            <section className="settings-members-list">{configurableMembers.map((member) => <label className="server-role-member" key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><select value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{form.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
+            <label className="settings-search members-search"><Search size={18}/><input placeholder="Buscar membro" value={memberSearch} onChange={event => setMemberSearch(event.target.value)}/></label><div className="members-table-header"><span>MEMBRO</span><span>CARGO</span></div><section className="settings-members-list">{configurableMembers.filter(member => `${member.displayName} ${member.username}`.toLowerCase().includes(memberSearch.toLowerCase())).map((member) => <label className="server-role-member" key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><select disabled={server.role !== "owner" && member.serverRole?.position <= server.actorPosition} value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{form.roles.filter(role => role.id !== "owner").map((role) => <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
             {rolesSaved && <p className="role-save-feedback">Membros atualizados.</p>}{error && <div className="form-error">{error}</div>}
             <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar membros"}</button></div>
           </section>}
@@ -1301,480 +924,16 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
     </div>
   );
 }
-function ProfileSettingsPanel({
-  user,
-  onClose,
-  onSave,
-  onPrivacy,
-  onCustomize,
-  catalogItems = [],
-}) {
-  const [tab, setTab] = useState("profile");
-  const [customizer, setCustomizer] = useState(null);
-  const [form, setForm] = useState({
-    displayName: user.displayName,
-    username: user.username,
-    bio: user.bio || "",
-    avatar: user.avatar,
-    banner: user.banner || null,
-    badges: user.badges || [],
-    email: user.email || "",
-    password: "",
-    nameStyle: user.nameStyle || "default",
-    nameEffect: user.nameEffect || "solid",
-    nameColor: user.nameColor || "#f1f3f5",
-    profileTheme: user.profileTheme || "default",
-    profilePlate: user.profilePlate || "default",
-    profileEffect: user.profileEffect || "none",
-    avatarFrame: user.avatarFrame || "none",
-    gameInterests: user.gameInterests || [],
-    favoriteGame: user.favoriteGame || "",
-    activityText: user.activityText || "",
-    wishlist: user.wishlist || "",
-  });
-  const [gameQuery, setGameQuery] = useState("");
-  const [imageError, setImageError] = useState("");
-  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
-  const avatarInputRef = useRef(null);
-  const filteredGames = useMemo(() => GAME_CATALOG.filter((game) =>
-    !gameQuery.trim() || game.name.toLowerCase().includes(gameQuery.trim().toLowerCase()),
-  ).slice(0, 80), [gameQuery]);
-  const toggleGame = (game) => update("gameInterests", form.gameInterests.includes(game.id)
-    ? form.gameInterests.filter((gameId) => gameId !== game.id) : [...form.gameInterests, game.id].slice(0, 12));
-  useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-  const update = (key, value) =>
-    setForm((current) => ({ ...current, [key]: value }));
-  function readDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = () => resolve(String(reader.result));
-      reader.readAsDataURL(file);
-    });
-  }
-  function shrinkImage(file) {
-    return new Promise((resolve, reject) => {
-      const source = URL.createObjectURL(file);
-      const image = new Image();
-      image.onerror = () => { URL.revokeObjectURL(source); reject(new Error("Não foi possível abrir essa imagem.")); };
-      image.onload = () => {
-        const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(image.width * scale));
-        canvas.height = Math.max(1, Math.round(image.height * scale));
-        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(source);
-        resolve(canvas.toDataURL("image/jpeg", 0.84));
-      };
-      image.src = source;
-    });
-  }
-  async function chooseProfileImage(key, event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setImageError("");
-    if (!file.type.startsWith("image/")) return setImageError("Escolha uma imagem PNG, JPG, GIF ou WebP.");
-    try {
-      let image = await readDataUrl(file);
-      if (image.length > 4_000_000) {
-        if (file.type === "image/gif") return setImageError("Esse GIF é grande demais. Escolha um GIF de até 3 MB.");
-        image = await shrinkImage(file);
-      }
-      if (image.length > 4_000_000) return setImageError("Não foi possível reduzir essa imagem. Escolha uma foto menor que 3 MB.");
-      update(key, image);
-    } catch {
-      setImageError("Não foi possível ler essa imagem.");
-    }
-  }
-  async function applyCustomization(values) {
-    try {
-      await onCustomize(values);
-      setForm((current) => ({ ...current, ...values }));
-      setCustomizer(null);
-    } catch {
-      // O componente pai já exibe a mensagem retornada pela API.
-    }
-  }
-  return (
-    <div className="profile-settings-backdrop">
-      <section className="profile-settings-modal">
-        <aside className="profile-settings-side">
-          <div className="profile-settings-switcher">
-            Perfil principal <ChevronDown size={14} />
-          </div>
-          <nav className="profile-settings-section-nav">
-            <button type="button" className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>Editar perfil</button>
-            <button type="button" className={tab === "account" ? "active" : ""} onClick={() => setTab("account")}>Informações da conta</button>
-          </nav>
-
-          <div className="profile-settings-side-title">
-            Placa de identificação
-          </div>
-          <button
-            type="button"
-            className="profile-settings-id-card"
-            onClick={() =>
-              setCustomizer({ kind: "plate", key: "profilePlate" })
-            }
-          >
-            <Avatar user={form} color="purple" small />
-            <span />
-            <Plus size={16} />
-          </button>
-          <div className="profile-settings-side-title">Avatar e decorações</div>
-          <div className="profile-settings-tiles">
-            <div className="profile-avatar-control">
-              <button type="button" className="profile-avatar-photo-tile" aria-label="Opções do avatar" onClick={() => setAvatarMenuOpen((open) => !open)}>
-                <Avatar user={form} color="purple" />
-                <span>Editar avatar</span>
-              </button>
-              <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(event) => chooseProfileImage("avatar", event)} />
-              {avatarMenuOpen && <div className="profile-avatar-menu"><button type="button" onClick={() => { setAvatarMenuOpen(false); avatarInputRef.current?.click(); }}>Mudar avatar</button><button type="button" onClick={() => { setAvatarMenuOpen(false); setCustomizer({ kind: "frame", key: "avatarFrame" }); }}>Mudar decoração de avatar</button></div>}
-            </div>
-            <button
-              type="button"
-              aria-label="Alterar moldura do avatar"
-              onClick={() =>
-                setCustomizer({ kind: "frame", key: "avatarFrame" })
-              }
-            >
-              <Plus size={22} />
-            </button>
-          </div>
-          <div className="profile-settings-side-title">
-            Estilo do nome exibido
-          </div>
-          <button
-            type="button"
-            className="profile-name-style"
-            onClick={() => setCustomizer({ kind: "name", key: "nameStyle" })}
-          >
-            {form.displayName || "Sesh"}
-          </button>
-          <div className="profile-settings-side-title">Tema e faixa</div>
-          <div className="profile-settings-themes">
-            <button
-              type="button"
-              aria-label="Alterar tema do perfil"
-              onClick={() =>
-                setCustomizer({ kind: "theme", key: "profileTheme" })
-              }
-            />
-            <button
-              type="button"
-              aria-label="Alterar faixa do perfil"
-              onClick={() =>
-                setCustomizer({ kind: "theme", key: "profileTheme" })
-              }
-            />
-          </div>
-          <div className="profile-settings-side-title">
-            Efeitos de perfil e molduras
-          </div>
-          <div className="profile-settings-tiles">
-            <button
-              type="button"
-              onClick={() =>
-                setCustomizer({ kind: "effect", key: "profileEffect" })
-              }
-            >
-              <Plus size={22} />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setCustomizer({ kind: "plate", key: "profilePlate" })
-              }
-            >
-              <Plus size={22} />
-            </button>
-          </div>
-        </aside>
-        <main className="profile-settings-main">
-          <button className="profile-settings-close" onClick={onClose}>
-            <X size={18} />
-          </button>
-                    <div className="profile-settings-topbar"><div><span>{tab === "profile" ? "EDITAR PERFIL" : "INFORMAÇÕES DA CONTA"}</span><strong>{tab === "profile" ? "Personalize seu perfil" : "Dados e segurança"}</strong></div><button type="button" onClick={() => onSave(form)}>{tab === "profile" ? "Salvar perfil" : "Salvar conta"}</button></div>
-{tab === "profile" ? (
-            <>
-              <section
-                className="profile-preview"
-                data-profile-effect={form.profileEffect}
-                data-profile-theme={form.profileTheme}
-                data-profile-plate={form.profilePlate}
-              >
-                <ProfileEffectLayer effect={form.profileEffect} />
-                <div
-                  className="profile-preview-banner"
-                  style={bannerStyleValue(form.banner)}
-                />
-                <div className="profile-preview-body">
-                  <Avatar user={form} color="purple" />
-                  <h1>{form.displayName || "Sesh"}</h1>
-                  <div>{form.username || "usuario"}</div>
-                  <p>{form.bio || "Adicione uma biografia ao seu perfil."}</p>
-                  {(form.activityText || form.favoriteGame) && (
-                    <div className="profile-preview-activity">
-                      <strong>{form.activityText || "Jogando agora"}</strong>
-                      {form.favoriteGame && <span>{form.favoriteGame}</span>}
-                    </div>
-                  )}
-                  <div className="profile-preview-badges">
-                    {form.badges.map((key) =>
-                      BADGES[key] ? (
-                        <BadgeIcon key={key} badge={BADGES[key]} />
-                      ) : null,
-                    )}
-                  </div>
-                </div>
-              </section>
-              <section className="profile-settings-right">
-                <nav>
-                  <button className="profile-tab-active">Mural</button>
-                  <button>Atividade</button>
-                  <button>Lista de desejos</button>
-                </nav>
-                <h2>Personalize seu perfil com widgets</h2>
-                <p>
-                  Explore nossa biblioteca de widgets para compartilhar mais
-                  sobre você e seus interesses
-                </p>
-                <div className="profile-widget-grid">
-                  <label>
-                    Atividade atual
-                    <input
-                      value={form.activityText}
-                      placeholder="Ex.: Jogando com a comunidade"
-                      onChange={(event) =>
-                        update("activityText", event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    Jogo favorito
-                    <input
-                      value={form.favoriteGame}
-                      placeholder="Qual jogo não sai da sua lista?"
-                      onChange={(event) =>
-                        update("favoriteGame", event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="profile-wishlist-field">
-                    Lista de desejos
-                    <textarea
-                      value={form.wishlist}
-                      placeholder="Jogos, filmes e experiências que você quer conhecer"
-                      onChange={(event) =>
-                        update("wishlist", event.target.value)
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="game-interest-picker">
-                  <div className="game-interest-head">
-                    <strong>Jogos de interesse</strong>
-                    <span>{form.gameInterests.length}/12</span>
-                  </div>
-                  <input
-                    value={gameQuery}
-                    placeholder="Pesquisar nos 400 jogos mais populares"
-                    onChange={(event) => setGameQuery(event.target.value)}
-                  />
-                  <div className="game-interest-list">
-                    {filteredGames.map((game) => (
-                      <button type="button" key={game.id} className={form.gameInterests.includes(game.id) ? "game-interest-selected" : ""} onClick={() => toggleGame(game)}>
-                        <span className="game-interest-icon" style={{ background: game.accent }}>{game.name.slice(0, 1)}</span>
-                        <span>{game.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-              <div className="profile-settings-fields">
-                <div className="profile-image-actions">
-                  <label className="avatar-upload">
-                    Trocar foto / GIF
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => chooseProfileImage("avatar", event)}
-                    />
-                  </label>
-                  {form.avatar && (
-                    <button type="button" onClick={() => update("avatar", null)}>
-                      Remover foto
-                    </button>
-                  )}
-                  <label className="avatar-upload">
-                    Trocar banner
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => chooseProfileImage("banner", event)}
-                    />
-                  </label>
-                  {form.banner && (
-                    <button type="button" onClick={() => update("banner", null)}>
-                      Remover banner
-                    </button>
-                  )}
-                {catalogItems.some((item) => item.type === "banner" && item.active !== false) && (
-                  <label>
-                    Banner padrão
-                    <select defaultValue="" onChange={(event) => {
-                      if (event.target.value) update("banner", event.target.value);
-                    }}>
-                      <option value="">Escolha um banner do catálogo</option>
-                      {catalogItems.filter((item) => item.type === "banner" && item.active !== false).map((item) => (
-                        <option key={item.id} value={item.value}>{item.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                </div>
-                {imageError && <p className="profile-image-error">{imageError}</p>}
-                <label>
-                  Nome de exibição
-                  <input
-                    value={form.displayName}
-                    onChange={(event) =>
-                      update("displayName", event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  Nome de usuário
-                  <input
-                    value={form.username}
-                    onChange={(event) => update("username", event.target.value)}
-                  />
-                  <small>
-                    Use este nome para que outras pessoas adicionem você.
-                  </small>
-                </label>
-                <label>
-                  Bio
-                  <textarea
-                    value={form.bio}
-                    onChange={(event) => update("bio", event.target.value)}
-                  />
-                </label>
-                <div className="profile-settings-badges">
-                  <strong>Insígnias do perfil</strong>
-                  {Object.entries(BADGES)
-                    .filter(([key]) => key !== "criador" || user.isCreator)
-                    .map(([key, badge]) => (
-                    <label key={key}>
-                      <input
-                        type="checkbox"
-                        disabled={!user.isMasterAdmin}
-                        checked={form.badges.includes(key)}
-                        onChange={(event) =>
-                          update(
-                            "badges",
-                            event.target.checked
-                              ? [...form.badges, key]
-                              : form.badges.filter((item) => item !== key),
-                          )
-                        }
-                      />
-                      <img src={badge.image} alt={badge.label} />
-                      {badge.label}
-                    </label>
-                    ))}
-                </div>
-                <div className="profile-settings-actions">
-                  <button onClick={() => onSave(form)}>
-                    Salvar alterações
-                  </button>
-                  <button onClick={() => setTab("account")}>
-                    Dados e privacidade
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="profile-privacy">
-              <h1>Informações da conta</h1>
-              <p>
-                Gerencie seu e-mail, nome de usuário e senha separadamente da edição visual do perfil.
-              </p>
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => update("email", event.target.value)}
-                />
-              </label>
-              <label>
-                Nova senha
-                <input
-                  type="password"
-                  placeholder="Deixe vazio para manter a senha atual"
-                  value={form.password}
-                  onChange={(event) => update("password", event.target.value)}
-                />
-              </label>
-              <label>
-                Nome de usuário
-                <input
-                  value={form.username}
-                  onChange={(event) => update("username", event.target.value)}
-                />
-              </label>
-              <button onClick={() => onSave(form)}>Salvar dados</button>
-              <button
-                className="profile-back-button"
-                onClick={() => setTab("profile")}
-              >
-                Voltar ao perfil
-              </button>
-            </div>
-          )}
-        </main>
-      </section>
-      {customizer?.kind === "name" && (
-        <WorkingFontStyleModal
-          user={form}
-          onClose={() => setCustomizer(null)}
-          onApply={(selection) =>
-            applyCustomization({
-              nameStyle: selection.font,
-              nameEffect: selection.effect,
-              nameColor: selection.color,
-            })
-          }
-        />
-      )}
-      {customizer && customizer.kind !== "name" && (
-        <CanvasChoiceModal
-          title={
-            customizer.kind === "plate"
-              ? "Alterar placa de identificação"
-              : customizer.kind === "effect"
-                ? "Alterar efeito do perfil"
-                : customizer.kind === "frame"
-                  ? "Alterar moldura do avatar"
-                  : "Alterar tema do perfil"
-          }
-          kind={customizer.kind}
-          current={form[customizer.key]}
-          onClose={() => setCustomizer(null)}
-          onApply={(value) => applyCustomization({ [customizer.key]: value })}
-          catalogItems={catalogItems}
-        />
-      )}
-    </div>
-  );
+function ProfileGames({user}) {
+  const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).filter(Boolean);
+  return games.length ? <div className="profile-game-chips">{games.map(game=><a key={game.id} href={game.iconSource} target="_blank" rel="noopener noreferrer" title={"Fonte da imagem de "+game.name}><GameIcon game={game}/>{game.name}</a>)}</div> : <span>{user.favoriteGame}</span>;
+}
+function FavoriteGameActivity({user}) {
+  const game=GAME_CATALOG.find(game=>game.id===user.gameInterests?.[0]);
+  return game ? <div className="favorite-game-activity"><GameIcon game={game}/><div><strong>{game.name}</strong><small>Jogo de interesse</small></div></div> : null;
+}
+function ProfileSettingsPanel(props) {
+  return <ProfileEditor {...props} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer}/>;
 }
 function bannerStyleValue(banner) {
   if (!banner) return undefined;
@@ -1782,79 +941,7 @@ function bannerStyleValue(banner) {
     ? { backgroundImage: `url(${banner})` }
     : { background: banner };
 }
-function DirectConversation({ user, onClose, onOpenProfile }) {
-  if (!user) return null;
-  return (
-    <div className="direct-conversation">
-      <header className="direct-header">
-        <button className="direct-back" onClick={onClose}>
-          ‹
-        </button>
-        <span className="avatar-dot-wrap">
-          <Avatar user={user} color={user.avatarColor || "purple"} small />
-          <span
-            className={`presence-dot presence-${user.presence || "offline"}`}
-          />
-        </span>
-        <div className="direct-header-person">
-          <strong>{user.displayName}</strong>
-          <span>
-            {user.username} {user.presence === "voice" ? "• Em voz" : ""}
-          </span>
-        </div>
-        <div className="direct-header-actions">
-          <button title="Iniciar chamada">
-            <PhoneOff size={17} />
-          </button>
-          <button title="Vídeo">
-            <Video size={17} />
-          </button>
-          <button title="Fixar">
-            <Pin size={17} />
-          </button>
-          <button title="Ver perfil" onClick={onOpenProfile}>
-            <Users size={17} />
-          </button>
-        </div>
-      </header>
-      <main className="direct-main">
-        <div className="direct-messages">
-          <div className="direct-welcome">
-            <Avatar user={user} color={user.avatarColor || "purple"} />
-            <h2>{user.displayName}</h2>
-            <p>Este é o começo da sua conversa com {user.username}.</p>
-          </div>
-        </div>
-        <form
-          className="direct-composer"
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <Plus size={18} />
-          <input placeholder={`Conversar com @${user.username}`} />
-          <Smile size={18} />
-        </form>
-      </main>
-      <aside className="direct-profile">
-        <div className="direct-profile-banner" />
-        <Avatar user={user} color={user.avatarColor || "purple"} />
-        <h2>{user.displayName}</h2>
-        <span className="direct-profile-username">{user.username}</span>
-        {user.bio && <p>{user.bio}</p>}
-        <div className="direct-profile-section">MÚLTIPLAS CONEXÕES</div>
-        <button className="direct-profile-link" onClick={onOpenProfile}>
-          Ver Perfil Completo
-        </button>
-        {user.voice && (
-          <div className="direct-voice-card">
-            <strong>Em voz</strong>
-            <span>{user.voice.channelName}</span>
-            <button>Abrir chamada de voz</button>
-          </div>
-        )}
-      </aside>
-    </div>
-  );
-}
+function DirectConversation(props) { return props.user ? <DirectMessages {...props} Avatar={Avatar}/> : null; }
 
 function LandingPage() {
   return (
@@ -2458,21 +1545,16 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   ]);
   useEffect(() => {
     if (!profileView) return;
+    let active = true;
     setProfileData("loading");
-    api
-      .profile(profileView.userId)
-      .then((result) => setProfileData(result))
-      .catch((err) => {
-        setNotice(err.message);
-        setProfileView(null);
-      });
-    const onKey = (event) => {
-      if (event.key === "Escape") setProfileView(null);
-    };
+    api.profile(profileView.userId).then(result => { if (active) setProfileData(result); })
+      .catch(err => { if (active) { setNotice(err.message); setProfileData(null); } });
+    const onKey = event => { if (event.key === "Escape") setProfileView(null); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [profileView]);
+    return () => { active = false; window.removeEventListener("keydown", onKey); };
+  }, [profileView?.userId]);
   useEffect(() => {
+    document.documentElement.dataset.reducedMotion = localStorage.getItem("sesh_reduced_motion") || "false";
     document.body.classList.toggle(
       "creator-account",
       Boolean(currentUser.isCreator),
@@ -2514,349 +1596,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       }
     });
   }, [members]);
-  useEffect(() => {
-    return;
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    root.render(statusMenuEl());
-    return () => {
-      root.unmount();
-      host.remove();
-    };
-  }, [statusMenu, selectedServer, currentUser.status]);
-  useEffect(() => {
-    return;
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    root.render(
-      <VoiceSettingsPanel
-        user={currentUser}
-        onClose={() => setSettingsOpen(false)}
-        onAccount={() => setSettingsTab("account")}
-      />,
-    );
-    return () => {
-      root.unmount();
-      host.remove();
-    };
-  }, [settingsOpen, settingsTab]);
-  useEffect(() => {
-    return;
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    root.render(
-      <ProfileSettingsPanel
-        user={{ ...currentUser, ...accountForm }}
-        onClose={() => setSettingsOpen(false)}
-        onPrivacy={() => setSettingsTab("account")}
-        onSave={saveProfileSettings}
-      />,
-    );
-    return () => {
-      root.unmount();
-      host.remove();
-    };
-  }, [settingsOpen, settingsTab, currentUser, accountForm]);
-  useEffect(() => {
-    return;
-    let host;
-    let root;
-    const closeFontModal = () => {
-      if (root && host) {
-        root.unmount();
-        host.remove();
-        root = null;
-        host = null;
-      }
-    };
-    const openFontModal = (event) => {
-      const target = event.target.closest?.(".profile-name-style");
-      if (!target) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      host = document.createElement("div");
-      document.body.appendChild(host);
-      root = createRoot(host);
-      root.render(
-        <FontStyleModal
-          current={currentUser.nameStyle || "default"}
-          onClose={closeFontModal}
-          onApply={async (selection) => {
-            try {
-              const result = await api.updateMe({
-                nameStyle: selection.font,
-                nameEffect: selection.effect,
-                nameColor: selection.color,
-              });
-              onUserUpdate(result.user);
-              setNotice("Estilo do nome aplicado com sucesso.");
-              closeFontModal();
-            } catch (err) {
-              setNotice(err.message);
-            }
-          }}
-        />,
-      );
-    };
-    const forceClose = (event) => {
-      if (
-        event.target.closest?.(
-          ".font-style-modal .modal-close, .font-style-modal .prompt-cancel",
-        )
-      ) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeFontModal();
-      }
-    };
-    document.addEventListener("click", openFontModal, true);
-    document.addEventListener("click", forceClose, true);
-    return () => {
-      document.removeEventListener("click", openFontModal, true);
-      document.removeEventListener("click", forceClose, true);
-      closeFontModal();
-    };
-  }, [settingsOpen, settingsTab, currentUser]);
-  useEffect(() => {
-    return;
-    const handleFontActions = async (event) => {
-      const target = event.target.closest?.(
-        ".font-style-modal .prompt-confirm, .font-style-modal .modal-close, .font-style-modal .prompt-cancel",
-      );
-      if (!target) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const backdrop = target.closest(".font-modal-backdrop");
-      if (
-        target.classList.contains("modal-close") ||
-        target.classList.contains("prompt-cancel")
-      ) {
-        backdrop?.remove();
-        return;
-      }
-      const selectedFont =
-        backdrop
-          ?.querySelector(".font-option.choice-selected")
-          ?.className.match(/font-([a-z]+)/)?.[1] || "default";
-      const selectedEffect =
-        backdrop?.querySelector(".font-effects .choice-selected")
-          ?.textContent || "solid";
-      const selectedColor =
-        [...(backdrop?.querySelectorAll(".font-colors button") || [])].find(
-          (button) => button.classList.contains("choice-selected"),
-        )?.style.background || "#f1f3f5";
-      try {
-        const result = await api.updateMe({
-          nameStyle: selectedFont,
-          nameEffect: selectedEffect,
-          nameColor: selectedColor,
-        });
-        onUserUpdate(result.user);
-        setNotice("Estilo do nome aplicado com sucesso.");
-        backdrop?.remove();
-      } catch (err) {
-        setNotice(err.message);
-      }
-    };
-    document.addEventListener("click", handleFontActions, true);
-    return () => document.removeEventListener("click", handleFontActions, true);
-  }, [settingsOpen, settingsTab, currentUser]);
-  useEffect(() => {
-    return;
-    const applyFontDirectly = async (event) => {
-      const button = event.target.closest?.(
-        ".font-style-modal .prompt-confirm",
-      );
-      if (!button) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      const backdrop = button.closest(".font-modal-backdrop");
-      const selected = backdrop?.querySelector(".font-option.choice-selected");
-      const fontClass = selected?.classList[1] || "font-default";
-      const selectedFont = fontClass.replace("font-", "");
-      const selectedEffect =
-        backdrop?.querySelector(".font-effects .choice-selected")
-          ?.textContent || "solid";
-      const selectedColorIndex = [
-        ...(backdrop?.querySelectorAll(".font-colors button") || []),
-      ].findIndex((item) => item.classList.contains("choice-selected"));
-      const selectedColor =
-        PROFILE_NAME_COLORS[selectedColorIndex] || "#f1f3f5";
-      try {
-        const result = await api.updateMe({
-          nameStyle: selectedFont,
-          nameEffect: selectedEffect,
-          nameColor: selectedColor,
-        });
-        onUserUpdate(result.user);
-        setNotice("Estilo do nome aplicado com sucesso.");
-        backdrop?.remove();
-      } catch (err) {
-        setNotice(err.message);
-      }
-    };
-    document.addEventListener("mousedown", applyFontDirectly, true);
-    return () =>
-      document.removeEventListener("mousedown", applyFontDirectly, true);
-  }, [settingsOpen, settingsTab, currentUser]);
-  useEffect(() => {
-    return;
-    let suppressClick = false;
-    const markApply = (event) => {
-      if (event.target.closest?.(".font-style-modal .prompt-confirm"))
-        suppressClick = true;
-    };
-    const suppressOldApply = (event) => {
-      if (!suppressClick) return;
-      suppressClick = false;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    window.addEventListener("mousedown", markApply, true);
-    window.addEventListener("click", suppressOldApply, true);
-    return () => {
-      window.removeEventListener("mousedown", markApply, true);
-      window.removeEventListener("click", suppressOldApply, true);
-    };
-  }, [settingsOpen, settingsTab]);
-  useEffect(() => {
-    return;
-    const persistFontPreview = (event) => {
-      const button = event.target.closest?.(
-        ".font-style-modal .prompt-confirm",
-      );
-      if (!button) return;
-      const backdrop = button.closest(".font-modal-backdrop");
-      const selected = backdrop?.querySelector(".font-option.choice-selected");
-      const fontClass = [...(selected?.classList || [])].find(
-        (value) => value.startsWith("font-") && value !== "font-option",
-      );
-      if (fontClass) {
-        localStorage.setItem("sesh_name_style", fontClass.replace("font-", ""));
-        document.body.dataset.nameStyle = fontClass.replace("font-", "");
-      }
-    };
-    window.addEventListener("mousedown", persistFontPreview, true);
-    return () =>
-      window.removeEventListener("mousedown", persistFontPreview, true);
-  }, [settingsOpen, settingsTab]);
-  useEffect(() => {
-    return;
-    let host;
-    let root;
-    const openWorkingFont = (event) => {
-      if (!event.target.closest?.(".profile-name-style")) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      host = document.createElement("div");
-      document.body.appendChild(host);
-      root = createRoot(host);
-      root.render(
-        <WorkingFontStyleModal
-          user={currentUser}
-          onClose={() => {
-            root.unmount();
-            host.remove();
-          }}
-          onApply={async (selection) => {
-            const result = await api.updateMe({
-              nameStyle: selection.font,
-              nameEffect: selection.effect,
-              nameColor: selection.color,
-            });
-            localStorage.setItem("sesh_name_style", selection.font);
-            localStorage.setItem("sesh_name_effect", selection.effect);
-            localStorage.setItem("sesh_name_color", selection.color);
-            onUserUpdate(result.user);
-            setNotice("Estilo do nome aplicado!");
-            root.unmount();
-            host.remove();
-          }}
-        />,
-      );
-    };
-    window.addEventListener("click", openWorkingFont, true);
-    return () => {
-      window.removeEventListener("click", openWorkingFont, true);
-      if (root && host) {
-        root.unmount();
-        host.remove();
-      }
-    };
-  }, [settingsOpen, settingsTab, currentUser]);
-  useEffect(() => {
-    return;
-    let host;
-    let root;
-    const onCustomize = (event) => {
-      const target = event.target.closest?.(
-        ".profile-name-style, .profile-settings-themes button, .profile-settings-tiles > div",
-      );
-      if (!target) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const sectionTitle =
-        target.parentElement.previousElementSibling?.textContent || "";
-      const kind = target.classList.contains("profile-name-style")
-        ? "name"
-        : target.parentElement.classList.contains("profile-settings-themes")
-          ? "theme"
-          : sectionTitle.includes("Avatar")
-            ? "plate"
-            : target === target.parentElement?.firstElementChild
-              ? "effect"
-              : "plate";
-      const key =
-        kind === "name"
-          ? "nameStyle"
-          : kind === "theme"
-            ? "profileTheme"
-            : kind === "effect"
-              ? "profileEffect"
-              : "profilePlate";
-      host = document.createElement("div");
-      document.body.appendChild(host);
-      root = createRoot(host);
-      root.render(
-        <CanvasChoiceModal
-          title={
-            kind === "plate"
-              ? "Alterar placa de identificação"
-              : "Personalizar perfil"
-          }
-          kind={kind}
-          current={accountForm?.[key] || currentUser[key] || "default"}
-          onClose={() => {
-            root.unmount();
-            host.remove();
-          }}
-          onApply={async (value) => {
-            try {
-              const result = await api.updateMe({ [key]: value });
-              onUserUpdate(result.user);
-              setMembers((current) =>
-                current.map((member) =>
-                  member.id === result.user.id
-                    ? { ...member, ...result.user }
-                    : member,
-                ),
-              );
-              setNotice("Personalização aplicada!");
-              root.unmount();
-              host.remove();
-            } catch (err) {
-              setNotice(err.message);
-            }
-          }}
-        />,
-      );
-    };
-    document.addEventListener("click", onCustomize, true);
-    return () => document.removeEventListener("click", onCustomize, true);
-  }, [settingsOpen, settingsTab, currentUser, accountForm]);
   useEffect(() => {
     if (selectedServer && homeTab.startsWith("dm:")) setHomeTab("online");
   }, [selectedServer, homeTab]);
@@ -2986,30 +1725,43 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     selectedServerRef.current = selectedServer;
   }, [selectedServer]);
 
+  const selectedChannelRef = useRef(selectedChannel);
+  selectedChannelRef.current = selectedChannel;
+  const sendingMessageRef = useRef(false);
   useEffect(() => {
-    if (!selectedServer) return;
-    const channel =
-      selectedServer.channels.find((item) => item.type === "text") ||
-      selectedServer.channels[0];
-    setSelectedChannel(channel);
-    if (channel?.type === "text")
-      api.messages(channel.id).then((result) => setMessages(result.messages));
-    api.me().then(() => {});
-    api
-      .server(selectedServer.id)
-      .then((result) => {
-        setMembers(result.members || []);
-        if (Array.isArray(result.voice))
-          setVoiceStates((current) => {
-            const next = { ...current };
-            for (const item of result.voice)
-              next[item.channelId] = item.participants;
-            return next;
-          });
-      });
-  }, [selectedServer]);
+    if (!selectedServer) { setSelectedChannel(null); setMembers([]); return; }
+    let active = true;
+    const channel = selectedServer.channels.find(item => item.type === "text") || selectedServer.channels[0];
+    setSelectedChannel(channel || null);
+    api.server(selectedServer.id).then(result => {
+      if (!active) return;
+      setMembers(result.members || []);
+      setVoiceStates(current => ({ ...current, ...Object.fromEntries((result.voice || []).map(item => [item.channelId, item.participants])) }));
+    }).catch(error => { if (active) setNotice(error.message); });
+    return () => { active = false; };
+  }, [selectedServer?.id]);
   useEffect(() => {
-    socketRef.current = connectSocket(async (event) => {
+    let active = true;
+    setMessages([]); setDraft(""); setAttachment(null);
+    if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => { if(active) setMessages(result.messages); })
+      .catch(error => { if(active) setNotice(error.message); });
+    return () => { active=false; };
+  }, [selectedChannel?.id]);
+  const socketHandlerRef = useRef();
+  socketHandlerRef.current = async (event) => {
+      if (event.type === "connection.status") {
+        if (!event.connected) {
+          setNotice("Conexão interrompida. Reconectando…");
+          if (voiceActiveRef.current) leaveVoice();
+        } else if (event.recovered) {
+          setNotice("Conectado novamente.");
+          api.friends().then(setFriendsData).catch(() => {});
+          if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
+            if(selectedChannelRef.current?.id === selectedChannel.id) setMessages(result.messages);
+          }).catch(error => setNotice(error.message));
+        }
+      }
+      if (event.type === "direct.created") window.dispatchEvent(new CustomEvent("sesh:direct-message", { detail: event.message }));
       if (event.type === "message.created")
         setMessages((current) =>
           event.message.channelId === selectedChannel?.id &&
@@ -3075,6 +1827,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         );
       }
       if (event.type === "channel.deleted") {
+        if (selectedChannel?.id === event.channelId) setSelectedChannel(selectedServer?.channels.find(item => item.id !== event.channelId) || null);
+        if (voiceChannel?.id === event.channelId) leaveVoice();
         setServers((current) =>
           current.map((server) =>
             server.id === event.serverId
@@ -3099,6 +1853,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         );
       }
       if (event.type === "server.updated") {
+        if (selectedServer?.id === event.serverId)
+          api.server(event.serverId).then(result => setMembers(result.members || [])).catch(error => setNotice(error.message));
         setServers((current) =>
           current.map((server) =>
             server.id === event.serverId
@@ -3133,10 +1889,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             member.id === event.user.id
               ? {
                   ...member,
-                  displayName: event.user.displayName,
-                  username: event.user.username,
-                  avatarColor: event.user.avatarColor,
-                  avatar: event.user.avatar,
+                  ...event.user,
                 }
               : member,
           ),
@@ -3161,6 +1914,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           [event.channelId]: event.participants,
         }));
       if (event.type === "voice.participants") {
+        if (event.channelId !== voiceChannel?.id) return;
         setVoiceParticipants(event.participants);
         if (!voiceActiveRef.current) return;
         for (const participant of event.participants)
@@ -3215,11 +1969,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           pendingIceCandidatesRef.current.set(event.fromUserId, [...queued, event.candidate]);
         }
       }
-    });
-    return () => {
-      socketRef.current?.close();
-      socketRef.current = null;
     };
+  useEffect(() => {
+    const connection = connectSocket(event => socketHandlerRef.current(event));
+    socketRef.current = connection;
+    return () => { connection.close(); socketRef.current = null; };
   }, []);
   useEffect(() => {
     if (!contextMenu && !serverContextMenu && !badgeMenu) return;
@@ -3301,6 +2055,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         const audio = audioRefs.current.get(targetUserId) || new Audio();
         audio.autoplay = true;
         audio.muted = deafenedRef.current;
+        audio.volume = Number(localStorage.getItem("sesh_output_volume") || 80) / 100;
         audio.srcObject = stream;
         audio.play().catch(() => {});
         const outputDevice = localStorage.getItem("sesh_audio_output");
@@ -3319,7 +2074,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return peer;
   }
   function playUiSound(kind) {
-    if (localStorage.getItem("sesh_ui_sounds") === "off") return;
+    if (localStorage.getItem("sesh_ui_sounds") === "off" || localStorage.getItem("sesh_sound_enabled") === "false") return;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
     try {
@@ -3359,14 +2114,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     if (!localStreamRef.current) {
       try {
         const audioInput = localStorage.getItem("sesh_audio_input");
-        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            ...(audioInput ? { deviceId: { exact: audioInput } } : {}),
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        localStreamRef.current = await microphone();
       } catch {
         setNotice("Você entrou no modo escuta (sem microfone detectado).");
       }
@@ -3380,13 +2128,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     playUiSound("connect");
   }
   function leaveVoice() {
-    if (!voiceConnected) return;
-    if (voiceChannel)
+    if (!voiceActiveRef.current) return;
     playUiSound("disconnect");
-      socketRef.current?.send({
-        type: "voice.leave",
-        channelId: voiceChannel.id,
-      });
+    if (voiceChannel) socketRef.current?.send({ type: "voice.leave", channelId: voiceChannel.id });
     peersRef.current.forEach((peer) => peer.close());
     peersRef.current.clear();
     audioRefs.current.forEach((audio) => {
@@ -3489,7 +2233,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           "Este ambiente não oferece compartilhamento de tela. Use Chrome, Edge ou o app desktop.",
         );
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30, max: 30 } },
+video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage.getItem("sesh_screen_quality") || 720) } },
         audio: false,
       });
       screenTrackRef.current = stream.getVideoTracks()[0];
@@ -3610,6 +2354,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return groups;
   }, [members, selectedServer?.roles]);
   const isOwner = selectedServer?.role === "owner";
+  const canManageChannels = isOwner || selectedServer?.permissions?.manageChannels;
+  const canManageSettings = isOwner || selectedServer?.permissions?.manageRoles || selectedServer?.permissions?.manageServer;
   function saveList(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   }
@@ -3911,15 +2657,20 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         gameInterests: form.gameInterests,
         activityText: form.activityText,
         wishlist: form.wishlist,
+        nameStyle: form.nameStyle, nameColor: form.nameColor, nameEffect: form.nameEffect,
+        profileTheme: form.profileTheme, profilePlate: form.profilePlate,
+        profileEffect: form.profileEffect, avatarFrame: form.avatarFrame,
       };
       if (form.password) input.password = form.password;
       if (currentUser.isMasterAdmin) input.badges = form.badges;
       const result = await api.updateMe(input);
       onUserUpdate(result.user);
+      setAccountForm(result.user);
       setNotice("Perfil atualizado!");
-      setSettingsOpen(false);
+      return result.user;
     } catch (err) {
       setNotice(err.message);
+      throw err;
     }
   }
   async function saveProfileCustomization(values) {
@@ -3980,12 +2731,15 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   async function sendMessage(event) {
     event.preventDefault();
-    if ((!draft.trim() && !attachment) || !selectedChannel) return;
+    if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current) return;
+    sendingMessageRef.current = true;
+    const sentChannelId = selectedChannel.id;
     try {
       const result = await api.sendMessage(selectedChannel.id, {
         content: draft.trim(),
         attachment,
       });
+      if (selectedChannelRef.current?.id !== sentChannelId) return;
       setMessages((current) =>
         current.some((item) => item.id === result.message.id)
           ? current
@@ -3996,7 +2750,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       if (guideServer === selectedChannel.serverId) dismissGuide();
     } catch (err) {
       setNotice(err.message);
-    }
+    } finally { sendingMessageRef.current = false; }
   }
   function onAttachmentFile(event) {
     const file = event.target.files?.[0];
@@ -4191,8 +2945,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   async function createChannel(preType = "text") {
     if (!selectedServer) return;
-    if (!isOwner)
-      return setNotice("Somente o dono do servidor pode criar canais.");
+    if (!canManageChannels)
+      return setNotice("Seu cargo não pode criar canais.");
     setChannelModal({ type: preType, name: "", private: false });
   }
   async function submitChannelModal() {
@@ -4389,7 +3143,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     />
                   </span>
                   <div className="profile-name">
-                    {profileData.user.displayName}
+                    <StyledName user={profileData.user}/>
                   </div>
                   <div className="profile-username">
                     <span>{profileData.user.username}</span>
@@ -4417,7 +3171,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         {profileData.user.activityText || "Jogando agora"}
                       </strong>
                       {profileData.user.favoriteGame && (
-                        <span>{profileData.user.favoriteGame}</span>
+                        <ProfileGames user={profileData.user}/>
                       )}
                     </div>
                   )}
@@ -4428,7 +3182,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         {profileData.user.activityText || "Jogando agora"}
                       </strong>
                       {profileData.user.favoriteGame && (
-                        <span>{profileData.user.favoriteGame}</span>
+                        <ProfileGames user={profileData.user}/>
                       )}
                     </div>
                   )}
@@ -5071,7 +3825,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
           onAssignRole={badgeMenu.canModerate ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
-          onManageRoles={badgeMenu.user.id === currentUser.id && selectedServer?.role === "owner" ? () => {
+          onManageRoles={badgeMenu.user.id === currentUser.id && canManageSettings ? () => {
             setBadgeMenu(null);
             setServerSettingsOpen(true);
           } : null}
@@ -5444,6 +4198,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             </aside>
           </div>
         </main>
+        {!voiceConnected && currentUser.gameInterests?.[0] && <FavoriteGameActivity user={currentUser}/>}
         <div className="user-panel">
           {statusMenu && statusMenuEl()}
           <span
@@ -5467,10 +4222,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
           </div>
           <div className="user-actions">
-            <button title="Silenciar">
-              <Mic size={17} />
+            <button title={muted ? "Ativar microfone" : "Silenciar microfone"} onClick={toggleMute}>
+              {muted ? <MicOff size={17}/> : <Mic size={17} />}
             </button>
-            <button title="Áudio">
+            <button title={deafened ? "Ativar áudio" : "Silenciar áudio"} onClick={toggleDeafen}>
               <Headphones size={17} />
             </button>
             <button title="Configurações" onClick={() => openSettings()}>
@@ -5481,6 +4236,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         {overlays}
         {homeTab.startsWith("dm:") && (
           <DirectConversation
+            key={homeTab}
+            currentUser={currentUser}
+            onJoinVoice={openVoiceFromProfile}
             user={friendsData.friends.find(
               (person) => person.id === homeTab.slice(3),
             )}
@@ -5580,10 +4338,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             <span className="workspace-server-tag">{selectedServer.tag}</span>
           )}
           <div className="header-tools">
-            <button title="Copiar convite do servidor" onClick={copyInvite}>
+            <button title="Copiar convite do servidor" onClick={() => copyInvite()}>
               <UserPlus size={17} />
             </button>
-            {selectedServer.role === "owner" && (
+            {canManageSettings && (
               <button
                 title="Configurações do servidor"
                 onClick={() => setServerSettingsOpen(true)}
@@ -5709,6 +4467,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             </button>
           </div>
         )}
+        {!voiceConnected && currentUser.gameInterests?.[0] && <FavoriteGameActivity user={currentUser}/>}
         <div className="user-panel">
           {statusMenu && statusMenuEl()}
           <span
@@ -5986,7 +4745,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     dicas para ajudar você a começar!
                   </p>
                   <div className="guide-cards">
-                    <button className="guide-card" onClick={copyInvite}>
+                    <button className="guide-card" onClick={() => copyInvite()}>
                       <span className="guide-emoji">👥</span>
                       <span>Convide seus amigos</span>
                       <ChevronRight size={17} className="guide-chevron" />
@@ -6046,9 +4805,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     onKeyDown={handleComposerKeyDown}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
-                  <button type="button">
-                    <Smile size={20} />
-                  </button>
+                  <EmojiPicker onSelect={emoji => updateDraft(draft + emoji)}/>
                   <button className="send-button" type="submit">
                     <Send size={18} />
                   </button>
@@ -6083,7 +4840,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                               openProfile(event, message.author.id)
                             }
                           >
-                            {message.author.displayName}
+                            <StyledName user={message.author}/>
                           </strong>
                           {selectedServer.tag && (
                             <span
@@ -6130,9 +4887,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     onKeyDown={handleComposerKeyDown}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
-                  <button type="button">
-                    <Smile size={20} />
-                  </button>
+                  <EmojiPicker onSelect={emoji => updateDraft(draft + emoji)}/>
                   <button className="send-button" type="submit">
                     <Send size={18} />
                   </button>
@@ -6160,10 +4915,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                       </span>
                       <div>
                         <strong>
-                          {member.displayName}
+                          <StyledName user={member}/>
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
-                        <span className="member-role">{member.serverRole?.name || member.username}</span>
+                        <span className="member-role">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
                       </div>
                     </div>
                   ))}
@@ -6234,7 +4989,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               : "Silenciar canal"}
             <span className="context-arrow">›</span>
           </button>
-          {isOwner && (
+          {canManageChannels && (
             <button
               className="context-item"
               onClick={() => {
@@ -6254,7 +5009,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             </button>
           )}
           <div className="context-sep" />
-          {isOwner && (
+          {canManageChannels && (
             <button
               className="context-item"
               onClick={() => {
@@ -6266,7 +5021,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               Duplicar canal
             </button>
           )}
-          {isOwner && (
+          {canManageChannels && (
             <button
               className="context-item"
               onClick={() => {
@@ -6277,7 +5032,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               Criar canal de texto
             </button>
           )}
-          {isOwner && (
+          {canManageChannels && (
             <button
               className="context-item"
               onClick={() => {
@@ -6288,7 +5043,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               Criar call (canal de voz)
             </button>
           )}
-          {isOwner && (
+          {canManageChannels && (
             <button
               className="context-item context-danger"
               onClick={() => {
@@ -6334,7 +5089,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             <div className="context-sep" />
             <button className="context-item" onClick={() => setServerContextMenu((current) => ({ ...current, submenu: current.submenu === "mute" ? null : "mute" }))}>{muted ? "Reativar notificações" : "Silenciar servidor"}<span className="context-arrow">›</span></button>
             <button className="context-item" onClick={() => { updateServerPreference(server.id, { hideMuted: !preferences.hideMuted }); setNotice(preferences.hideMuted ? "Canais silenciados visíveis." : "Canais silenciados ocultos."); }}>Ocultar canais silenciados</button>
-            <button className="context-item" onClick={() => { if (server.role === "owner") { setSelectedServer(server); setServerSettingsOpen(true); } else setNotice("Somente o dono pode alterar o servidor."); setServerContextMenu(null); }}>Config. do servidor<span className="context-arrow">›</span></button>
+            <button className="context-item" onClick={() => { if (server.role === "owner" || server.permissions?.manageRoles || server.permissions?.manageServer) { setSelectedServer(server); setServerSettingsOpen(true); } else setNotice("Seu cargo não pode gerenciar o servidor."); setServerContextMenu(null); }}>Config. do servidor<span className="context-arrow">›</span></button>
             <button className="context-item" onClick={() => { openSettings("account"); setServerContextMenu(null); }}>Config. de privacidade<span className="context-arrow">›</span></button>
             <button className="context-item" onClick={() => { openSettings("account"); setServerContextMenu(null); }}>Editar perfil por servidor</button>
             <div className="context-sep" />
@@ -6416,7 +5171,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     />
                   </span>
                   <div className="profile-name">
-                    {profileData.user.displayName}
+                    <StyledName user={profileData.user}/>
                   </div>
                   <div className="profile-username">
                     <span>{profileData.user.username}</span>
@@ -6946,7 +5701,7 @@ function Root() {
         localStorage.removeItem("orbit_token");
         setUser(null);
       }}
-      onUserUpdate={setUser}
+      onUserUpdate={updated => setUser(current => ({ ...current, ...updated }))}
     />
   );
 }

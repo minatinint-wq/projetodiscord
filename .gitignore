@@ -8,6 +8,9 @@ yarn-error.log*
 dist/
 build/
 release/
+release-*/
+test-results/
+playwright-report/
 *.log
 
 # Environment files
