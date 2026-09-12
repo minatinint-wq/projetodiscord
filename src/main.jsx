@@ -3501,6 +3501,26 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setBadgeMenu(null);
     }
   }
+  function openMemberMenu(event, user) {
+    event.preventDefault();
+    event.stopPropagation();
+    const ownMember = members.find((member) => member.id === currentUser.id);
+    const canModerate = Boolean(
+      selectedServer &&
+        (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
+    );
+    setBadgeMenu({
+      x: Math.min(event.clientX, window.innerWidth - 250),
+      y: Math.min(event.clientY, window.innerHeight - 210),
+      user,
+      currentUserId: currentUser.id,
+      canModerate,
+      onProfile: () => {
+        setProfileView({ userId: user.id });
+        setBadgeMenu(null);
+      },
+    });
+  }
   function updateServerPreference(serverId, changes) {
     setServerPreferences((current) => {
       const next = { ...current, [serverId]: { ...current[serverId], ...changes } };
@@ -5465,6 +5485,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                           onClick={(event) =>
                             openProfile(event, participant.id)
                           }
+                          onContextMenu={(event) =>
+                            openMemberMenu(event, participant)
+                          }
                         >
                           <span className="avatar-dot-wrap">
                             <Avatar
@@ -5943,6 +5966,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                   }}
                   key={member.id}
                   onClick={(event) => openProfile(event, member.id)}
+                  onContextMenu={(event) => openMemberMenu(event, member)}
                 >
                   <span className="avatar-dot-wrap">
                     <Avatar
