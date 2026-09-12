@@ -171,16 +171,27 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
     />
   );
 }
-function BadgeContextMenu({ menu, onAdd }) {
+function BadgeContextMenu({ menu, onAdd, onModerate }) {
   return (
     <div
       className="context-menu badge-context-menu"
       style={{ left: menu.x, top: menu.y }}
       onClick={(event) => event.stopPropagation()}
     >
-      <button className="context-item" onClick={onAdd}>
-        Adicionar insígnias
+      <button className="context-item" onClick={() => menu.onProfile?.()}>
+        Perfil
       </button>
+      {onModerate && menu.user.id !== menu.currentUserId && <>
+        <button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>
+          {menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}
+        </button>
+        <button className="context-item context-danger" onClick={() => onModerate({ voiceMuted: !menu.user.voiceMuted })}>
+          {menu.user.voiceMuted ? "Permitir voz" : "Silenciar voz no servidor"}
+        </button>
+      </>}
+      {onAdd && <button className="context-item" onClick={onAdd}>
+        Adicionar insígnias
+      </button>}
     </div>
   );
 }
@@ -992,6 +1003,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
           permissions: {
             manageChannels: false,
             sendMessages: true,
+            manageMembers: false,
             connectVoice: true,
             useCamera: true,
             shareScreen: true,
@@ -1189,6 +1201,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
                   <div className="role-permission-grid">
                     {[
                       ["manageChannels", "Gerenciar canais"],
+                      ["manageMembers", "Moderar membros"],
                       ["sendMessages", "Enviar mensagens"],
                       ["connectVoice", "Entrar em call"],
                       ["useCamera", "Usar câmera"],
@@ -2152,6 +2165,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [catalogItems, setCatalogItems] = useState([]);
   const [members, setMembers] = useState([]);
   const [draft, setDraft] = useState("");
+  const [attachment, setAttachment] = useState(null);
   const [memberListOpen, setMemberListOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [search, setSearch] = useState("");
@@ -2220,6 +2234,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [guideServer, setGuideServer] = useState(null);
   const guideIconRef = useRef(null);
   const composerInputRef = useRef(null);
+  const attachmentInputRef = useRef(null);
   const socketRef = useRef(null);
   const peersRef = useRef(new Map());
   const localStreamRef = useRef(null);
@@ -2782,6 +2797,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             ? [...current, event.message]
             : current,
         );
+      if (event.type === "member.moderation.updated" && event.serverId === selectedServer?.id)
+        setMembers((current) => current.map((member) =>
+          member.id === event.member.id ? { ...member, ...event.member } : member,
+        ));
+      if (event.type === "voice.denied") {
+        setNotice(event.reason || "Não foi possível entrar na call.");
+        leaveVoice();
+      }
       if (event.type === "channel.created") {
         setServers((current) =>
           current.map((server) =>
@@ -3041,6 +3064,25 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     }
     return peer;
   }
+  function playUiSound(kind) {
+    if (localStorage.getItem("sesh_ui_sounds") === "off") return;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    try {
+      const audio = new AudioContextClass();
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = kind === "connect" ? 660 : kind === "disconnect" ? 330 : 220;
+      gain.gain.setValueAtTime(0.0001, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.05, audio.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.16);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.17);
+      oscillator.onended = () => audio.close();
+    } catch {}
+  }
   async function joinVoice(targetChannel) {
     const target =
       targetChannel && targetChannel.type ? targetChannel : selectedChannel;
@@ -3080,10 +3122,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     setVoiceConnected(true);
     socketRef.current?.send({ type: "voice.join", channelId: target.id });
     startSpeakingLoop();
+    playUiSound("connect");
   }
   function leaveVoice() {
     if (!voiceConnected) return;
     if (voiceChannel)
+    playUiSound("disconnect");
       socketRef.current?.send({
         type: "voice.leave",
         channelId: voiceChannel.id,
@@ -3548,19 +3592,34 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   async function sendMessage(event) {
     event.preventDefault();
-    if (!draft.trim() || !selectedChannel) return;
+    if ((!draft.trim() && !attachment) || !selectedChannel) return;
     try {
-      const result = await api.sendMessage(selectedChannel.id, draft.trim());
+      const result = await api.sendMessage(selectedChannel.id, {
+        content: draft.trim(),
+        attachment,
+      });
       setMessages((current) =>
         current.some((item) => item.id === result.message.id)
           ? current
           : [...current, result.message],
       );
       setDraft("");
+      setAttachment(null);
       if (guideServer === selectedChannel.serverId) dismissGuide();
     } catch (err) {
       setNotice(err.message);
     }
+  }
+  function onAttachmentFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024)
+      return setNotice("Envie uma imagem, GIF ou WebP de até 3 MB.");
+    const reader = new FileReader();
+    reader.onerror = () => setNotice("Não foi possível ler essa imagem.");
+    reader.onload = () => setAttachment(String(reader.result));
+    reader.readAsDataURL(file);
   }
   function createServer() {
     setServerModal({
@@ -5561,9 +5620,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                   onChange={uploadServerIcon}
                 />
                 <form className="composer" onSubmit={sendMessage}>
-                  <button type="button">
+                  <input ref={attachmentInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={onAttachmentFile} />
+                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar imagem ou GIF" onClick={() => attachmentInputRef.current?.click()}>
                     <Paperclip size={20} />
                   </button>
+                  {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
                   <input
                     ref={composerInputRef}
                     value={draft}
@@ -5626,7 +5687,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                             )}
                           </time>
                         </div>
-                        <p>{message.content}</p>
+                        {message.content && <p>{message.content}</p>}
+                        {message.attachment && <img className="message-attachment" src={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`} loading="lazy" />}
                       </div>
                       <button className="message-more">
                         <MoreVertical size={17} />
@@ -5640,9 +5702,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                   )}
                 </div>
                 <form className="composer" onSubmit={sendMessage}>
-                  <button type="button">
+                  <input ref={attachmentInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={onAttachmentFile} />
+                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar imagem ou GIF" onClick={() => attachmentInputRef.current?.click()}>
                     <Paperclip size={20} />
                   </button>
+                  {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
                   <input
                     ref={composerInputRef}
                     value={draft}

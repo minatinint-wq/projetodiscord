@@ -83,6 +83,7 @@ const SUBSCRIPTION_PLANS = {
 const SYSTEM_BADGES = new Set(["nitro_classic", "apoiador_inicial", "apoiador", "mes_1", "mes_3", "mes_6", "mes_9", "mes_12"]);
 const ROLE_PERMISSIONS = [
   "manageChannels",
+  "manageMembers",
   "sendMessages",
   "connectVoice",
   "useCamera",
@@ -225,6 +226,8 @@ const normalizeDatabase = (input) => {
     roleId:
       membership.roleId ||
       (membership.role === "owner" ? "owner" : "member"),
+    textMuted: Boolean(membership.textMuted),
+    voiceMuted: Boolean(membership.voiceMuted),
   }));
   return normalized;
 };
@@ -452,7 +455,9 @@ function json(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 function userTag(user) {
-  if (/^\d{4}$/.test(String(user?.tag || ""))) return String(user.tag);
+  // #0001 é reservada exclusivamente para a conta administradora principal.
+  if (isMasterAdmin(user)) return "0001";
+  if (/^\d{4}$/.test(String(user?.tag || "")) && String(user.tag) !== "0001") return String(user.tag);
   const source = String(user?.id || user?.username || "sesh");
   let hash = 0;
   for (const character of source)
@@ -654,7 +659,7 @@ function getUser(req) {
   const userId = sessions.get(token);
   return database.users.find((user) => user.id === userId);
 }
-function safeImageDataUrl(value, maxLength = 4_000_000) {
+function safeImageDataUrl(value, maxLength = 4_250_000) {
   if (typeof value !== "string" || value.length > maxLength) return false;
   const match = value.match(
     /^data:image\/(png|jpeg|gif|webp);base64,([a-z0-9+/=]+)$/i,
@@ -695,7 +700,8 @@ async function body(req) {
   let bytes = 0;
   for await (const chunk of req) {
     bytes += chunk.length;
-    if (bytes > 5_000_000) {
+    if (bytes > 9_000_000) {
+      // O limite inclui a expansão de base64 de avatar e banner.
       const error = new Error("Corpo da requisição muito grande.");
       error.status = 413;
       throw error;
@@ -756,6 +762,8 @@ function memberView(server, membership) {
     roleId: serverRole?.id || "member",
     serverRole,
     joinedAt: membership.joinedAt,
+    textMuted: Boolean(membership.textMuted),
+    voiceMuted: Boolean(membership.voiceMuted),
   };
 }
 function decorateMessage(message) {
@@ -1191,6 +1199,16 @@ async function handler(req, res) {
           "pop",
           "gummy",
           "prism",
+          "rgb",
+          "rainbow",
+          "pink_pulse",
+          "blue_gradient",
+          "aurora",
+          "holographic",
+          "glitch",
+          "fire",
+          "ice",
+          "starlight",
         ].includes(input.nameEffect)
           ? input.nameEffect
           : "solid";
@@ -1201,23 +1219,28 @@ async function handler(req, res) {
           "red",
           "green",
           "blue",
+          "pink",
+          "midnight",
+          "sunset",
+          "ocean",
+          "aurora",
         ].includes(input.profileTheme)
           ? input.profileTheme
           : "default";
       if (input.profilePlate !== undefined)
-        user.profilePlate = ["default", "stars", "waves", "neon"].includes(
+        user.profilePlate = ["default", "stars", "waves", "neon", "clouds", "flora", "holo"].includes(
           input.profilePlate,
         )
           ? input.profilePlate
           : "default";
       if (input.profileEffect !== undefined)
-        user.profileEffect = ["none", "sparkles", "glow", "embers"].includes(
+        user.profileEffect = ["none", "sparkles", "glow", "embers", "aurora", "confetti", "hearts", "cosmic", "lightning"].includes(
           input.profileEffect,
         )
           ? input.profileEffect
           : "none";
       if (input.avatarFrame !== undefined)
-        user.avatarFrame = ["none", "ruby", "gold", "neon", "ice"].includes(
+        user.avatarFrame = ["none", "ruby", "gold", "neon", "ice", "rainbow", "sakura", "galaxy", "inferno", "ocean", "cyber"].includes(
           input.avatarFrame,
         )
           ? input.avatarFrame
@@ -1398,9 +1421,10 @@ async function handler(req, res) {
       if (input.icon !== undefined) {
         if (input.icon === null || input.icon === "")
           server.icon = initials(server.name).slice(0, 1);
-        else if (
-          safeImageDataUrl(input.icon)
-        )
+        else if (typeof input.icon === "string" && /^[\\p{L}\\p{N}]{1,2}$/u.test(input.icon))
+          // O editor reenviava as iniciais atuais do servidor, que são válidas.
+          server.icon = input.icon;
+        else if (safeImageDataUrl(input.icon))
           server.icon = input.icon;
         else return json(res, 400, { error: "Ícone inválido." });
       }
@@ -1466,10 +1490,42 @@ async function handler(req, res) {
       return json(res, 200, { server: decorateServer(server, user) });
     }
     const serverMatch = url.pathname.match(/^\/api\/servers\/([^/]+)$/);
+    const memberModerationMatch = url.pathname.match(
+      /^\/api\/servers\/([^/]+)\/members\/([^/]+)\/moderation$/,
+    );
     const channelMatch = url.pathname.match(
       /^\/api\/channels\/([^/]+)\/messages$/,
     );
     const channelRootMatch = url.pathname.match(/^\/api\/channels\/([^/]+)$/);
+    if (memberModerationMatch && req.method === "PATCH") {
+      const server = serverForUser(user, memberModerationMatch[1]);
+      if (!server || !hasServerPermission(user, server, "manageMembers"))
+        return json(res, 403, { error: "Seu cargo não pode moderar membros." });
+      const target = database.memberships.find(
+        (membership) => membership.serverId === server.id && membership.userId === memberModerationMatch[2],
+      );
+      if (!target || target.userId === server.ownerId)
+        return json(res, 403, { error: "Membro não disponível para moderação." });
+      const actor = membershipFor(user, server.id);
+      const actorPosition = roleForMembership(server, actor)?.position ?? 999;
+      const targetPosition = roleForMembership(server, target)?.position ?? 999;
+      if (user.id !== server.ownerId && actorPosition >= targetPosition)
+        return json(res, 403, { error: "Você só pode moderar cargos abaixo do seu." });
+
+      const input = await body(req);
+      if (input.textMuted === undefined && input.voiceMuted === undefined)
+        return json(res, 400, { error: "Informe uma ação de moderação." });
+      if (input.textMuted !== undefined) target.textMuted = Boolean(input.textMuted);
+      if (input.voiceMuted !== undefined) target.voiceMuted = Boolean(input.voiceMuted);
+      await saveDatabase();
+      const member = memberView(server, target);
+      broadcastServer(server.id, {
+        type: "member.moderation.updated",
+        serverId: server.id,
+        member,
+      });
+      return json(res, 200, { member });
+    }
     if (serverMatch && req.method === "GET") {
       const server = serverForUser(user, serverMatch[1]);
       if (!server) return json(res, 404, { error: "Servidor não encontrado." });
@@ -1608,13 +1664,23 @@ async function handler(req, res) {
       const channel = channelForUser(user, channelMatch[1]);
       const input = await body(req);
       const content = String(input.content || "").trim();
-      if (!channel || !content || content.length > 4000)
+      const attachment = input.attachment ? String(input.attachment) : null;
+      if (input.attachment !== undefined && attachment && !safeImageDataUrl(attachment))
+        return json(res, 400, { error: "Imagem inválida: envie PNG, JPEG, GIF ou WebP de até 3 MB." });
+      if (!channel || (!content && !attachment) || content.length > 4000)
         return json(res, 400, { error: "Mensagem inválida." });
+      const server = database.servers.find((item) => item.id === channel.serverId);
+      const membership = server && membershipFor(user, server.id);
+      if (!server || !membership || !hasServerPermission(user, server, "sendMessages"))
+        return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
+      if (membership.textMuted)
+        return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
       const message = {
         id: id(),
         channelId: channel.id,
         authorId: user.id,
         content,
+        attachment,
         createdAt: now(),
         editedAt: null,
       };
@@ -1803,6 +1869,12 @@ wss.on("connection", (socket, req) => {
         )
           return;
         if (!voiceRooms.has(channel.id)) voiceRooms.set(channel.id, new Map());
+        const caller = database.users.find((item) => item.id === userId);
+        const membership = membershipFor(caller, channel.serverId);
+        if (event.type === "voice.join" && (!hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
+          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
+          return;
+        }
         const room = voiceRooms.get(channel.id);
         const wasPresent = room.has(userId);
         const changing = event.type === "voice.join" ? !wasPresent : wasPresent;

@@ -19,7 +19,25 @@ services:
         value: "false"
       - key: SEED_DEMO_USER
         value: "true"
+      - key: MASTER_ADMIN_EMAIL
+        sync: false
+      - key: MASTER_ADMIN_PASSWORD
+        sync: false
       - key: CREATOR_EMAIL
+        sync: false
+
+  # Uma chamada externa a cada 10 min mantém o serviço acessível em planos
+  # que não suspendem processos. Informe a URL pública após o primeiro deploy.
+  - type: cron
+    name: sesh-heartbeat
+    runtime: node
+    schedule: "*/10 * * * *"
+    buildCommand: npm ci --omit=dev
+    startCommand: node scripts/ping-service.cjs
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: SESH_PUBLIC_URL
         sync: false
 
 databases:

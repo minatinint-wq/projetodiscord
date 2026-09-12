@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="15" y="15" width="34" height="42" rx="17" fill="#17181b" stroke="#72d6a2" stroke-width="4"/><path d="M32 16V8M14 24 7 19m43 5 7-5M14 36H6m44 0h8M15 48l-7 5m41-5 7 5M20 28h24M32 28v28" fill="none" stroke="#72d6a2" stroke-width="4" stroke-linecap="round"/><circle cx="25" cy="22" r="2" fill="#fff"/><circle cx="39" cy="22" r="2" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Bug Bounty">
+  <defs>
+    <linearGradient id="bb-gold" x1="9" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse"><stop stop-color="#fff4a8"/><stop offset=".42" stop-color="#f7c84b"/><stop offset="1" stop-color="#bd651b"/></linearGradient>
+    <linearGradient id="bb-ink" x1="20" y1="14" x2="45" y2="51" gradientUnits="userSpaceOnUse"><stop stop-color="#26314d"/><stop offset="1" stop-color="#101524"/></linearGradient>
+    <filter id="bb-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M32 5 54 13v16c0 14.2-9.2 25.2-22 30C19.2 54.2 10 43.2 10 29V13z" fill="url(#bb-ink)" stroke="url(#bb-gold)" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m32 10 17 6v13c0 10.7-6.6 19.1-17 23.3C21.6 48.1 15 39.7 15 29V16z" fill="none" stroke="#fff2a3" stroke-opacity=".34" stroke-width="1.2"/>
+  <g fill="none" stroke="url(#bb-gold)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#bb-glow)">
+    <path d="M32 22v20M22 28l10-6 10 6M22 37l10 5 10-5M24 23l-5-5M40 23l5-5M22 33h-7M42 33h7M24 42l-5 5M40 42l5 5"/>
+    <ellipse cx="32" cy="33" rx="8" ry="11" fill="#1b2338"/>
+    <path d="M28.5 30h.01M35.5 30h.01M29 37c2 1.4 4 1.4 6 0" stroke="#fff5bd" stroke-width="1.7"/>
+  </g>
+  <circle cx="50" cy="14" r="5" fill="#ffdb59"/><path d="m48.2 14 1.2 1.2 2.5-2.7" fill="none" stroke="#26314d" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

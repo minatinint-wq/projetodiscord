@@ -6529,6 +6529,36 @@ body[data-profile-plate="neon"] .profile-card {
   border-radius: 10px;
   background: linear-gradient(135deg, #18171c, #211417);
 }
+
+/* Sesh 2: superfícies mais limpas, leitura confortável e mídia no chat. */
+.app-shell { background: #111214; color: #f2f3f5; }
+.server-rail, .home-sidebar, .channel-sidebar, .member-sidebar { background: #111214; border-color: #26272b; }
+.channel-sidebar, .home-sidebar { box-shadow: inset -1px 0 #202125; }
+.workspace-header, .channel-header, .home-header { background: #15161a; border-color: #292b30; }
+.user-panel { position: sticky; bottom: 0; z-index: 18; flex: 0 0 72px; min-height: 72px; margin-top: auto; border-top: 1px solid #292b30; background: #1e1f22; box-shadow: 0 -8px 24px #0005; }
+.user-actions button { border-radius: 6px; transition: background .15s ease, color .15s ease; }
+.user-actions button:hover { background: #35373c; }
+.composer { min-height: 52px; margin: 0 16px 18px; padding: 0 12px; border: 1px solid #303238; border-radius: 10px; background: #383a40; box-shadow: 0 4px 20px #0002; }
+.composer input { color: #f2f3f5; font-size: 15px; }
+.composer button { color: #b5bac1; border-radius: 6px; }
+.composer button:hover, .composer .attachment-ready { color: #fff; background: #4f46e5; }
+.composer-attachment-preview { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid #797cff; }
+.message { padding: 10px 16px; border-radius: 6px; transition: background .12s ease; }
+.message:hover { background: #17181c; }
+.message-attachment { display: block; width: min(460px, 100%); max-height: 480px; margin-top: 8px; object-fit: contain; object-position: left top; border-radius: 8px; border: 1px solid #303238; background: #0d0e10; }
+.server-settings-modal { width: min(1080px, calc(100vw - 64px)); max-height: min(900px, calc(100vh - 48px)); overflow: auto; padding: 28px; border: 1px solid #303238; border-radius: 14px; background: #17181c; box-shadow: 0 24px 80px #000a; }
+.server-settings-modal header { padding-right: 48px; }
+.server-settings-modal form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .38fr); gap: 16px 20px; }
+.server-settings-preview, .server-role-editor, .server-role-assignments, .server-banner-actions, .server-settings-modal .prompt-actions, .server-settings-modal .form-error { grid-column: 1 / -1; }
+.server-role-editor { max-height: 420px; overflow: auto; border: 1px solid #2b2d31; border-radius: 10px; background: #111214; }
+.server-role-card { border-color: #303238; background: #1e1f22; }
+.profile-settings-modal { width: min(1180px, calc(100vw - 56px)); max-height: calc(100vh - 40px); border: 1px solid #303238; border-radius: 14px; box-shadow: 0 24px 80px #000a; }
+.profile-settings-main { background: #17181c; }
+@media (max-width: 760px) {
+  .server-settings-modal, .profile-settings-modal { width: calc(100vw - 20px); max-height: calc(100vh - 20px); padding: 18px; border-radius: 10px; }
+  .server-settings-modal form { grid-template-columns: 1fr; }
+  .user-panel { min-height: 64px; flex-basis: 64px; }
+}
 .settings-section-card h1 { margin: 0 0 8px; }
 .settings-section-card p { margin: 0; color: #a9adb7; line-height: 1.5; }
 .channel-sidebar { display: flex; flex-direction: column; }

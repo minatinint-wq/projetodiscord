@@ -89,6 +89,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
+  moderateMember: (serverId, userId, input) =>
+    request(`/api/servers/${serverId}/members/${userId}/moderation`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   updateChannel: (channelId, input) =>
     request(`/api/channels/${channelId}`, {
       method: "PATCH",
@@ -97,10 +102,10 @@ export const api = {
   deleteChannel: (channelId) =>
     request(`/api/channels/${channelId}`, { method: "DELETE" }),
   messages: (channelId) => request(`/api/channels/${channelId}/messages`),
-  sendMessage: (channelId, content) =>
+  sendMessage: (channelId, input) =>
     request(`/api/channels/${channelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(input),
     }),
 };
 
