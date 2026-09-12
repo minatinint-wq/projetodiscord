@@ -3072,7 +3072,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setNotice(err.message);
     }
   }
-  function openSettings(tab = profileView ? "account" : "appearance") {
+  function openSettings(tab) {
+    const targetTab =
+      typeof tab === "string"
+        ? tab
+        : profileView
+          ? "account"
+          : "appearance";
     setAccountForm({
       displayName: currentUser.displayName,
       username: currentUser.username,
@@ -3083,7 +3089,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       email: currentUser.email || "",
       password: "",
     });
-    setSettingsTab(tab);
+    setSettingsTab(targetTab);
     setSettingsOpen(true);
   }
   function openBadgeEditor(user) {
@@ -4654,7 +4660,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             <button title="Áudio">
               <Headphones size={17} />
             </button>
-            <button title="Configurações" onClick={openSettings}>
+            <button title="Configurações" onClick={() => openSettings()}>
               <Settings size={17} />
             </button>
           </div>
@@ -4909,7 +4915,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             >
               <Headphones size={17} />
             </button>
-            <button title="Configurações" onClick={openSettings}>
+            <button title="Configurações" onClick={() => openSettings()}>
               <Settings size={17} />
             </button>
           </div>
