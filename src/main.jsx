@@ -157,6 +157,25 @@ function Avatar({ user, color = "purple", small = false, onClick }) {
   );
 }
 
+function MentionSuggestions({ candidates, onChoose }) {
+  if (!candidates.length) return null;
+  return (
+    <div className="mention-suggestions" role="listbox" aria-label="Mencionar membro">
+      {candidates.map((member) => (
+        <button
+          type="button"
+          className="mention-suggestion"
+          key={member.id}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChoose(member)}
+        >
+          <Avatar user={member} color={member.avatarColor || "purple"} small />
+          <span><strong>{member.displayName}</strong><small>@{member.username}</small></span>
+        </button>
+      ))}
+    </div>
+  );
+}
 function MediaStreamVideo({ stream, muted = false, className = "" }) {
   const videoRef = useRef(null);
   useEffect(() => {
@@ -2288,6 +2307,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [members, setMembers] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [mentionQuery, setMentionQuery] = useState(null);
   const [memberListOpen, setMemberListOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [search, setSearch] = useState("");
@@ -2359,6 +2379,18 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     orderedVoiceParticipants,
     currentUser,
   ]);
+  const mentionCandidates = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const query = mentionQuery.toLowerCase();
+    return members
+      .filter((member) =>
+        member.id !== currentUser.id &&
+        [member.displayName, member.username].some((value) =>
+          String(value || "").toLowerCase().includes(query),
+        ),
+      )
+      .slice(0, 6);
+  }, [mentionQuery, members, currentUser.id]);
   const voiceActiveRef = useRef(false);
   const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
   const [homeTab, setHomeTab] = useState("online");
@@ -2372,9 +2404,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const composerInputRef = useRef(null);
   const attachmentInputRef = useRef(null);
   const socketRef = useRef(null);
+  const selectedServerRef = useRef(selectedServer);
   const peersRef = useRef(new Map());
   const localStreamRef = useRef(null);
   const audioRefs = useRef(new Map());
+  const pendingIceCandidatesRef = useRef(new Map());
   const [contextMenu, setContextMenu] = useState(null);
   const [serverContextMenu, setServerContextMenu] = useState(null);
   const [badgeMenu, setBadgeMenu] = useState(null);
@@ -2992,6 +3026,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .catch(() => {});
   }, []);
   useEffect(() => {
+    selectedServerRef.current = selectedServer;
+  }, [selectedServer]);
+
+  useEffect(() => {
     if (!selectedServer) return;
     const channel =
       selectedServer.channels.find((item) => item.type === "text") ||
@@ -3111,12 +3149,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             : current,
         );
       }
-      if (event.type === "member.joined") {
-        api.me().then(() => {});
-        if (selectedServer?.id === event.serverId)
-          api
-            .server(event.serverId)
-            .then((result) => setMembers(result.members || []));
+      if (event.type === "member.joined" && selectedServerRef.current?.id === event.serverId) {
+        setMembers((current) => {
+          const existing = current.find((member) => member.id === event.member.id);
+          return existing
+            ? current.map((member) => member.id === event.member.id ? { ...member, ...event.member } : member)
+            : [...current, event.member];
+        });
       }
       if (event.type === "user.updated") {
         setMessages((current) =>
@@ -3184,6 +3223,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       if (event.type === "voice.offer" && voiceActiveRef.current) {
         const peer = await createPeer(event.fromUserId, false);
         await peer.setRemoteDescription(event.offer);
+        await flushPendingIceCandidates(event.fromUserId, peer);
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         socketRef.current?.send({
@@ -3194,12 +3234,23 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       }
       if (event.type === "voice.answer") {
         const peer = peersRef.current.get(event.fromUserId);
-        if (peer) await peer.setRemoteDescription(event.answer);
+        if (peer) {
+          await peer.setRemoteDescription(event.answer);
+          await flushPendingIceCandidates(event.fromUserId, peer);
+        }
       }
-      if (event.type === "voice.ice") {
+      if (event.type === "voice.ice" && event.candidate) {
         const peer = peersRef.current.get(event.fromUserId);
-        if (peer && event.candidate)
-          await peer.addIceCandidate(event.candidate);
+        if (peer?.remoteDescription?.type) {
+          try {
+            await peer.addIceCandidate(event.candidate);
+          } catch {
+            /* candidate no longer applies to this peer */
+          }
+        } else {
+          const queued = pendingIceCandidatesRef.current.get(event.fromUserId) || [];
+          pendingIceCandidatesRef.current.set(event.fromUserId, [...queued, event.candidate]);
+        }
       }
     });
     return () => {
@@ -3226,6 +3277,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       window.removeEventListener("keydown", onKey);
     };
   }, [contextMenu, serverContextMenu, badgeMenu]);
+  async function flushPendingIceCandidates(peerId, peer) {
+    const candidates = pendingIceCandidatesRef.current.get(peerId) || [];
+    pendingIceCandidatesRef.current.delete(peerId);
+    for (const candidate of candidates) {
+      try {
+        await peer.addIceCandidate(candidate);
+      } catch {
+        /* candidate no longer applies to this peer */
+      }
+    }
+  }
   async function createPeer(targetUserId, initiator) {
     if (peersRef.current.has(targetUserId))
       return peersRef.current.get(targetUserId);
@@ -3277,6 +3339,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         audio.autoplay = true;
         audio.muted = deafenedRef.current;
         audio.srcObject = stream;
+        audio.play().catch(() => {});
         const outputDevice = localStorage.getItem("sesh_audio_output");
         if (outputDevice && typeof audio.setSinkId === "function")
           audio.setSinkId(outputDevice).catch(() => {});
@@ -3327,6 +3390,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         audio.srcObject = null;
       });
       audioRefs.current.clear();
+      pendingIceCandidatesRef.current.clear();
       stopAnalysers();
     }
     if (!localStreamRef.current) {
@@ -3366,6 +3430,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       audio.srcObject = null;
     });
     audioRefs.current.clear();
+    pendingIceCandidatesRef.current.clear();
     stopAnalysers();
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
@@ -3539,7 +3604,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         item.analyser.getByteFrequencyData(item.data);
         let sum = 0;
         for (let i = 0; i < item.data.length; i++) sum += item.data[i];
-        if (sum / item.data.length > 12) next[userId] = true;
+        if (sum / item.data.length > 6) next[userId] = true;
       });
       const prev = speakingRef.current;
       const changed =
@@ -3920,6 +3985,23 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     setSelectedChannel(found.channel);
     setProfileView(null);
     joinVoice(found.channel);
+  }
+  function updateDraft(value) {
+    setDraft(value);
+    const match = value.match(/(?:^|\s)@([^\s@]*)$/);
+    setMentionQuery(match ? match[1] : null);
+  }
+  function chooseMention(member) {
+    setDraft((current) => current.replace(/(^|\s)@[^\s@]*$/, `$1@${member.username} `));
+    setMentionQuery(null);
+    requestAnimationFrame(() => composerInputRef.current?.focus());
+  }
+  function handleComposerKeyDown(event) {
+    if (event.key === "Escape") setMentionQuery(null);
+    if (event.key === "Tab" && mentionCandidates.length) {
+      event.preventDefault();
+      chooseMention(mentionCandidates[0]);
+    }
   }
   async function sendMessage(event) {
     event.preventDefault();
@@ -5981,10 +6063,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     <Paperclip size={20} />
                   </button>
                   {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
+                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => updateDraft(event.target.value)}
+                    onKeyDown={handleComposerKeyDown}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
                   <button type="button">
@@ -6063,10 +6147,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     <Paperclip size={20} />
                   </button>
                   {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
+                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => updateDraft(event.target.value)}
+                    onKeyDown={handleComposerKeyDown}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
                   <button type="button">

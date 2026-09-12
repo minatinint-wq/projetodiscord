@@ -41,6 +41,12 @@ const voiceRooms = new Map();
 const MASTER_ADMIN_EMAIL = String(process.env.MASTER_ADMIN_EMAIL || "")
   .trim()
   .toLowerCase();
+const MASTER_ADMIN_EMAILS = new Set(
+  [process.env.MASTER_ADMIN_EMAIL, process.env.MASTER_ADMIN_EMAILS]
+    .flatMap((value) => String(value || "").split(","))
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 const MASTER_ADMIN_PASSWORD = String(process.env.MASTER_ADMIN_PASSWORD || "");
 const CREATOR_EMAILS = new Set(
   String(process.env.CREATOR_EMAILS || process.env.CREATOR_EMAIL || "")
@@ -464,7 +470,7 @@ function json(res, status, payload) {
 }
 function userTag(user) {
   // #0001 é reservada exclusivamente para a conta administradora principal.
-  if (isMasterAdmin(user)) return "0001";
+  if (isPrimaryMasterAdmin(user)) return "0001";
   if (/^\d{4}$/.test(String(user?.tag || "")) && String(user.tag) !== "0001") return String(user.tag);
   const source = String(user?.id || user?.username || "sesh");
   let hash = 0;
@@ -500,13 +506,16 @@ function publicUser(user) {
 }
 function isCreator(user) {
   const email = (user?.email || "").toLowerCase();
-  return Boolean(email && (email === MASTER_ADMIN_EMAIL || CREATOR_EMAILS.has(email)));
+  return Boolean(email && (isMasterAdmin(user) || CREATOR_EMAILS.has(email)));
 }
-function isMasterAdmin(user) {
+function isPrimaryMasterAdmin(user) {
   return Boolean(
     MASTER_ADMIN_EMAIL &&
       (user?.email || "").toLowerCase() === MASTER_ADMIN_EMAIL,
   );
+}
+function isMasterAdmin(user) {
+  return MASTER_ADMIN_EMAILS.has((user?.email || "").toLowerCase());
 }
 function sanitizeBadges(target, badges) {
   const selected = Array.isArray(badges)
@@ -1754,17 +1763,18 @@ async function handler(req, res) {
           (m) => m.serverId === server.id && m.userId === user.id,
         )
       ) {
-        database.memberships.push({
+        const joinedMembership = {
           userId: user.id,
           serverId: server.id,
           role: "member", roleId: "member",
           joinedAt: now(),
-        });
+        };
+        database.memberships.push(joinedMembership);
         await saveDatabase();
         broadcastServer(server.id, {
           type: "member.joined",
           serverId: server.id,
-          member: publicUser(user),
+          member: memberView(server, joinedMembership),
         });
       }
       return json(res, 200, { server: decorateServer(server, user) });
