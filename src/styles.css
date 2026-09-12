@@ -6564,7 +6564,7 @@ body[data-profile-plate="neon"] .profile-card {
 .channel-sidebar { display: flex; flex-direction: column; }
 .game-interest-picker { grid-column: 1 / -1; padding: 12px; border: 1px solid #303238; border-radius: 10px; background: #111214; }
 /* O painel da conta pertence sempre ao rodapé da coluna lateral. */
-.app-shell > .user-panel { position: fixed; left: 106px; bottom: 0; width: 286px; box-sizing: border-box; z-index: 30; margin: 0; }
+.app-shell > .user-panel { position: fixed; left: 76px; bottom: 0; width: 250px; box-sizing: border-box; z-index: 30; margin: 0; }
 @media (max-width: 650px) { .app-shell > .user-panel { left: 0; width: min(82vw, 280px); } }
 .game-interest-head { display: flex; justify-content: space-between; margin-bottom: 8px; color: #f2f3f5; }
 .game-interest-head span { color: #b5bac1; font-size: 12px; }
