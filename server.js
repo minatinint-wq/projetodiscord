@@ -32,7 +32,6 @@ const COLLECTIONS = [
   "subscriptions",
   "friendships",
   "emailVerifications",
-  "passwordResets",
 ];
 const sessions = new Map();
 const wsTickets = new Map();
@@ -570,17 +569,7 @@ async function issueEmailVerification(user) {
   if (!response.ok) throw new Error("Não foi possível enviar o e-mail de confirmação.");
   return { sent: true, configured: true };
 }
-async function issuePasswordReset(user) {
-  const token = crypto.randomBytes(32).toString("base64url");
-  database.passwordResets = database.passwordResets.filter((item) => item.userId !== user.id);
-  database.passwordResets.push({ id: id(), userId: user.id, tokenHash: crypto.createHash("sha256").update(token).digest("hex"), createdAt: now(), expiresAt: new Date(Date.now() + 3600000).toISOString() });
-  await saveDatabase();
-  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !SESH_PUBLIC_URL) return { sent: false };
-  const resetUrl = `${SESH_PUBLIC_URL}/app?reset_password=${encodeURIComponent(token)}`;
-  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [user.email], subject: "Redefina sua senha do Sesh", html: `<p><a href="${resetUrl}">Criar nova senha</a></p><p>Expira em 1 hora.</p>` }) });
-  if (!response.ok) throw new Error("Não foi possível enviar o e-mail de recuperação.");
-  return { sent: true };
-}
+
 function sessionUser(user) {
   return {
     ...publicUser(user),
@@ -982,20 +971,6 @@ async function handler(req, res) {
       let verificationEmailSent = false;
       try { verificationEmailSent = (await issueEmailVerification(user)).sent; } catch {}
       return json(res, 201, { token, user: sessionUser(user), verificationEmailSent });
-    }
-    if (url.pathname === "/api/auth/forgot-password" && req.method === "POST") {
-      const input = await body(req); const identifier = String(input.identifier || "").trim().toLowerCase();
-      const target = database.users.find((item) => item.username === identifier || (item.email || "").toLowerCase() === identifier);
-      if (target) { try { await issuePasswordReset(target); } catch {} }
-      return json(res, 200, { ok: true });
-    }
-    if (url.pathname === "/api/auth/reset-password" && req.method === "POST") {
-      const input = await body(req); const tokenHash = crypto.createHash("sha256").update(String(input.token || "")).digest("hex");
-      const record = database.passwordResets.find((item) => item.tokenHash === tokenHash);
-      if (!record || new Date(record.expiresAt).getTime() < Date.now()) return json(res, 400, { error: "Link de recuperação inválido ou expirado." });
-      if (String(input.password || "").length < 6) return json(res, 400, { error: "A senha precisa ter pelo menos 6 caracteres." });
-      const target = database.users.find((item) => item.id === record.userId); if (!target) return json(res, 404, { error: "Conta não encontrada." });
-      target.password = hashPassword(String(input.password)); database.passwordResets = database.passwordResets.filter((item) => item.userId !== target.id); await saveDatabase(); return json(res, 200, { ok: true });
     }
     if (url.pathname === "/api/auth/login" && req.method === "POST") {
       const input = await body(req);

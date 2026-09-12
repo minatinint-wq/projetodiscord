@@ -31,8 +31,6 @@ export const api = {
       body: JSON.stringify(input),
     }),
   resendVerification: () => request("/api/auth/resend-verification", { method: "POST" }),
-  forgotPassword: (identifier) => request("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ identifier }) }),
-  resetPassword: (token, password) => request("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) }),
   me: () => request("/api/auth/me"),
   logout: () => request("/api/auth/logout", { method: "POST" }),
   wsTicket: () => request("/api/auth/ws-ticket", { method: "POST" }),

@@ -2076,8 +2076,6 @@ function LandingPage() {
 
 function AuthScreen({ onLogin, lockedEmail = "" }) {
   const [register, setRegister] = useState(false);
-  const [forgotPassword, setForgotPassword] = useState(false);
-  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get("reset_password") || "");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     username: lockedEmail,
@@ -2089,8 +2087,6 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function submitForgot(event) { event.preventDefault(); setLoading(true); try { await api.forgotPassword(form.username); setError("Se a conta existir, enviamos um link de recuperação para o e-mail cadastrado."); } catch (err) { setError(err.message); } finally { setLoading(false); } }
-  async function submitReset(event) { event.preventDefault(); setLoading(true); try { await api.resetPassword(resetToken, form.password); window.history.replaceState({}, "", "/app"); setForgotPassword(false); setError("Senha alterada. Entre com sua nova senha."); } catch (err) { setError(err.message); } finally { setLoading(false); } }
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -2161,7 +2157,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             </p>
           </div>
 
-          <form onSubmit={resetToken ? submitReset : forgotPassword ? submitForgot : submit}>
+          <form onSubmit={submit}>
             {register && (
               <label className="auth-field">
                 <span>Nome de exibição</span>
@@ -2176,7 +2172,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 />
               </label>
             )}
-            {!resetToken && !register && !forgotPassword && (!lockedEmail ? (
+            {!lockedEmail ? (
             <label className="auth-field">
               <span>Usuário ou e-mail</span>
               <input
@@ -2193,7 +2189,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 <span>CONTA ADMINISTRATIVA</span>
                 <strong>{lockedEmail}</strong>
               </div>
-            ))}
+            )}
             {register && (
               <label className="auth-field">
                 <span>E-mail</span>
@@ -2220,8 +2216,8 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 />
               </label>
             )}
-            {!forgotPassword && <label className="auth-field">
-              <span>{resetToken ? "Nova senha" : "Senha"}</span>
+            <label className="auth-field">
+              <span>Senha</span>
               <div className="auth-password-field">
                 <input
                   required
@@ -2242,15 +2238,14 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </label>}
-            {forgotPassword && <label className="auth-field"><span>Usuário ou e-mail</span><input required autoFocus value={form.username} placeholder="Digite seu usuário ou e-mail" onChange={(e) => setForm({ ...form, username: e.target.value })} /></label>}
+            </label>
             {error && (
               <div className="form-error" role="alert">
                 {error}
               </div>
             )}
             <button className="auth-submit" disabled={loading}>
-              {loading ? "Enviando..." : resetToken ? "Salvar nova senha" : forgotPassword ? "Enviar link de recuperação" : register ? "Criar conta" : "Entrar"}
+              {loading ? "Entrando..." : register ? "Criar conta" : "Entrar"}
             </button>
           </form>
 
@@ -2266,9 +2261,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             </div>
           )}
 
-          {!resetToken && !forgotPassword && !register && <button className="auth-forgot" type="button" onClick={() => { setForgotPassword(true); setError(""); }}>Esqueci minha senha</button>}
-          {(forgotPassword || resetToken) && <button className="auth-forgot" type="button" onClick={() => { window.history.replaceState({}, "", "/app"); setForgotPassword(false); setError(""); }}>Voltar para entrar</button>}
-          {!resetToken && !forgotPassword && <div className="auth-switch-row">
+          <div className="auth-switch-row">
             <span>{register ? "Já faz parte?" : "Novo por aqui?"}</span>
             <button
               className="auth-switch"
@@ -2279,7 +2272,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             >
               {register ? "Entrar na minha conta" : "Criar uma conta"}
             </button>
-          </div>}
+          </div>
         </section>
       </div>
     </div>

@@ -5328,8 +5328,6 @@ body[data-profile-effect="embers"] .profile-card {
   border-color: #d6404b;
   background: #3b171d;
 }
-.auth-forgot { margin-top: 16px; padding: 0; color: #ff6871; background: transparent; font-size: 12px; }
-.auth-forgot:hover { color: #fff; text-decoration: underline; }
 .email-verification-banner { position: fixed; z-index: 100; top: 16px; left: 50%; display: flex; gap: 12px; max-width: calc(100vw - 32px); padding: 10px 13px; transform: translateX(-50%); border: 1px solid #804a1d; border-radius: 9px; color: #ffe4bd; background: #2e1b0d; box-shadow: 0 8px 28px #0008; font-size: 13px; }
 .email-verification-banner button { padding: 6px 9px; border-radius: 6px; color: #fff; background: #b72430; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .auth-switch-row {
