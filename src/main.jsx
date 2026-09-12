@@ -172,7 +172,7 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
     />
   );
 }
-function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onAddFriend, onCopyHandle }) {
+function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles, onAddFriend, onCopyHandle }) {
   const isSelf = menu.user.id === menu.currentUserId;
   return (
     <div
@@ -189,6 +189,12 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onAddFriend, 
         </button>
         <button className="context-item" onClick={onAddFriend}>
           Adicionar amigo
+        </button>
+      </>}
+      {isSelf && onManageRoles && <>
+        <div className="context-sep" />
+        <button className="context-item" onClick={onManageRoles}>
+          Gerenciar cargos do servidor
         </button>
       </>}
       {(onModerate || onAdd) && <div className="context-sep" />}
@@ -4933,6 +4939,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
           onAssignRole={badgeMenu.canModerate ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
+          onManageRoles={badgeMenu.user.id === currentUser.id && selectedServer?.role === "owner" ? () => {
+            setBadgeMenu(null);
+            setServerSettingsOpen(true);
+          } : null}
           onCopyHandle={() => copyMemberHandle(badgeMenu.user)}
           onAddFriend={() => addFriendFromMenu(badgeMenu.user)}
         />
