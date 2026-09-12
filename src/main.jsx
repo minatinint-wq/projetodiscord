@@ -1015,6 +1015,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [rolesSaved, setRolesSaved] = useState(false);
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === "Escape") onClose();
@@ -1087,6 +1088,19 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
       setForm((current) => ({ ...current, banner: String(reader.result) }));
     };
     reader.readAsDataURL(file);
+  }
+  async function saveRoles() {
+    setError("");
+    setRolesSaved(false);
+    setBusy(true);
+    try {
+      await onSave({ roles: form.roles, memberRoles: form.memberRoles });
+      setRolesSaved(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function submit(event) {
     event.preventDefault();
@@ -1187,7 +1201,12 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
                 <strong>Cargos e permissões</strong>
                 <small>A ordem acima tem prioridade e define o destaque lateral.</small>
               </div>
-              <button type="button" onClick={addRole}>Adicionar cargo</button>
+              <div className="server-role-editor-actions">
+                <button type="button" onClick={addRole}>Adicionar cargo</button>
+                <button type="button" className="role-save" onClick={saveRoles} disabled={busy}>
+                  {busy ? "Salvando..." : "Salvar cargos"}
+                </button>
+              </div>
             </div>
             {form.roles
               .filter((role) => !["owner", "member"].includes(role.id))
@@ -1259,6 +1278,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
                   <span className="role-order">#{index + 1}</span>
                 </article>
               ))}
+            {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}
           </section>
           <section className="server-role-assignments">
             <div className="server-role-editor-head">
@@ -2038,6 +2058,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -6804,6 +6825,7 @@ function AdminPanel({ user, onLogout }) {
     reader.onerror = () => setError("Não foi possível ler a imagem.");
     reader.readAsDataURL(file);
   }
+
   async function submit(event) {
     event.preventDefault();
     setError("");

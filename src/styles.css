@@ -6577,3 +6577,8 @@ body[data-profile-plate="neon"] .profile-card {
 
 .server-context-menu { min-width: 264px; }
 .server-mute-menu { min-width: 228px; }
+
+.server-role-editor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.server-role-editor-head .role-save { color: #fff; border-color: #5865f2; background: #5865f2; }
+.server-role-editor-head .role-save:disabled { opacity: .6; cursor: wait; }
+.role-save-feedback { margin: 10px 0 0; color: #57d68d; font-size: 12px; }
