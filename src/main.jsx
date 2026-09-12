@@ -236,17 +236,19 @@ function MessageContent({ content, members, onProfile }) {
 function MentionSuggestions({ candidates, onChoose }) {
   if (!candidates.length) return null;
   return (
-    <div className="mention-suggestions" role="listbox" aria-label="Mencionar membro">
-      {candidates.map((member) => (
+    <div className="mention-suggestions" role="listbox" aria-label="Mencionar">
+      {candidates.map((candidate) => (
         <button
           type="button"
           className="mention-suggestion"
-          key={member.id}
+          key={candidate.id}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onChoose(member)}
+          onClick={() => onChoose(candidate)}
         >
-          <Avatar user={member} color={member.avatarColor || "purple"} small />
-          <span><strong>{member.displayName}</strong><small>@{member.username}</small></span>
+          {candidate.kind === "member" ? (
+            <Avatar user={candidate} color={candidate.avatarColor || "purple"} small />
+          ) : <i className="mention-symbol">@</i>}
+          <span><strong>{candidate.displayName}</strong><small>{candidate.detail}</small></span>
         </button>
       ))}
     </div>
@@ -2443,15 +2445,19 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const mentionCandidates = useMemo(() => {
     if (mentionQuery === null) return [];
     const query = mentionQuery.toLowerCase();
-    return members
-      .filter((member) =>
-        member.id !== currentUser.id &&
-        [member.displayName, member.username].some((value) =>
-          String(value || "").toLowerCase().includes(query),
-        ),
-      )
-      .slice(0, 6);
-  }, [mentionQuery, members, currentUser.id]);
+    const special = [
+      { id: "mention-everyone", kind: "special", mention: "everyone", displayName: "@everyone", detail: "Notifica todos no servidor" },
+      { id: "mention-here", kind: "special", mention: "here", displayName: "@here", detail: "Notifica membros conectados agora" },
+    ].filter((item) => item.mention.includes(query));
+    const roles = (selectedServer?.roles || [])
+      .filter((role) => !["owner", "member"].includes(role.id))
+      .filter((role) => role.name.toLowerCase().includes(query))
+      .map((role) => ({ id: `mention-role-${role.id}`, kind: "role", mention: role.name, displayName: `@${role.name}`, detail: "Menciona membros deste cargo" }));
+    const people = members
+      .filter((member) => member.id !== currentUser.id && [member.displayName, member.username].some((value) => String(value || "").toLowerCase().includes(query)))
+      .map((member) => ({ ...member, kind: "member", mention: member.username, detail: `@${member.username}` }));
+    return [...special, ...roles, ...people].slice(0, 8);
+  }, [mentionQuery, members, selectedServer?.roles, currentUser.id]);
   const voiceActiveRef = useRef(false);
   const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
   const [homeTab, setHomeTab] = useState("online");
@@ -4059,7 +4065,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     setMentionQuery(match ? match[1] : null);
   }
   function chooseMention(member) {
-    setDraft((current) => current.replace(/(^|\s)@[^\s@]*$/, `$1@${member.username} `));
+    setDraft((current) => current.replace(/(^|\s)@[^\s@]*$/, `$1@${member.mention || member.username} `));
     setMentionQuery(null);
     requestAnimationFrame(() => composerInputRef.current?.focus());
   }
