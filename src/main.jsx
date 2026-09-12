@@ -1129,6 +1129,8 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, savi
   const [tab, setTab] = useState("display");
   const [query, setQuery] = useState("");
   const [imageError, setImageError] = useState("");
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarInputRef = useRef(null);
   const permissions = ROLE_PERMISSION_GROUPS.map((group) => ({
     ...group,
     permissions: group.permissions.filter(([key, label]) =>
@@ -1332,6 +1334,8 @@ function ProfileSettingsPanel({
   });
   const [gameQuery, setGameQuery] = useState("");
   const [imageError, setImageError] = useState("");
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const avatarInputRef = useRef(null);
   const filteredGames = useMemo(() => GAME_CATALOG.filter((game) =>
     !gameQuery.trim() || game.name.toLowerCase().includes(gameQuery.trim().toLowerCase()),
   ).slice(0, 80), [gameQuery]);
@@ -1405,6 +1409,11 @@ function ProfileSettingsPanel({
           <div className="profile-settings-switcher">
             Perfil principal <ChevronDown size={14} />
           </div>
+          <nav className="profile-settings-section-nav">
+            <button type="button" className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>Editar perfil</button>
+            <button type="button" className={tab === "account" ? "active" : ""} onClick={() => setTab("account")}>Informações da conta</button>
+          </nav>
+
           <div className="profile-settings-side-title">
             Placa de identificação
           </div>
@@ -1421,11 +1430,14 @@ function ProfileSettingsPanel({
           </button>
           <div className="profile-settings-side-title">Avatar e decorações</div>
           <div className="profile-settings-tiles">
-            <label className="profile-avatar-photo-tile" aria-label="Trocar foto do perfil">
-              <Avatar user={form} color="purple" />
-              <span>Trocar foto</span>
-              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={(event) => chooseProfileImage("avatar", event)} />
-            </label>
+            <div className="profile-avatar-control">
+              <button type="button" className="profile-avatar-photo-tile" aria-label="Opções do avatar" onClick={() => setAvatarMenuOpen((open) => !open)}>
+                <Avatar user={form} color="purple" />
+                <span>Editar avatar</span>
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={(event) => chooseProfileImage("avatar", event)} />
+              {avatarMenuOpen && <div className="profile-avatar-menu"><button type="button" onClick={() => { setAvatarMenuOpen(false); avatarInputRef.current?.click(); }}>Mudar avatar</button><button type="button" onClick={() => { setAvatarMenuOpen(false); setCustomizer({ kind: "frame", key: "avatarFrame" }); }}>Mudar decoração de avatar</button></div>}
+            </div>
             <button
               type="button"
               aria-label="Alterar moldura do avatar"
@@ -1489,7 +1501,8 @@ function ProfileSettingsPanel({
           <button className="profile-settings-close" onClick={onClose}>
             <X size={18} />
           </button>
-          {tab === "profile" ? (
+                    <div className="profile-settings-topbar"><div><span>{tab === "profile" ? "EDITAR PERFIL" : "INFORMAÇÕES DA CONTA"}</span><strong>{tab === "profile" ? "Personalize seu perfil" : "Dados e segurança"}</strong></div><button type="button" onClick={() => onSave(form)}>{tab === "profile" ? "Salvar perfil" : "Salvar conta"}</button></div>
+{tab === "profile" ? (
             <>
               <section
                 className="profile-preview"
@@ -1682,7 +1695,7 @@ function ProfileSettingsPanel({
                   <button onClick={() => onSave(form)}>
                     Salvar alterações
                   </button>
-                  <button onClick={() => setTab("privacy")}>
+                  <button onClick={() => setTab("account")}>
                     Dados e privacidade
                   </button>
                 </div>
@@ -1690,9 +1703,9 @@ function ProfileSettingsPanel({
             </>
           ) : (
             <div className="profile-privacy">
-              <h1>Dados e privacidade</h1>
+              <h1>Informações da conta</h1>
               <p>
-                Gerencie o email, senha e identificador usados na sua conta.
+                Gerencie seu e-mail, nome de usuário e senha separadamente da edição visual do perfil.
               </p>
               <label>
                 Email

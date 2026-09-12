@@ -6802,3 +6802,19 @@ body[data-profile-plate="neon"] .profile-card {
 .profile-avatar-photo-tile:hover > span, .profile-avatar-photo-tile:focus-within > span { opacity: 1; transform: translateY(0); }
 .profile-avatar-photo-tile input { display: none; }
 .profile-image-error { grid-column: 1 / -1; }
+.profile-settings-section-nav { display: grid; gap: 3px; margin: -8px 0 14px; }
+.profile-settings-section-nav button { width: 100%; padding: 8px 9px; border-radius: 6px; color: #aeb4bf; background: transparent; font-size: 12px; font-weight: 700; text-align: left; }
+.profile-settings-section-nav button:hover, .profile-settings-section-nav button.active { color: #fff; background: #2b2d31; }
+.profile-avatar-control { position: relative; min-height: 80px; }
+.profile-settings-tiles .profile-avatar-photo-tile { display: grid; width: 100%; min-height: 80px; overflow: hidden; place-items: center; border: 1px solid #30343b; border-radius: 7px; background: #1c1f24; }
+.profile-avatar-photo-tile > span { opacity: 1; transform: none; }
+.profile-avatar-menu { position: absolute; z-index: 20; top: 50%; left: calc(100% + 10px); display: grid; min-width: 220px; gap: 3px; padding: 7px; border: 1px solid #303238; border-radius: 8px; background: #1e1f22; box-shadow: 0 12px 28px #000b; transform: translateY(-50%); }
+.profile-avatar-menu button { padding: 10px; border-radius: 5px; color: #f2f3f5; background: transparent; text-align: left; }
+.profile-avatar-menu button:hover { background: #35373c; }
+.profile-settings-topbar { position: absolute; z-index: 4; top: 14px; right: 58px; left: 398px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.profile-settings-topbar > div { display: grid; gap: 2px; }
+.profile-settings-topbar span { color: #aeb4bf; font-size: 10px; font-weight: 800; }
+.profile-settings-topbar strong { color: #f2f3f5; font-size: 14px; }
+.profile-settings-topbar > button { padding: 9px 13px; border-radius: 6px; color: #fff; background: #5865f2; font-size: 12px; font-weight: 800; }
+.profile-privacy { grid-column: 1 / -1; max-width: 620px; margin: 74px auto 30px; width: 100%; }
+@media (max-width: 760px) { .profile-settings-section-nav { display: flex; overflow-x: auto; margin: 0 0 10px; } .profile-settings-section-nav button { width: auto; white-space: nowrap; } .profile-avatar-menu { top: calc(100% + 8px); left: 0; transform: none; } .profile-settings-topbar { top: 52px; right: 54px; left: 16px; } .profile-settings-main { padding-top: 42px; } }
