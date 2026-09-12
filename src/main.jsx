@@ -2400,6 +2400,31 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [channelModal, setChannelModal] = useState(null);
   const [presenceMap, setPresenceMap] = useState({});
   const [statusMenu, setStatusMenu] = useState(false);
+  const handledInviteRef = useRef(false);
+  useEffect(() => {
+    const invite = new URLSearchParams(window.location.search).get("invite")?.trim();
+    if (!invite || handledInviteRef.current) return;
+    handledInviteRef.current = true;
+    api
+      .joinServer(invite)
+      .then((result) => {
+        const server = result.server;
+        setServers((current) =>
+          current.some((item) => item.id === server.id)
+            ? current.map((item) => (item.id === server.id ? server : item))
+            : [...current, server],
+        );
+        setSelectedServer(server);
+        setSelectedChannel(server.channels?.[0] || null);
+        localStorage.setItem("sesh_onboarded", "1");
+        window.history.replaceState({}, "", "/app");
+        setNotice(`Você entrou em ${server.name}.`);
+      })
+      .catch((error) => {
+        window.history.replaceState({}, "", "/app");
+        setNotice(error.message);
+      });
+  }, []);
   useEffect(() => {
     if (!voiceConnected || !voiceChannel?.id || !socketRef.current) return;
     socketRef.current.send({
