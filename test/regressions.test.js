@@ -31,6 +31,17 @@ before(async()=>{
 after(async()=>{if(proc&&!proc.killed){const ended=new Promise(r=>proc.once("exit",r));proc.kill();await ended;}if(temp)await rm(temp,{recursive:true,force:true});
 
 });
+test("cadastro entra sem Resend e aceita usuário, e-mail e tag",async()=>{
+ const account=await req("/api/auth/register","POST",{username:"loginoptional",email:"loginoptional@sesh.test",displayName:"Apelido diferente",password:"login123"});
+ assert.equal(account.status,201);assert.equal(account.verificationRequired,false);assert.equal(account.verificationEmailSent,false);
+ assert.equal(account.user.emailVerified,false);
+ for(const identifier of ["loginoptional"," LOGINOPTIONAL ","loginoptional@sesh.test","@loginoptional","@loginoptional#"+account.user.tag]){
+  const result=await req("/api/auth/login","POST",{username:identifier,password:"login123"});
+  assert.equal(result.status,200,identifier);assert.equal(result.user.id,account.user.id);
+ }
+ assert.equal((await req("/api/auth/login","POST",{username:"loginoptional#0001",password:"login123"})).status,401);
+ assert.equal((await req("/api/auth/login","POST",{username:"loginoptional",password:"errada"})).status,401);
+});
 test("perfil é atômico e imagem estática persiste",async()=>{
  assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
  const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);

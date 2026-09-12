@@ -597,6 +597,7 @@ function badgesForUser(user) {
   ])];
 }
 async function issueEmailVerification(user) {
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !SESH_PUBLIC_URL) return { sent: false, configured: false };
   const token = crypto.randomBytes(32).toString("base64url");
   database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== user.id);
   database.emailVerifications.push({
@@ -609,8 +610,9 @@ async function issueEmailVerification(user) {
   const verificationUrl = `${SESH_PUBLIC_URL}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    signal: AbortSignal.timeout(8_000),
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [user.email], subject: "Confirme seu e-mail no Sesh", html: `<p>Olá, ${user.displayName}.</p><p>Confirme seu e-mail para liberar chamadas de voz:</p><p><a href="${verificationUrl}">Confirmar e-mail</a></p><p>Este link expira em 24 horas.</p>` }),
+    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [user.email], subject: "Confirme seu e-mail no Sesh", html: `<p>Olá!</p><p>Confirme seu e-mail se desejar. Esta etapa é opcional e não bloqueia login ou chamadas:</p><p><a href="${verificationUrl}">Confirmar e-mail</a></p><p>Este link expira em 24 horas.</p>` }),
   });
   if (!response.ok) throw new Error("Não foi possível enviar o e-mail de confirmação.");
   return { sent: true, configured: true };
@@ -1040,7 +1042,8 @@ async function handler(req, res) {
         displayName,
         email,
         phone: phoneDigits || null,
-        emailVerifiedAt: now(),
+        // Email ownership is optional, not a login or voice requirement.
+        emailVerifiedAt: null,
         password: hashPassword(input.password),
         avatarColor: "purple",
         createdAt: now(),
@@ -1050,27 +1053,27 @@ async function handler(req, res) {
       const token = id();
       sessions.set(token, user.id);
       setSessionCookie(res, token);
-      let verificationEmailSent = false;
-      try { verificationEmailSent = (await issueEmailVerification(user)).sent; } catch {}
-      return json(res, 201, { token, user: sessionUser(user), verificationEmailSent });
+      // Registration must never wait for an external email provider.
+      return json(res, 201, { token, user: sessionUser(user), verificationRequired: false, verificationEmailSent: false });
     }
     if (url.pathname === "/api/auth/login" && req.method === "POST") {
       const input = await body(req);
-      const identifier = String(input.username || "")
-        .trim()
-        .toLowerCase();
+      const rawIdentifier = String(input.username || input.email || "").trim().toLowerCase();
+      const handle = rawIdentifier.match(/^@?([a-z0-9_.-]{1,20})(?:#(\d{4}))?$/);
+      const identifier = handle ? handle[1] : rawIdentifier;
+      const suppliedTag = handle?.[2];
       if (loginBlocked(req, identifier))
         return json(res, 429, {
           error: "Muitas tentativas. Aguarde 15 minutos e tente novamente.",
         });
       const user = database.users.find(
         (item) =>
-          item.username === identifier ||
+          (String(item.username).toLowerCase() === identifier && (!suppliedTag || userTag(item) === suppliedTag)) ||
           (item.email || "").toLowerCase() === identifier,
       );
       if (!user || !verifyPassword(input.password || "", user.password)) {
         recordLoginFailure(req, identifier);
-        return json(res, 401, { error: "Credenciais inválidas." });
+        return json(res, 401, { error: "Usuário ou senha incorretos. Entre com seu nome de usuário, @usuário#tag ou e-mail de cadastro (não o nome de exibição)." });
       }
       loginAttempts.delete(loginLimitKey(req, identifier));
       const token = id();
