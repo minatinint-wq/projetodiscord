@@ -6793,3 +6793,4 @@ body[data-profile-plate="neon"] .profile-card {
 .role-icon-button input { display: none; }
 .role-list-icon { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; overflow: hidden; place-items: center; border-radius: 4px; background: var(--role-preview-color); }
 .role-list-icon img { width: 100%; height: 100%; object-fit: cover; }
+.profile-image-error { margin: 2px 0 10px; color: #ff9ca3; font-size: 12px; line-height: 1.4; }

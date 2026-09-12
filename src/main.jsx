@@ -1331,6 +1331,7 @@ function ProfileSettingsPanel({
     wishlist: user.wishlist || "",
   });
   const [gameQuery, setGameQuery] = useState("");
+  const [imageError, setImageError] = useState("");
   const filteredGames = useMemo(() => GAME_CATALOG.filter((game) =>
     !gameQuery.trim() || game.name.toLowerCase().includes(gameQuery.trim().toLowerCase()),
   ).slice(0, 80), [gameQuery]);
@@ -1345,14 +1346,48 @@ function ProfileSettingsPanel({
   }, [onClose]);
   const update = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
-  function chooseProfileImage(key, event) {
+  function readDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(file);
+    });
+  }
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const source = URL.createObjectURL(file);
+      const image = new Image();
+      image.onerror = () => { URL.revokeObjectURL(source); reject(new Error("Não foi possível abrir essa imagem.")); };
+      image.onload = () => {
+        const scale = Math.min(1, 1280 / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(source);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      };
+      image.src = source;
+    });
+  }
+  async function chooseProfileImage(key, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024) return;
-    const reader = new FileReader();
-    reader.onload = () => update(key, String(reader.result));
-    reader.readAsDataURL(file);
+    setImageError("");
+    if (!file.type.startsWith("image/")) return setImageError("Escolha uma imagem PNG, JPG, GIF ou WebP.");
+    try {
+      let image = await readDataUrl(file);
+      if (image.length > 4_000_000) {
+        if (file.type === "image/gif") return setImageError("Esse GIF é grande demais. Escolha um GIF de até 3 MB.");
+        image = await shrinkImage(file);
+      }
+      if (image.length > 4_000_000) return setImageError("Não foi possível reduzir essa imagem. Escolha uma foto menor que 3 MB.");
+      update(key, image);
+    } catch {
+      setImageError("Não foi possível ler essa imagem.");
+    }
   }
   async function applyCustomization(values) {
     try {
@@ -1595,6 +1630,7 @@ function ProfileSettingsPanel({
                   </label>
                 )}
                 </div>
+                {imageError && <p className="profile-image-error">{imageError}</p>}
                 <label>
                   Nome de exibição
                   <input
