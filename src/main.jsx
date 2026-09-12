@@ -2754,9 +2754,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     const canModerate = Boolean(
       selectedServer && (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
     );
-    if (!currentUser.isMasterAdmin && !canModerate) return;
     const onContextMenu = (event) => {
       const card = event.target.closest(".profile-card");
+      // Sesh owns the context menu across the app. Capture mode below keeps
+      // the browser's native menu from winning this interaction.
+      event.preventDefault();
       if (card && profileData?.user && currentUser.isMasterAdmin) {
         event.preventDefault();
         event.stopPropagation();
@@ -2767,6 +2769,22 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         });
         return;
       }
+      const channelRow = event.target.closest(".channel-row");
+      if (channelRow) {
+        const channel = selectedServer?.channels.find(
+          (item) => item.id === channelRow.dataset.channelId,
+        );
+        if (channel) {
+          event.stopPropagation();
+          setContextMenu({
+            x: Math.min(event.clientX, window.innerWidth - 260),
+            y: Math.min(event.clientY, window.innerHeight - 440),
+            channel,
+          });
+          return;
+        }
+      }
+      if (!currentUser.isMasterAdmin && !canModerate) return;
       const row = event.target.closest(".member, .voice-member, .voice-participant, .voice-tile, .message");
       if (!row) return;
       const username =
@@ -2798,8 +2816,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         onProfile: () => setProfileView({ userId: target.id }),
       });
     };
-    document.addEventListener("contextmenu", onContextMenu);
-    return () => document.removeEventListener("contextmenu", onContextMenu);
+    document.addEventListener("contextmenu", onContextMenu, true);
+    return () => document.removeEventListener("contextmenu", onContextMenu, true);
   }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer]);
   useEffect(() => {
     api
@@ -5277,6 +5295,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               <React.Fragment key={channel.id}>
                 <button
                   className={`channel-row ${selectedChannel.id === channel.id ? "selected" : ""} ${mutedChannels.includes(channel.id) ? "muted-row" : ""}`}
+                  data-channel-id={channel.id}
                   onClick={() => {
                     setSelectedChannel(channel);
                     setMobileNav(false);
