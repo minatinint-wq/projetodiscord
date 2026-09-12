@@ -8,7 +8,7 @@ pela rede privada do Render.
 
 1. Entre em https://dashboard.render.com/.
 2. Escolha **New > Blueprint**.
-3. Conecte o GitHub e selecione **seshcoder1-cloud/projetodiscord**.
+3. Conecte o GitHub e selecione **minatinint-wq/projetodiscord**.
 4. Confirme o arquivo **render.yaml**.
 5. Quando solicitado, informe **CREATOR_EMAIL** com o e-mail da conta criadora.
 6. Acompanhe o deploy até o health check **/api/health** ficar saudável.
