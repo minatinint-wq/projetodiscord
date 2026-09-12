@@ -1,5 +1,12 @@
 
 /* Shared profile card: identical presentation in the editor, quick card and full profile. */
+.file-drop-zone{position:relative}.file-drop-overlay{position:absolute;inset:10px;z-index:20;pointer-events:none;border:2px dashed #b5a1ff;background:#171524ec;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#e2d8ff}.file-drop-overlay strong{font-size:22px}.file-drop-overlay span{font-size:12px;color:#bab1d2}
+.attachment-draft{position:relative;display:flex;align-items:center;gap:5px;max-width:220px}.attachment-draft>button{padding:4px;background:#ffffff12;border-radius:4px;color:#eee}
+.file-attachment{display:flex;align-items:center;gap:12px;background:#ffffff06;border:1px solid #ffffff16;border-radius:9px;color:#cec6f3;text-decoration:none;padding:12px;max-width:420px;min-width:0}.file-attachment>svg{flex-shrink:0}.file-attachment>span{min-width:0}.file-attachment strong{display:block;font-size:12px;overflow-wrap:anywhere}.file-attachment small{display:block;font-size:10px;color:#999eb5;margin-top:4px}.file-reading{font-size:11px;color:#b6b0d0}
+.image-drop-target.dragging{outline:2px dashed #c6a8ff;background:#aa80ff30!important}
+.message-attachment{max-width:min(100%,480px);max-height:420px;width:auto;height:auto;object-fit:contain;border-radius:10px;display:block}
+.selected-games{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}.selected-games button{display:flex;align-items:center;gap:7px;background:#ffffff06;border:1px solid #ffffff13;border-radius:7px;padding:7px;color:#c5c4d5;font-size:11px}.selected-games button[aria-pressed=true]{border-color:#b3a0fc;background:#ac96ff13}.selected-games .game-icon{width:24px;height:24px}.selected-games button>span:last-child:not(.game-icon){font-size:8px;color:#cab6ff}
+
 .identity-backdrop{position:fixed;inset:0;background:#07080bc9;backdrop-filter:blur(9px);z-index:320;display:grid;place-items:center;padding:24px}
 .identity-dialog{position:relative;width:min(980px,100%);height:min(730px,calc(100dvh - 48px));display:grid;grid-template-columns:320px minmax(0,1fr);border:1px solid #ffffff18;border-radius:20px;background:#202127;color:#edeef4;box-shadow:0 24px 100px #0009;overflow:hidden}
 .identity-close{position:absolute;right:14px;top:14px;z-index:5;background:#ffffff0b;color:#c4c6d1;border-radius:50%;width:34px;height:34px;display:grid;place-items:center}

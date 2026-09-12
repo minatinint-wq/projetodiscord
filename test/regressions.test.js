@@ -97,6 +97,25 @@ test("favorito acompanha seleção e limpa quando remove jogos",async()=>{
  assert.deepEqual((await req("/api/users/"+guest.user.id,"GET",undefined,owner.token)).user.gameInterests,[games[0].id,games[1].id]);
  const cleared=await req("/api/auth/me","PATCH",{gameInterests:[]},guest.token);assert.equal(cleared.user.favoriteGame,"");
 });
+test("Nitro manual do admin libera GIF e membro não concede insígnias",async()=>{
+ const admin=await req("/api/auth/login","POST",{username:"test-admin@sesh.local",password:"test-admin-password"});
+ const granted=await req("/api/users/"+guest.user.id+"/badges","PATCH",{badges:["nitro_classic","cacador_bugs"]},admin.token);
+ assert.equal(granted.status,200);assert(granted.user.badges.includes("nitro_classic"));assert(granted.user.badges.includes("cacador_bugs"));
+ assert.equal((await req("/api/auth/me","PATCH",{banner:gif},guest.token)).status,200);
+ const fresh=await req("/api/auth/login","POST",{username:"testguest",password:"test1234"});assert(fresh.user.badges.includes("nitro_classic"));
+ assert.equal((await req("/api/auth/me","PATCH",{badges:["criador"]},guest.token)).status,403);
+ assert.equal((await req("/api/users/"+owner.user.id+"/badges","PATCH",{badges:["nitro_classic"]},guest.token)).status,403);
+});
+test("arquivos de chat são validados e respeitam permissão de anexar",async()=>{
+ const file={name:"notas.txt",size:5,data:"data:application/octet-stream;base64,aGVsbG8="};
+ const route="/api/channels/"+server.channels[0].id+"/messages";
+ assert.equal((await req(route,"POST",{attachment:file},owner.token)).status,201);
+ const rows=await req(route,"GET",undefined,owner.token);assert(rows.messages.some(message=>message.attachment?.name==="notas.txt"));
+ assert.equal((await req(route,"POST",{attachment:file},guest.token)).status,403);
+ for(const changes of [{name:"../bad.html"},{size:7},{data:"data:text/html;base64,aGVsbG8="}]){
+  assert.equal((await req(route,"POST",{attachment:{...file,...changes}},owner.token)).status,400);
+ }
+});
 test("novos cosméticos são aceitos e persistidos",async()=>{
  const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"fireflies",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
  assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"fireflies");assert.equal(result.user.nameEffect,"rainbow");

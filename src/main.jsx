@@ -44,6 +44,9 @@ import SettingsHub from "./SettingsHub";
 import ProfileEditor, { StyledName, GameIcon } from "./ProfileEditor";
 import ProfileDialog from "./ProfileDialog";
 import ProfileCard from "./ProfileCard";
+import AttachmentView from "./AttachmentView";
+import {readAttachment} from "./files";
+import useFileDrop from "./useFileDrop";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -1366,6 +1369,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [members, setMembers] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [readingAttachment,setReadingAttachment] = useState(false);
+  const attachmentRead = useRef(0);
+  const chatDrop = useFileDrop(files => attachFiles(files));
+  useEffect(()=>{
+    const prevent=event=>{if(Array.from(event.dataTransfer?.types||[]).includes("Files"))event.preventDefault();};
+    window.addEventListener("dragover",prevent);window.addEventListener("drop",prevent);
+    return()=>{window.removeEventListener("dragover",prevent);window.removeEventListener("drop",prevent);};
+  },[]);
   const [mentionQuery, setMentionQuery] = useState(null);
   const [memberListOpen, setMemberListOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
@@ -1743,6 +1754,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }, [selectedServer?.id]);
   useEffect(() => {
     let active = true;
+    attachmentRead.current++;setReadingAttachment(false);
     setMessages([]); setDraft(""); setAttachment(null);
     if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => { if(active) setMessages(result.messages); })
       .catch(error => { if(active) setNotice(error.message); });
@@ -2738,7 +2750,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   }
   async function sendMessage(event) {
     event.preventDefault();
-    if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current) return;
+    if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current || readingAttachment) return;
     sendingMessageRef.current = true;
     const sentChannelId = selectedChannel.id;
     try {
@@ -2759,16 +2771,17 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       setNotice(err.message);
     } finally { sendingMessageRef.current = false; }
   }
+  async function attachFiles(files) {
+    if (!files.length) return;
+    if (files.length > 1) return setNotice("Envie um arquivo por mensagem.");
+    if (sendingMessageRef.current) return setNotice("Aguarde o envio da mensagem.");
+    const attempt=++attachmentRead.current;setReadingAttachment(true);
+    try {const file=await readAttachment(files[0]);if(attempt===attachmentRead.current)setAttachment(file);}
+    catch(error){if(attempt===attachmentRead.current)setNotice(error.message);}
+    finally{if(attempt===attachmentRead.current)setReadingAttachment(false);}
+  }
   function onAttachmentFile(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024)
-      return setNotice("Envie uma imagem, GIF ou WebP de até 3 MB.");
-    const reader = new FileReader();
-    reader.onerror = () => setNotice("Não foi possível ler essa imagem.");
-    reader.onload = () => setAttachment(String(reader.result));
-    reader.readAsDataURL(file);
+    const files=Array.from(event.target.files||[]);event.target.value="";attachFiles(files);
   }
   function createServer() {
     setServerModal({
@@ -4442,7 +4455,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </div>
         </div>
         <div className="content-body">
-          <div className="chat-area">
+          <div className={"chat-area file-drop-zone"+(chatDrop.dragging?" dragging":"")} {...chatDrop.bind}>
+            {chatDrop.dragging&&<div className="file-drop-overlay"><Paperclip size={38}/><strong>Solte o arquivo aqui</strong><span>Até 3 MB · você confirma antes de enviar</span></div>}
             {selectedChannel.type === "voice" ? (
               <div className="voice-stage">
                 <div className="voice-topbar">
@@ -4682,11 +4696,11 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                   onChange={uploadServerIcon}
                 />
                 <form className="composer" onSubmit={sendMessage}>
-                  <input ref={attachmentInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={onAttachmentFile} />
-                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar imagem ou GIF" onClick={() => attachmentInputRef.current?.click()}>
+                  <input ref={attachmentInputRef} type="file" hidden onChange={onAttachmentFile} />
+                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar arquivo" onClick={() => attachmentInputRef.current?.click()}>
                     <Paperclip size={20} />
                   </button>
-                  {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
+                  {readingAttachment&&<span className="file-reading" role="status">Preparando arquivo…</span>}{attachment && <div className="attachment-draft"><AttachmentView attachment={attachment} preview/><button type="button" aria-label="Remover anexo" onClick={()=>setAttachment(null)}><X size={14}/></button></div>}
                   {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}
@@ -4750,7 +4764,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           </time>
                         </div>
                         {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
-                        {message.attachment && <img className="message-attachment" src={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`} loading="lazy" />}
+                        {message.attachment && <AttachmentView attachment={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`}/>}
                       </div>
                       <button className="message-more">
                         <MoreVertical size={17} />
@@ -4764,11 +4778,11 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                   )}
                 </div>
                 <form className="composer" onSubmit={sendMessage}>
-                  <input ref={attachmentInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden onChange={onAttachmentFile} />
-                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar imagem ou GIF" onClick={() => attachmentInputRef.current?.click()}>
+                  <input ref={attachmentInputRef} type="file" hidden onChange={onAttachmentFile} />
+                  <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar arquivo" onClick={() => attachmentInputRef.current?.click()}>
                     <Paperclip size={20} />
                   </button>
-                  {attachment && <img className="composer-attachment-preview" src={attachment} alt="Imagem pronta para enviar" />}
+                  {readingAttachment&&<span className="file-reading" role="status">Preparando arquivo…</span>}{attachment && <div className="attachment-draft"><AttachmentView attachment={attachment} preview/><button type="button" aria-label="Remover anexo" onClick={()=>setAttachment(null)}><X size={14}/></button></div>}
                   {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}

@@ -94,7 +94,7 @@ const SUBSCRIPTION_PLANS = {
     priceCents: 3000,
   },
 };
-const SYSTEM_BADGES = new Set(["nitro_classic", "apoiador_inicial", "apoiador", "mes_1", "mes_3", "mes_6", "mes_9", "mes_12"]);
+
 const ROLE_PERMISSIONS = [
   "viewChannels", "manageChannels", "manageRoles", "manageExpressions",
   "manageWebhooks", "manageServer", "manageMembers", "createInvite", "changeNickname",
@@ -563,10 +563,8 @@ function sanitizeBadges(target, badges) {
   const selected = Array.isArray(badges)
     ? [...new Set(badges.filter((badge) => ALLOWED_BADGES.includes(badge)))]
     : [];
-  const creatorOnly = new Set(["criador", "desenvolvedor", "cacador_bugs"]);
-  return selected.filter(
-    (badge) => !creatorOnly.has(badge) || isCreator(target),
-  );
+  // Only master admins reach this mutation; badges do not confer admin permissions.
+  return selected;
 }
 function activeSubscriptionFor(userId) {
   return database.subscriptions
@@ -597,7 +595,7 @@ function subscriptionBadges(user) {
 function badgesForUser(user) {
   const manual = Array.isArray(user.badges) ? user.badges : [];
   return [...new Set([
-    ...manual.filter((badge) => !SYSTEM_BADGES.has(badge)),
+    ...manual.filter((badge) => ALLOWED_BADGES.includes(badge)),
     ...subscriptionBadges(user),
   ])];
 }
@@ -779,6 +777,15 @@ function requestOriginAllowed(req) {
     String(req.headers["x-forwarded-proto"] || "").split(",")[0] ||
     (req.socket.encrypted ? "https" : "http");
   return origin === protocol + "://" + req.headers.host;
+}
+function safeAttachment(value) {
+  if (typeof value === "string") return safeImageDataUrl(value);
+  if (!value || Array.isArray(value) || typeof value !== "object") return false;
+  if (typeof value.name !== "string" || !value.name.trim() || value.name.length > 180 || /[\\/\x00-\x1f]/.test(value.name)) return false;
+  if (typeof value.data !== "string" || value.data.length > 4_250_000 ||
+      !/^data:application\/octet-stream;base64,[A-Za-z0-9+/]+={0,2}$/.test(value.data)) return false;
+  const bytes = Buffer.from(value.data.split(",")[1], "base64");
+  return Number.isInteger(value.size) && bytes.length === value.size && bytes.length > 0 && bytes.length <= 3 * 1024 * 1024;
 }
 async function body(req) {
   const chunks = [];
@@ -1941,8 +1948,8 @@ async function handler(req, res) {
       const channel = channelForUser(user, channelMatch[1]);
       const input = await body(req);
       const content = String(input.content || "").trim();
-      const attachment = input.attachment ? String(input.attachment) : null;
-      if (input.attachment !== undefined && attachment && !safeImageDataUrl(attachment))
+      const attachment = input.attachment || null;
+      if (input.attachment !== undefined && attachment && !safeAttachment(attachment))
         return json(res, 400, { error: "Imagem inválida: envie PNG, JPEG, GIF ou WebP de até 3 MB." });
       if (!channel || (!content && !attachment) || content.length > 4000)
         return json(res, 400, { error: "Mensagem inválida." });
@@ -1999,7 +2006,7 @@ async function handler(req, res) {
       const input = await body(req);
       const content = String(input.content || "").trim();
       const attachment = input.attachment || null;
-      if ((!content && !attachment) || content.length > 4000 || (attachment && !safeImageDataUrl(attachment)))
+      if ((!content && !attachment) || content.length > 4000 || (attachment && !safeAttachment(attachment)))
         return json(res, 400, { error: "Envie até 4000 caracteres ou uma imagem PNG, JPEG, GIF ou WebP de até 3 MB." });
       const message = { id: id(), authorId: user.id, recipientId: recipient.id, content, attachment, createdAt: now(), editedAt: null };
       database.directMessages.push(message);
