@@ -54,6 +54,60 @@ const PROFILE_NAME_COLORS = [
   "#d9ad20",
   "#f0442e",
 ];
+const ROLE_PERMISSION_GROUPS = [
+  { title: "Permissões gerais do servidor", permissions: [
+    ["viewChannels", "Ver canais", "Permite ver os canais públicos do servidor."],
+    ["manageChannels", "Gerenciar canais", "Criar, editar e excluir canais."],
+    ["manageRoles", "Gerenciar cargos", "Criar e editar cargos abaixo deste cargo."],
+    ["manageExpressions", "Gerenciar expressões", "Gerenciar emojis, figurinhas e sons do servidor."],
+    ["manageWebhooks", "Gerenciar webhooks", "Criar, editar e excluir webhooks."],
+    ["manageServer", "Gerenciar servidor", "Editar nome, identidade e configurações do servidor."],
+    ["createInvite", "Criar convite", "Convidar novas pessoas para este servidor."],
+    ["changeNickname", "Alterar apelido", "Alterar o próprio apelido neste servidor."],
+  ]},
+  { title: "Permissões de membros", permissions: [
+    ["manageMembers", "Gerenciar membros", "Atribuir cargos e aplicar ações de moderação."],
+    ["manageNicknames", "Gerenciar apelidos", "Alterar os apelidos de outros membros."],
+    ["kickMembers", "Expulsar membros", "Remover membros do servidor."],
+    ["banMembers", "Banir membros", "Banir membros e remover histórico."],
+    ["timeoutMembers", "Membros de castigo", "Impedir temporariamente chat e voz."],
+  ]},
+  { title: "Permissões de canal de texto", permissions: [
+    ["sendMessages", "Enviar mensagens e criar postagens", "Enviar mensagens nos canais de texto."],
+    ["sendMessagesThreads", "Enviar mensagens em tópicos e postagens", "Responder em tópicos e fóruns."],
+    ["createPublicThreads", "Criar tópicos públicos", "Criar tópicos visíveis para todos."],
+    ["createPrivateThreads", "Criar tópicos privados", "Criar tópicos controlados por convite."],
+    ["embedLinks", "Incorporar links", "Exibir prévias de links."],
+    ["attachFiles", "Anexar arquivos", "Enviar imagens, GIFs e arquivos."],
+    ["addReactions", "Adicionar reações", "Usar reações nas mensagens."],
+    ["useExternalEmojis", "Usar emojis externos", "Usar emojis de outros servidores."],
+    ["useExternalStickers", "Usar figurinhas externas", "Usar figurinhas de outros servidores."],
+    ["mentionEveryone", "Mencionar @everyone, @here e cargos", "Notificar todos, quem está online ou membros de um cargo."],
+    ["manageMessages", "Gerenciar mensagens", "Excluir mensagens de outros membros."],
+    ["pinMessages", "Fixar mensagens", "Fixar ou desafixar mensagens."],
+    ["bypassSlowmode", "Ignorar modo lento", "Enviar mensagens sem esperar o modo lento."],
+  ]},
+  { title: "Permissões de canais de voz", permissions: [
+    ["connectVoice", "Conectar", "Entrar em canais de voz."],
+    ["speakVoice", "Falar", "Transmitir áudio em chamadas."],
+    ["useCamera", "Usar câmera", "Ligar a câmera durante a chamada."],
+    ["shareScreen", "Compartilhar tela", "Transmitir a tela em uma chamada."],
+    ["prioritySpeaker", "Voz prioritária", "Dar prioridade à própria voz."],
+    ["muteMembers", "Silenciar membros", "Silenciar participantes na voz."],
+    ["deafenMembers", "Ensurdecer membros", "Desativar o áudio de participantes."],
+    ["moveMembers", "Mover membros", "Mover participantes entre canais."],
+    ["useVoiceActivity", "Usar atividade de voz", "Transmitir por detecção de voz."],
+    ["useSoundboard", "Usar mesa de som", "Usar sons do servidor."],
+    ["useExternalSounds", "Usar sons externos", "Usar sons de outros servidores."],
+  ]},
+];
+const DEFAULT_CUSTOM_ROLE_PERMISSIONS = {
+  viewChannels: true, createInvite: true, changeNickname: true,
+  sendMessages: true, sendMessagesThreads: true, createPublicThreads: true,
+  embedLinks: true, attachFiles: true, addReactions: true,
+  useExternalEmojis: true, useExternalStickers: true, connectVoice: true,
+  speakVoice: true, useCamera: true, shareScreen: true, useVoiceActivity: true,
+};
 const BADGES = {
   criador: { label: "Criador Sesh", image: "/badges/creator.svg" },
   fundador: { label: "Fundador", image: "/badges/founder.svg" },
@@ -1101,14 +1155,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
           name: "Novo cargo",
           color: "#c93642",
           style: "solid",
-          permissions: {
-            manageChannels: false,
-            sendMessages: true,
-            manageMembers: false,
-            connectVoice: true,
-            useCamera: true,
-            shareScreen: true,
-          },
+          permissions: { ...DEFAULT_CUSTOM_ROLE_PERMISSIONS },
         },
       ],
     }));
@@ -1317,33 +1364,25 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
                       Remover
                     </button>
                   </div>
-                  <div className="role-permission-grid">
-                    {[
-                      ["manageChannels", "Gerenciar canais"],
-                      ["manageMembers", "Moderar membros"],
-                      ["sendMessages", "Enviar mensagens"],
-                      ["connectVoice", "Entrar em call"],
-                      ["useCamera", "Usar câmera"],
-                      ["shareScreen", "Compartilhar tela"],
-                    ].map(([permission, label]) => (
-                      <label key={permission}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(role.permissions?.[permission])}
-                          onChange={(event) =>
-                            updateRole(role.id, {
-                              permissions: {
-                                ...role.permissions,
-                                [permission]: event.target.checked,
-                              },
-                            })
-                          }
-                        />
-                        {label}
-                      </label>
+                  <div className="role-permission-groups">
+                    {ROLE_PERMISSION_GROUPS.map((group) => (
+                      <section className="role-permission-group" key={group.title}>
+                        <h4>{group.title}</h4>
+                        {group.permissions.map(([permission, label, description]) => (
+                          <label className="role-permission-toggle" key={permission}>
+                            <span><strong>{label}</strong><small>{description}</small></span>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(role.permissions?.[permission])}
+                              onChange={(event) => updateRole(role.id, {
+                                permissions: { ...role.permissions, [permission]: event.target.checked },
+                              })}
+                            />
+                          </label>
+                        ))}
+                      </section>
                     ))}
-                  </div>
-                  <span className="role-order">#{index + 1}</span>
+                  </div>                  <span className="role-order">#{index + 1}</span>
                 </article>
               ))}
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}
@@ -3082,10 +3121,16 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             ? [...current, event.message]
             : current,
         );
+      if (event.type === "mention.created" && event.message.author.id !== currentUser.id) {
+        if (localStorage.getItem("orbit_notifications") !== "false") playUiSound("mention");
+        setNotice(`${event.message.author.displayName} mencionou você em #${event.channelName}.`);
+      }
       if (event.type === "member.moderation.updated" && event.serverId === selectedServer?.id)
         setMembers((current) => current.map((member) =>
           member.id === event.member.id ? { ...member, ...event.member } : member,
         ));
+      if (event.type === "voice.media.denied")
+        setNotice(event.reason || "Seu cargo não pode usar este recurso de voz.");
       if (event.type === "voice.denied") {
         setNotice(event.reason || "Não foi possível entrar na call.");
         leaveVoice();
@@ -3386,7 +3431,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
       oscillator.type = "sine";
-      oscillator.frequency.value = kind === "connect" ? 660 : kind === "disconnect" ? 330 : 220;
+      oscillator.frequency.value = kind === "mention" ? 880 : kind === "connect" ? 660 : kind === "disconnect" ? 330 : 220;
       gain.gain.setValueAtTime(0.0001, audio.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.05, audio.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.16);
@@ -4396,7 +4441,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         </div>
       )}
       {profileView && !selectedServer && (
-        <div className="profile-backdrop" onClick={() => setProfileView(null)}>
+        <div className="profile-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setProfileView(null); }}>
           <section
             className="profile-card"
             data-profile-effect={
@@ -6438,7 +6483,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         </div>
       )}
       {profileView && (
-        <div className="profile-backdrop" onClick={() => setProfileView(null)}>
+        <div className="profile-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setProfileView(null); }}>
           <section
             className="profile-card"
             data-profile-effect={

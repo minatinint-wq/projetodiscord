@@ -6656,3 +6656,16 @@ body[data-profile-plate="neon"] .profile-card {
 .mention-suggestion small { color: #b5bac1; }
 .message-mention { color: #c9cdfb; background: #5865f233; border-radius: 3px; padding: 1px 3px; font: inherit; font-weight: 600; }
 .message-mention:hover { background: #5865f266; color: #fff; }
+
+.role-permission-groups { display: grid; gap: 14px; margin-top: 14px; }
+.role-permission-group { border-top: 1px solid #303238; padding-top: 13px; }
+.role-permission-group:first-child { border-top: 0; padding-top: 0; }
+.role-permission-group h4 { margin: 0 0 4px; color: #f2f3f5; font-size: 14px; }
+.role-permission-toggle { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 0; border-bottom: 1px solid #292b30; text-transform: none; }
+.role-permission-toggle span { display: grid; gap: 4px; max-width: 620px; }
+.role-permission-toggle strong { color: #f2f3f5; font-size: 13px; }
+.role-permission-toggle small { color: #b5bac1; font-size: 11px; line-height: 1.38; }
+.role-permission-toggle input { appearance: none; width: 44px; height: 24px; margin: 0; flex: 0 0 auto; border: 1px solid #3f4147; border-radius: 14px; background: #1e1f22; cursor: pointer; transition: background .16s, border-color .16s; }
+.role-permission-toggle input::after { content: ""; display: block; width: 18px; height: 18px; margin: 2px; border-radius: 50%; background: #f2f3f5; transition: transform .16s; }
+.role-permission-toggle input:checked { border-color: #5865f2; background: #5865f2; }
+.role-permission-toggle input:checked::after { transform: translateX(20px); }

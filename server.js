@@ -93,13 +93,35 @@ const SUBSCRIPTION_PLANS = {
 };
 const SYSTEM_BADGES = new Set(["nitro_classic", "apoiador_inicial", "apoiador", "mes_1", "mes_3", "mes_6", "mes_9", "mes_12"]);
 const ROLE_PERMISSIONS = [
-  "manageChannels",
-  "manageMembers",
-  "sendMessages",
-  "connectVoice",
-  "useCamera",
-  "shareScreen",
+  "viewChannels", "manageChannels", "manageRoles", "manageExpressions",
+  "manageWebhooks", "manageServer", "manageMembers", "createInvite", "changeNickname",
+  "manageNicknames", "kickMembers", "banMembers", "timeoutMembers",
+  "sendMessages", "sendMessagesThreads", "createPublicThreads",
+  "createPrivateThreads", "embedLinks", "attachFiles", "addReactions",
+  "useExternalEmojis", "useExternalStickers", "mentionEveryone",
+  "manageMessages", "pinMessages", "bypassSlowmode", "connectVoice",
+  "speakVoice", "useCamera", "shareScreen", "prioritySpeaker",
+  "muteMembers", "deafenMembers", "moveMembers", "useVoiceActivity",
+  "useSoundboard", "useExternalSounds",
 ];
+const DEFAULT_MEMBER_PERMISSIONS = {
+  viewChannels: true,
+  createInvite: true,
+  changeNickname: true,
+  sendMessages: true,
+  sendMessagesThreads: true,
+  createPublicThreads: true,
+  embedLinks: true,
+  attachFiles: true,
+  addReactions: true,
+  useExternalEmojis: true,
+  useExternalStickers: true,
+  connectVoice: true,
+  speakVoice: true,
+  useCamera: true,
+  shareScreen: true,
+  useVoiceActivity: true,
+};
 const ROLE_STYLES = ["solid", "glow", "pulse", "blink"];
 function defaultRoles() {
   return [
@@ -119,13 +141,7 @@ function defaultRoles() {
       color: "#8f96a3",
       style: "solid",
       position: 999,
-      permissions: {
-        manageChannels: false,
-        sendMessages: true,
-        connectVoice: true,
-        useCamera: true,
-        shareScreen: true,
-      },
+      permissions: { ...DEFAULT_MEMBER_PERMISSIONS },
     },
   ];
 }
@@ -825,6 +841,34 @@ function decorateServer(server, user) {
     )?.role,
     channels,
   };
+}
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function mentionInfoFor(server, content, authorId) {
+  const targetIds = new Set();
+  const members = database.memberships.filter((item) => item.serverId === server.id);
+  const mentionEveryone = /(^|\s)@everyone(?=$|[\s,.!?])/i.test(content);
+  const mentionHere = /(^|\s)@here(?=$|[\s,.!?])/i.test(content);
+  const roleMentions = normalizedRoles(server.roles)
+    .filter((role) => !["owner", "member"].includes(role.id))
+    .filter((role) => new RegExp(`(^|\\s)@${escapeRegExp(role.name)}(?=$|[\\s,.!?])`, "i").test(content));
+  for (const membership of members) {
+    const target = database.users.find((item) => item.id === membership.userId);
+    if (!target || target.id === authorId) continue;
+    const direct = new RegExp(`(^|\\s)@${escapeRegExp(target.username)}(?=$|[\\s,.!?])`, "i").test(content);
+    const byRole = roleMentions.some((role) => membership.roleId === role.id);
+    if (direct || mentionEveryone || (mentionHere && sockets.has(target.id)) || byRole)
+      targetIds.add(target.id);
+  }
+  return {
+    targetIds,
+    requiresMentionPermission: mentionEveryone || mentionHere || roleMentions.length > 0,
+  };
+}
+function sendMentionNotification(userId, event) {
+  const socket = sockets.get(userId);
+  if (socket?.readyState === 1) socket.send(JSON.stringify(event));
 }
 function broadcast(channelId, event) {
   for (const [userId, socket] of sockets) {
@@ -1808,6 +1852,9 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
       if (membership.textMuted)
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
+      const mentions = mentionInfoFor(server, content, user.id);
+      if (mentions.requiresMentionPermission && !hasServerPermission(user, server, "mentionEveryone"))
+        return json(res, 403, { error: "Seu cargo não pode mencionar @everyone, @here ou cargos." });
       const message = {
         id: id(),
         channelId: channel.id,
@@ -1821,6 +1868,14 @@ async function handler(req, res) {
       await saveDatabase();
       const output = decorateMessage(message);
       broadcast(channel.id, { type: "message.created", message: output });
+      for (const targetUserId of mentions.targetIds)
+        sendMentionNotification(targetUserId, {
+          type: "mention.created",
+          serverId: server.id,
+          channelId: channel.id,
+          channelName: channel.name,
+          message: output,
+        });
       return json(res, 201, { message: output });
     }
     if (url.pathname === "/api/friends" && req.method === "GET") {
@@ -2031,7 +2086,13 @@ wss.on("connection", (socket, req) => {
           (item) => item.id === event.channelId && item.type === "voice",
         );
         const room = channel && voiceRooms.get(channel.id);
-        if (!room?.has(userId)) return;
+        const caller = database.users.find((item) => item.id === userId);
+        const voiceServer = channel && database.servers.find((item) => item.id === channel.serverId);
+        if (!room?.has(userId) || !caller || !voiceServer) return;
+        if (event.camera && !hasServerPermission(caller, voiceServer, "useCamera"))
+          return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode usar câmera neste servidor." }));
+        if (event.screen && !hasServerPermission(caller, voiceServer, "shareScreen"))
+          return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode compartilhar tela neste servidor." }));
         room.set(userId, {
           camera: Boolean(event.camera),
           screen: Boolean(event.screen),
