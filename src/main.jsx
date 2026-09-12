@@ -461,9 +461,16 @@ function WorkingFontStyleModal({ user, onClose, onApply }) {
     </div>
   );
 }
-function CanvasChoiceModal({ title, kind, current, onClose, onApply }) {
+function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItems = [] }) {
   const [selected, setSelected] = useState(current || "default");
   const canvasRef = useRef(null);
+  const catalogOptions = (base, catalogType) => [
+    ...base,
+    ...catalogItems
+      .filter((item) => item.type === catalogType && item.active !== false)
+      .map((item) => [item.value, item.name])
+      .filter(([value]) => !base.some(([baseValue]) => baseValue === value)),
+  ];
   const options =
     kind === "name"
       ? [
@@ -480,20 +487,20 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply }) {
             ["neon", "Neon"],
           ]
         : kind === "effect"
-          ? [
+          ? catalogOptions([
               ["none", "Nenhum"],
               ["sparkles", "Brilhos"],
               ["glow", "Brilho"],
               ["embers", "Faíscas"],
-            ]
+            ], "effect")
           : kind === "frame"
-            ? [
+            ? catalogOptions([
                 ["none", "Sem moldura"],
                 ["ruby", "Rubi"],
                 ["gold", "Dourada"],
                 ["neon", "Neon"],
                 ["ice", "Cristal"],
-              ]
+              ], "frame")
             : [
                 ["default", "Padrão"],
                 ["purple", "Roxo"],
@@ -925,7 +932,7 @@ function VoiceSettingsPanel({ user, onClose, onAccount }) {
     </div>
   );
 }
-function ServerSettingsPanel({ server, onClose, onSave }) {
+function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [form, setForm] = useState({
     name: server.name || "",
     tag: server.tag || "",
@@ -933,6 +940,9 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
     banner: server.banner || null,
     accentColor: server.accentColor || "#c93642",
     roles: server.roles || [],
+    memberRoles: Object.fromEntries(
+      members.filter((member) => member.id !== server.ownerId).map((member) => [member.id, member.roleId || "member"]),
+    ),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1011,6 +1021,7 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
         tag: form.tag.trim().toUpperCase(),
         icon: form.icon,
         banner: form.banner,
+        memberRoles: form.memberRoles,
         accentColor: form.accentColor,
         roles: form.roles,
       });
@@ -1171,6 +1182,31 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
                 </article>
               ))}
           </section>
+          <section className="server-role-assignments">
+            <div className="server-role-editor-head">
+              <div>
+                <strong>Atribuir cargos</strong>
+                <small>Escolha o cargo de cada membro. O dono permanece no topo.</small>
+              </div>
+            </div>
+            {members.filter((member) => member.id !== server.ownerId).map((member) => (
+              <label className="server-role-member" key={member.id}>
+                <span>
+                  <Avatar user={member} color={member.avatarColor || "purple"} small />
+                  <strong>{member.displayName}</strong>
+                </span>
+                <select
+                  value={form.memberRoles[member.id] || "member"}
+                  onChange={(event) => setForm((current) => ({
+                    ...current,
+                    memberRoles: { ...current.memberRoles, [member.id]: event.target.value },
+                  }))}
+                >
+                  {form.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                </select>
+              </label>
+              ))}
+          </section>
           <div className="server-banner-actions">
             <label className="secondary-setting">
               Escolher icone
@@ -1218,6 +1254,7 @@ function ProfileSettingsPanel({
   onSave,
   onPrivacy,
   onCustomize,
+  catalogItems = [],
 }) {
   const [tab, setTab] = useState("profile");
   const [customizer, setCustomizer] = useState(null);
@@ -1460,6 +1497,19 @@ function ProfileSettingsPanel({
                       Remover banner
                     </button>
                   )}
+                {catalogItems.some((item) => item.type === "banner" && item.active !== false) && (
+                  <label>
+                    Banner padrão
+                    <select defaultValue="" onChange={(event) => {
+                      if (event.target.value) update("banner", event.target.value);
+                    }}>
+                      <option value="">Escolha um banner do catálogo</option>
+                      {catalogItems.filter((item) => item.type === "banner" && item.active !== false).map((item) => (
+                        <option key={item.id} value={item.value}>{item.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 </div>
                 <label>
                   Nome de exibição
@@ -1590,6 +1640,7 @@ function ProfileSettingsPanel({
           current={form[customizer.key]}
           onClose={() => setCustomizer(null)}
           onApply={(value) => applyCustomization({ [customizer.key]: value })}
+          catalogItems={catalogItems}
         />
       )}
     </div>
@@ -2051,6 +2102,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [selectedServer, setSelectedServer] = useState(null);
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [catalogItems, setCatalogItems] = useState([]);
   const [members, setMembers] = useState([]);
   const [draft, setDraft] = useState("");
   const [memberListOpen, setMemberListOpen] = useState(true);
@@ -2587,7 +2639,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     if (selectedServer && homeTab.startsWith("dm:")) setHomeTab("online");
   }, [selectedServer, homeTab]);
   useEffect(() => {
-    if (!currentUser.isCreator) return;
+    if (!currentUser.isMasterAdmin) return;
     const onContextMenu = (event) => {
       const card = event.target.closest(".profile-card");
       if (card && profileData?.user) {
@@ -2630,7 +2682,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     };
     document.addEventListener("contextmenu", onContextMenu);
     return () => document.removeEventListener("contextmenu", onContextMenu);
-  }, [currentUser.isCreator, profileData, members, messages, voiceStates]);
+  }, [currentUser.isMasterAdmin, profileData, members, messages, voiceStates]);
   useEffect(() => {
     api
       .servers()
@@ -2646,6 +2698,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     api
       .friends()
       .then(setFriendsData)
+      .catch(() => {});
+    api
+      .catalog()
+      .then((result) => setCatalogItems(result.items || []))
       .catch(() => {});
   }, []);
   useEffect(() => {
@@ -3551,6 +3607,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         : current,
     );
     setNotice("Configurações do servidor atualizadas!");
+    const details = await api.server(selectedServer.id);
+    setMembers(details.members || []);
     return result.server;
   }
   function dismissGuide() {
@@ -3742,6 +3800,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       {serverSettingsOpen && selectedServer && (
         <ServerSettingsPanel
           server={selectedServer}
+          members={members}
           onClose={() => setServerSettingsOpen(false)}
           onSave={saveServerSettings}
         />
@@ -3760,6 +3819,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           onPrivacy={() => setSettingsTab("appearance")}
           onSave={saveProfileSettings}
           onCustomize={saveProfileCustomization}
+          catalogItems={catalogItems}
         />
       )}
       {dialog && !selectedServer && (
