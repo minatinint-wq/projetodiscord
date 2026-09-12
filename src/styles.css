@@ -6654,3 +6654,5 @@ body[data-profile-plate="neon"] .profile-card {
 .mention-suggestion .avatar { width: 30px; height: 30px; }
 .mention-suggestion span { display: grid; gap: 1px; }
 .mention-suggestion small { color: #b5bac1; }
+.message-mention { color: #c9cdfb; background: #5865f233; border-radius: 3px; padding: 1px 3px; font: inherit; font-weight: 600; }
+.message-mention:hover { background: #5865f266; color: #fff; }

@@ -157,6 +157,28 @@ function Avatar({ user, color = "purple", small = false, onClick }) {
   );
 }
 
+function MessageContent({ content, members, onProfile }) {
+  const fragments = String(content || "").split(/(@[a-zA-Z0-9_.-]+)/g);
+  return (
+    <p>
+      {fragments.map((fragment, index) => {
+        const member = fragment.startsWith("@")
+          ? members.find((item) => item.username.toLowerCase() === fragment.slice(1).toLowerCase())
+          : null;
+        return member ? (
+          <button
+            type="button"
+            className="message-mention"
+            key={`${member.id}-${index}`}
+            onClick={(event) => onProfile(event, member.id)}
+          >
+            @{member.displayName}
+          </button>
+        ) : <React.Fragment key={index}>{fragment}</React.Fragment>;
+      })}
+    </p>
+  );
+}
 function MentionSuggestions({ candidates, onChoose }) {
   if (!candidates.length) return null;
   return (
@@ -6127,7 +6149,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                             )}
                           </time>
                         </div>
-                        {message.content && <p>{message.content}</p>}
+                        {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
                         {message.attachment && <img className="message-attachment" src={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`} loading="lazy" />}
                       </div>
                       <button className="message-more">
