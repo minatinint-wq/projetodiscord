@@ -2345,6 +2345,20 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .map((id) => details.get(id))
       .filter(Boolean);
   }, [voiceParticipants, voiceStates, voiceChannel?.id]);
+  // Keep the caller visible while the socket room update is arriving. This is
+  // the normal audio participant card, not a camera preview.
+  const visibleVoiceParticipants = useMemo(() => {
+    if (!voiceConnected || !voiceChannel?.id) return [];
+    if (orderedVoiceParticipants.some((participant) => participant.id === currentUser.id)) {
+      return orderedVoiceParticipants;
+    }
+    return [currentUser, ...orderedVoiceParticipants];
+  }, [
+    voiceConnected,
+    voiceChannel?.id,
+    orderedVoiceParticipants,
+    currentUser,
+  ]);
   const voiceActiveRef = useRef(false);
   const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
   const [homeTab, setHomeTab] = useState("online");
@@ -5791,7 +5805,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     <div
                       className={`voice-participant-grid ${focusedVideoId ? "voice-participant-strip" : ""}`}
                     >
-                      {orderedVoiceParticipants.map((participant) => {
+                      {visibleVoiceParticipants.map((participant) => {
                         const videoStream = videoStreamFor(participant);
                         return (
                           <button
