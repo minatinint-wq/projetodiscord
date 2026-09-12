@@ -160,6 +160,7 @@ function normalizedRoles(roles) {
         ? String(role.color)
         : "#c93642",
       style: ROLE_STYLES.includes(role.style) ? role.style : "solid",
+      hoist: Boolean(role.hoist),
       position: index + 1,
       permissions: Object.fromEntries(
         ROLE_PERMISSIONS.map((permission) => [

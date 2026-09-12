@@ -1125,6 +1125,49 @@ function VoiceSettingsPanel({ user, onClose, onAccount, onLogout }) {
     </div>
   );
 }
+function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onClose }) {
+  const [tab, setTab] = useState("display");
+  const [query, setQuery] = useState("");
+  const permissions = ROLE_PERMISSION_GROUPS.map((group) => ({
+    ...group,
+    permissions: group.permissions.filter(([key, label]) =>
+      `${key} ${label}`.toLowerCase().includes(query.toLowerCase()),
+    ),
+  })).filter((group) => group.permissions.length);
+  const roleMembers = members.filter((member) => member.roleId === role.id);
+  return (
+    <div className="role-config-backdrop" onClick={onClose}>
+      <section className="role-config-modal" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div><span>EDITAR CARGO</span><h2>{role.name || "Novo cargo"}</h2></div>
+          <button type="button" className="role-config-close" onClick={onClose}><X size={22} /></button>
+        </header>
+        <nav className="role-config-tabs">
+          <button type="button" className={tab === "display" ? "active" : ""} onClick={() => setTab("display")}>Exibição</button>
+          <button type="button" className={tab === "permissions" ? "active" : ""} onClick={() => setTab("permissions")}>Permissões</button>
+          <button type="button" className={tab === "links" ? "active" : ""} onClick={() => setTab("links")}>Links</button>
+          <button type="button" className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}>Gerenciar membros ({roleMembers.length})</button>
+        </nav>
+        {tab === "display" && (
+          <section className="role-display-settings">
+            <label>Nome do cargo<input value={role.name} maxLength={40} onChange={(event) => onUpdate(role.id, { name: event.target.value })} /></label>
+            <label>Cor do cargo<input type="color" value={role.color} onChange={(event) => onUpdate(role.id, { color: event.target.value })} /></label>
+            <label>Estilo<select value={role.style || "solid"} onChange={(event) => onUpdate(role.id, { style: event.target.value })}><option value="solid">Sólido</option><option value="glow">Brilho</option><option value="pulse">Pulso</option><option value="blink">Piscar</option></select></label>
+            <label className="role-hoist-setting"><span><strong>Separar membros deste cargo</strong><small>Mostra este cargo como uma seção própria na lateral, seguindo a ordem da lista.</small></span><input type="checkbox" checked={Boolean(role.hoist)} onChange={(event) => onUpdate(role.id, { hoist: event.target.checked })} /></label>
+          </section>
+        )}
+        {tab === "permissions" && (
+          <section className="role-config-permissions">
+            <div className="role-permission-search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar permissões" /></div>
+            {permissions.map((group) => <section className="role-permission-group" key={group.title}><h3>{group.title}</h3>{group.permissions.map(([permission, label, description]) => <label className="role-permission-toggle" key={permission}><span><strong>{label}</strong><small>{description}</small></span><input type="checkbox" checked={Boolean(role.permissions?.[permission])} onChange={(event) => onUpdate(role.id, { permissions: { ...role.permissions, [permission]: event.target.checked } })} /></label>)}</section>)}
+          </section>
+        )}
+        {tab === "links" && <section className="role-empty-tab"><h3>Links do cargo</h3><p>Este cargo ainda não possui links vinculados.</p></section>}
+        {tab === "members" && <section className="role-member-manager"><p>Escolha quem terá este cargo. Um membro usa um cargo por vez.</p>{members.map((member) => <label key={member.id} className="role-member-row"><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><input type="checkbox" checked={member.roleId === role.id} onChange={(event) => onAssignMember(member.id, event.target.checked ? role.id : "member")} /></label>)}</section>}
+      </section>
+    </div>
+  );
+}
 function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [form, setForm] = useState({
     name: server.name || "",
@@ -1140,6 +1183,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rolesSaved, setRolesSaved] = useState(false);
+  const [roleEditorId, setRoleEditorId] = useState(null);
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === "Escape") onClose();
@@ -1169,6 +1213,25 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
         role.id === roleId ? { ...role, ...patch } : role,
       ),
     }));
+  }
+  function assignRoleMember(userId, roleId) {
+    setForm((current) => ({
+      ...current,
+      memberRoles: { ...current.memberRoles, [userId]: roleId },
+    }));
+  }
+  function moveRole(roleId, direction) {
+    setForm((current) => {
+      const custom = current.roles
+        .map((role, index) => ({ role, index }))
+        .filter(({ role }) => !["owner", "member"].includes(role.id));
+      const from = custom.findIndex(({ role }) => role.id === roleId);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= custom.length) return current;
+      const roles = [...current.roles];
+      [roles[custom[from].index], roles[custom[to].index]] = [roles[custom[to].index], roles[custom[from].index]];
+      return { ...current, roles };
+    });
   }
   function chooseIcon(event) {
     const file = event.target.files?.[0];
@@ -1333,62 +1396,23 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
                   className={`role-editor-card role-preview-${role.style || "solid"}`}
                   style={{ "--role-preview-color": role.color }}
                 >
-                  <div className="role-editor-main">
-                    <input
-                      value={role.name}
-                      maxLength={40}
-                      aria-label="Nome do cargo"
-                      onChange={(event) => updateRole(role.id, { name: event.target.value })}
-                    />
-                    <input
-                      type="color"
-                      value={role.color}
-                      aria-label="Cor RGB do cargo"
-                      onChange={(event) => updateRole(role.id, { color: event.target.value })}
-                    />
-                    <select
-                      value={role.style || "solid"}
-                      onChange={(event) => updateRole(role.id, { style: event.target.value })}
-                    >
-                      <option value="solid">Sólido</option>
-                      <option value="glow">Brilho</option>
-                      <option value="pulse">Pulso</option>
-                      <option value="blink">Piscar</option>
-                    </select>
-                    <button
-                      type="button"
-                      className="role-remove"
-                      onClick={() => setForm((current) => ({
-                        ...current,
-                        roles: current.roles.filter((item) => item.id !== role.id),
-                      }))}
-                    >
-                      Remover
-                    </button>
+                  <div className="role-list-row">
+                    <i className="role-color-dot" />
+                    <div><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Membros ficam na lista geral"}</small></div>
+                    <div className="role-list-actions">
+                      <button type="button" className="role-move" title="Subir" onClick={() => moveRole(role.id, -1)}>↑</button>
+                      <button type="button" className="role-move" title="Descer" onClick={() => moveRole(role.id, 1)}>↓</button>
+                      <button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button>
+                      <button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button>
+                    </div>
                   </div>
-                  <div className="role-permission-groups">
-                    {ROLE_PERMISSION_GROUPS.map((group) => (
-                      <section className="role-permission-group" key={group.title}>
-                        <h4>{group.title}</h4>
-                        {group.permissions.map(([permission, label, description]) => (
-                          <label className="role-permission-toggle" key={permission}>
-                            <span><strong>{label}</strong><small>{description}</small></span>
-                            <input
-                              type="checkbox"
-                              checked={Boolean(role.permissions?.[permission])}
-                              onChange={(event) => updateRole(role.id, {
-                                permissions: { ...role.permissions, [permission]: event.target.checked },
-                              })}
-                            />
-                          </label>
-                        ))}
-                      </section>
-                    ))}
-                  </div>                  <span className="role-order">#{index + 1}</span>
-                </article>
-              ))}
+                  <span className="role-order">#{index + 1}</span>
+                </article>              ))}
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}
           </section>
+          {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && (
+            <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={members.filter((member) => member.id !== server.ownerId)} onUpdate={updateRole} onAssignMember={assignRoleMember} onClose={() => setRoleEditorId(null)} />
+          )}
           <section className="server-role-assignments">
             <div className="server-role-editor-head">
               <div>
@@ -3707,6 +3731,18 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           Number(pinnedChannels.includes(a.id)) || a.position - b.position,
     );
   }, [selectedServer, pinnedChannels]);
+  const memberGroups = useMemo(() => {
+    const roles = [...(selectedServer?.roles || [])]
+      .sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+    const separated = roles.filter((role) => role.hoist);
+    const groups = separated
+      .map((role) => ({ role, members: members.filter((member) => member.roleId === role.id) }))
+      .filter((group) => group.members.length);
+    const separatedIds = new Set(separated.map((role) => role.id));
+    const remaining = members.filter((member) => !separatedIds.has(member.roleId));
+    if (remaining.length) groups.push({ role: null, members: remaining });
+    return groups;
+  }, [members, selectedServer?.roles]);
   const isOwner = selectedServer?.role === "owner";
   function saveList(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
@@ -6241,47 +6277,32 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           {memberListOpen && (
             <aside className="member-sidebar">
               <div className="member-title">MEMBROS — {members.length}</div>
-              {members.map((member) => (
-                <div
-                  className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
-                  style={{
-                    "--member-role-color":
-                      member.serverRole?.color || "#8f96a3",
-                  }}
-                  key={member.id}
-                  onClick={(event) => openProfile(event, member.id)}
-                  onContextMenu={(event) => openMemberMenu(event, member)}
-                >
-                  <span className="avatar-dot-wrap">
-                    <Avatar
-                      user={member}
-                      color={member.avatarColor || "purple"}
-                      small
-                    />
-                    <span
-                      className={`presence-dot presence-${presenceFor(member.id)}`}
-                    />
-                  </span>
-                  <div>
-                    <strong>
-                      {member.displayName}
-                      {selectedServer.tag && (
-                        <span
-                          className="server-tag"
-                          style={{
-                            "--server-tag-color":
-                              selectedServer.accentColor || "#c93642",
-                          }}
-                        >
-                          {selectedServer.tag}
-                        </span>
-                      )}
-                    </strong>
-                    <span className="member-role">{member.serverRole?.name || member.username}</span>
-                  </div>
-                </div>
-              ))}
-            </aside>
+              {memberGroups.map((group) => (
+                <section className="member-role-group" key={group.role?.id || "members"}>
+                  {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
+                  {group.members.map((member) => (
+                    <div
+                      className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
+                      style={{ "--member-role-color": member.serverRole?.color || "#8f96a3" }}
+                      key={member.id}
+                      onClick={(event) => openProfile(event, member.id)}
+                      onContextMenu={(event) => openMemberMenu(event, member)}
+                    >
+                      <span className="avatar-dot-wrap">
+                        <Avatar user={member} color={member.avatarColor || "purple"} small />
+                        <span className={`presence-dot presence-${presenceFor(member.id)}`} />
+                      </span>
+                      <div>
+                        <strong>
+                          {member.displayName}
+                          {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
+                        </strong>
+                        <span className="member-role">{member.serverRole?.name || member.username}</span>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              ))}            </aside>
           )}
         </div>
       </main>
