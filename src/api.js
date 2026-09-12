@@ -1,14 +1,15 @@
 const API_URL = import.meta.env.VITE_API_URL || "";
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem("orbit_token");
+  const legacyToken = localStorage.getItem("orbit_token");
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
         ...(options.headers || {}),
       },
     });
@@ -30,6 +31,24 @@ export const api = {
       body: JSON.stringify(input),
     }),
   me: () => request("/api/auth/me"),
+  logout: () => request("/api/auth/logout", { method: "POST" }),
+  wsTicket: () => request("/api/auth/ws-ticket", { method: "POST" }),
+  subscriptionPlans: () => request("/api/subscriptions/plans"),
+  mySubscription: () => request("/api/subscriptions/me"),
+  updateSubscription: (userId, input) =>
+    request(`/api/admin/users/${userId}/subscription`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  catalog: () => request("/api/catalog"),
+  adminCatalog: () => request("/api/admin/catalog"),
+  createCatalogItem: (input) =>
+    request("/api/admin/catalog", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removeCatalogItem: (itemId) =>
+    request(`/api/admin/catalog/${itemId}`, { method: "DELETE" }),
   updateMe: (input) =>
     request("/api/auth/me", { method: "PATCH", body: JSON.stringify(input) }),
   updateUserBadges: (userId, badges) =>
@@ -86,21 +105,44 @@ export const api = {
 };
 
 export function connectSocket(onEvent) {
-  const token = localStorage.getItem("orbit_token");
-  if (!token) return { send: () => {}, close: () => {} };
   const socketUrl = API_URL
     ? `${API_URL.replace(/^http/, "ws")}/ws`
     : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
-  const socket = new WebSocket(
-    `${socketUrl}?token=${encodeURIComponent(token)}`,
-  );
-  socket.onmessage = (event) => onEvent(JSON.parse(event.data));
-  return {
+  let socket = null;
+  let closed = false;
+  const pending = [];
+  const connection = {
     send: (event) => {
-      if (socket.readyState === WebSocket.OPEN)
+      if (socket?.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(event));
+      } else if (!closed) {
+        pending.push(event);
+      }
     },
-    close: () => socket.close(),
-    socket,
+    close: () => {
+      closed = true;
+      pending.length = 0;
+      socket?.close();
+    },
+    get socket() {
+      return socket;
+    },
   };
+  api
+    .wsTicket()
+    .then(({ ticket }) => {
+      if (closed) return;
+      socket = new WebSocket(
+        `${socketUrl}?ticket=${encodeURIComponent(ticket)}`,
+      );
+      socket.onopen = () => {
+        for (const event of pending.splice(0))
+          socket.send(JSON.stringify(event));
+      };
+      socket.onmessage = (event) => onEvent(JSON.parse(event.data));
+      socket.onerror = () =>
+        console.error("WebSocket: conexão indisponível.");
+    })
+    .catch((error) => console.error("WebSocket:", error.message));
+  return connection;
 }

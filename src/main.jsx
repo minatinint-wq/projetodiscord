@@ -53,32 +53,29 @@ const PROFILE_NAME_COLORS = [
   "#f0442e",
 ];
 const BADGES = {
-  rara: { label: "Insígnia Rara", image: "/badges/rare.png" },
-  apoiador: { label: "Apoiador", image: "/badges/supporter.png" },
-  apoiador_inicial: {
-    label: "Apoiador inicial",
-    image: "/badges/early-supporter.png",
-  },
-  mes_1: { label: "1 mês", image: "/badges/membership-1-month.png" },
-  mes_3: { label: "3 meses", image: "/badges/membership-3-months.png" },
-  mes_6: { label: "6 meses", image: "/badges/membership-6-months.png" },
-  mes_9: { label: "9 meses", image: "/badges/membership-9-months.png" },
-  mes_12: { label: "12 meses", image: "/badges/membership-12-months.png" },
-  explorador: { label: "Explorador Sesh", image: "/badges/explorer.svg" },
-  anfitriao: {
-    label: "Anfitrião de comunidade",
-    image: "/badges/host.svg",
-  },
-  voz: { label: "Presença em voz", image: "/badges/voice.svg" },
   criador: { label: "Criador Sesh", image: "/badges/creator.svg" },
   fundador: { label: "Fundador", image: "/badges/founder.svg" },
+  rara: { label: "Insígnia Rara", image: "/badges/rare.png" },
+  apoiador_inicial: {
+    label: "Apoiador inicial · primeiros 100",
+    image: "/badges/early-supporter.png",
+  },
+  nitro_classic: {
+    label: "Nitro Classic",
+    image: "/badges/nitro-classic.svg",
+  },
+  verificado: { label: "Perfil verificado", image: "/badges/verified.svg" },
   moderador: { label: "Moderador", image: "/badges/moderator.svg" },
   desenvolvedor: { label: "Desenvolvedor", image: "/badges/developer.svg" },
-  eventos: { label: "Organizador de eventos", image: "/badges/events.svg" },
-  verificado: { label: "Perfil verificado", image: "/badges/verified.svg" },
   cacador_bugs: { label: "Caçador de bugs", image: "/badges/bug-hunter.svg" },
   artista: { label: "Artista da comunidade", image: "/badges/artist.svg" },
   streamer: { label: "Streamer", image: "/badges/streamer.svg" },
+  apoiador: { label: "Apoiador", image: "/badges/supporter.png" },
+  mes_12: { label: "12 meses", image: "/badges/membership-12-months.png" },
+  mes_9: { label: "9 meses", image: "/badges/membership-9-months.png" },
+  mes_6: { label: "6 meses", image: "/badges/membership-6-months.png" },
+  mes_3: { label: "3 meses", image: "/badges/membership-3-months.png" },
+  mes_1: { label: "1 mês", image: "/badges/membership-1-month.png" },
 };
 function BadgeIcon({ badge, className = "" }) {
   return (
@@ -89,6 +86,26 @@ function BadgeIcon({ badge, className = "" }) {
       tabIndex="0"
     >
       <img src={badge.image} alt="" />
+    </span>
+  );
+}
+function ProfileEffectLayer({ effect }) {
+  if (!effect || effect === "none") return null;
+  return (
+    <span
+      className={`profile-effect-layer profile-effect-${effect}`}
+      aria-hidden="true"
+    >
+      {Array.from({ length: 14 }, (_, index) => (
+        <i
+          key={index}
+          style={{
+            "--effect-x": `${(index * 37) % 96}%`,
+            "--effect-delay": `${-(index % 7) * 0.42}s`,
+            "--effect-size": `${3 + (index % 4) * 2}px`,
+          }}
+        />
+      ))}
     </span>
   );
 }
@@ -175,7 +192,7 @@ function BadgeEditor({ user, badges, onCancel, onSave }) {
         className="prompt-dialog badge-editor"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3>Insígnias de @{user.username}</h3>
+        <h3>Insígnias de {user.username}</h3>
         <p className="badge-editor-help">
           Marque as insígnias que devem aparecer neste perfil.
         </p>
@@ -912,11 +929,62 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
   const [form, setForm] = useState({
     name: server.name || "",
     tag: server.tag || "",
+    icon: server.icon || null,
     banner: server.banner || null,
     accentColor: server.accentColor || "#c93642",
+    roles: server.roles || [],
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  function addRole() {
+    setForm((current) => ({
+      ...current,
+      roles: [
+        ...current.roles,
+        {
+          id: `role_${Date.now()}`,
+          name: "Novo cargo",
+          color: "#c93642",
+          style: "solid",
+          permissions: {
+            manageChannels: false,
+            sendMessages: true,
+            connectVoice: true,
+            useCamera: true,
+            shareScreen: true,
+          },
+        },
+      ],
+    }));
+  }
+  function updateRole(roleId, patch) {
+    setForm((current) => ({
+      ...current,
+      roles: current.roles.map((role) =>
+        role.id === roleId ? { ...role, ...patch } : role,
+      ),
+    }));
+  }
+  function chooseIcon(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Escolha um arquivo de imagem valido.");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setError("Escolha um icone de ate 3 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => setError("Nao foi possivel ler essa imagem.");
+    reader.onload = () => {
+      setError("");
+      setForm((current) => ({ ...current, icon: String(reader.result) }));
+    };
+    reader.readAsDataURL(file);
+  }
   function chooseBanner(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -926,8 +994,11 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () =>
+    reader.onerror = () => setError("Nao foi possivel ler essa imagem.");
+    reader.onload = () => {
+      setError("");
       setForm((current) => ({ ...current, banner: String(reader.result) }));
+    };
     reader.readAsDataURL(file);
   }
   async function submit(event) {
@@ -938,8 +1009,10 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
       await onSave({
         name: form.name.trim(),
         tag: form.tag.trim().toUpperCase(),
+        icon: form.icon,
         banner: form.banner,
         accentColor: form.accentColor,
+        roles: form.roles,
       });
       onClose();
     } catch (err) {
@@ -969,6 +1042,13 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
             "--server-accent": form.accentColor,
           }}
         >
+          <div className="server-settings-icon">
+            {form.icon?.startsWith?.("data:image/") ? (
+              <img src={form.icon} alt="" />
+            ) : (
+              <span>{String(form.icon || form.name || "S").slice(0, 2)}</span>
+            )}
+          </div>
           <div>
             <strong>{form.name || "Nome do servidor"}</strong>
             {form.tag && <span>{form.tag}</span>}
@@ -1013,7 +1093,97 @@ function ServerSettingsPanel({ server, onClose, onSave }) {
               }
             />
           </label>
+          <section className="server-role-editor">
+            <div className="server-role-editor-head">
+              <div>
+                <strong>Cargos e permissões</strong>
+                <small>A ordem acima tem prioridade e define o destaque lateral.</small>
+              </div>
+              <button type="button" onClick={addRole}>Adicionar cargo</button>
+            </div>
+            {form.roles
+              .filter((role) => !["owner", "member"].includes(role.id))
+              .map((role, index) => (
+                <article
+                  key={role.id}
+                  className={`role-editor-card role-preview-${role.style || "solid"}`}
+                  style={{ "--role-preview-color": role.color }}
+                >
+                  <div className="role-editor-main">
+                    <input
+                      value={role.name}
+                      maxLength={40}
+                      aria-label="Nome do cargo"
+                      onChange={(event) => updateRole(role.id, { name: event.target.value })}
+                    />
+                    <input
+                      type="color"
+                      value={role.color}
+                      aria-label="Cor RGB do cargo"
+                      onChange={(event) => updateRole(role.id, { color: event.target.value })}
+                    />
+                    <select
+                      value={role.style || "solid"}
+                      onChange={(event) => updateRole(role.id, { style: event.target.value })}
+                    >
+                      <option value="solid">Sólido</option>
+                      <option value="glow">Brilho</option>
+                      <option value="pulse">Pulso</option>
+                      <option value="blink">Piscar</option>
+                    </select>
+                    <button
+                      type="button"
+                      className="role-remove"
+                      onClick={() => setForm((current) => ({
+                        ...current,
+                        roles: current.roles.filter((item) => item.id !== role.id),
+                      }))}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                  <div className="role-permission-grid">
+                    {[
+                      ["manageChannels", "Gerenciar canais"],
+                      ["sendMessages", "Enviar mensagens"],
+                      ["connectVoice", "Entrar em call"],
+                      ["useCamera", "Usar câmera"],
+                      ["shareScreen", "Compartilhar tela"],
+                    ].map(([permission, label]) => (
+                      <label key={permission}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(role.permissions?.[permission])}
+                          onChange={(event) =>
+                            updateRole(role.id, {
+                              permissions: {
+                                ...role.permissions,
+                                [permission]: event.target.checked,
+                              },
+                            })
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <span className="role-order">#{index + 1}</span>
+                </article>
+              ))}
+          </section>
           <div className="server-banner-actions">
+            <label className="secondary-setting">
+              Escolher icone
+              <input type="file" accept="image/*" onChange={chooseIcon} />
+            </label>
+            {form.icon && (
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, icon: null })}
+              >
+                Remover icone
+              </button>
+            )}
             <label className="secondary-setting">
               Escolher banner
               <input type="file" accept="image/*" onChange={chooseBanner} />
@@ -1073,6 +1243,15 @@ function ProfileSettingsPanel({
   });
   const update = (key, value) =>
     setForm((current) => ({ ...current, [key]: value }));
+  function chooseProfileImage(key, event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024) return;
+    const reader = new FileReader();
+    reader.onload = () => update(key, String(reader.result));
+    reader.readAsDataURL(file);
+  }
   async function applyCustomization(values) {
     try {
       await onCustomize(values);
@@ -1178,7 +1357,13 @@ function ProfileSettingsPanel({
           </button>
           {tab === "profile" ? (
             <>
-              <section className="profile-preview">
+              <section
+                className="profile-preview"
+                data-profile-effect={form.profileEffect}
+                data-profile-theme={form.profileTheme}
+                data-profile-plate={form.profilePlate}
+              >
+                <ProfileEffectLayer effect={form.profileEffect} />
                 <div
                   className="profile-preview-banner"
                   style={bannerStyleValue(form.banner)}
@@ -1186,7 +1371,7 @@ function ProfileSettingsPanel({
                 <div className="profile-preview-body">
                   <Avatar user={form} color="purple" />
                   <h1>{form.displayName || "Sesh"}</h1>
-                  <div>@{form.username || "usuario"}</div>
+                  <div>{form.username || "usuario"}</div>
                   <p>{form.bio || "Adicione uma biografia ao seu perfil."}</p>
                   {(form.activityText || form.favoriteGame) && (
                     <div className="profile-preview-activity">
@@ -1248,6 +1433,34 @@ function ProfileSettingsPanel({
                 </div>
               </section>
               <div className="profile-settings-fields">
+                <div className="profile-image-actions">
+                  <label className="avatar-upload">
+                    Trocar foto / GIF
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => chooseProfileImage("avatar", event)}
+                    />
+                  </label>
+                  {form.avatar && (
+                    <button type="button" onClick={() => update("avatar", null)}>
+                      Remover foto
+                    </button>
+                  )}
+                  <label className="avatar-upload">
+                    Trocar banner
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => chooseProfileImage("banner", event)}
+                    />
+                  </label>
+                  {form.banner && (
+                    <button type="button" onClick={() => update("banner", null)}>
+                      Remover banner
+                    </button>
+                  )}
+                </div>
                 <label>
                   Nome de exibição
                   <input
@@ -1276,10 +1489,13 @@ function ProfileSettingsPanel({
                 </label>
                 <div className="profile-settings-badges">
                   <strong>Insígnias do perfil</strong>
-                  {Object.entries(BADGES).map(([key, badge]) => (
+                  {Object.entries(BADGES)
+                    .filter(([key]) => key !== "criador" || user.isCreator)
+                    .map(([key, badge]) => (
                     <label key={key}>
                       <input
                         type="checkbox"
+                        disabled={!user.isMasterAdmin}
                         checked={form.badges.includes(key)}
                         onChange={(event) =>
                           update(
@@ -1293,7 +1509,7 @@ function ProfileSettingsPanel({
                       <img src={badge.image} alt={badge.label} />
                       {badge.label}
                     </label>
-                  ))}
+                    ))}
                 </div>
                 <div className="profile-settings-actions">
                   <button onClick={() => onSave(form)}>
@@ -1402,7 +1618,7 @@ function DirectConversation({ user, onClose, onOpenProfile }) {
         <div className="direct-header-person">
           <strong>{user.displayName}</strong>
           <span>
-            @{user.username} {user.presence === "voice" ? "• Em voz" : ""}
+            {user.username} {user.presence === "voice" ? "• Em voz" : ""}
           </span>
         </div>
         <div className="direct-header-actions">
@@ -1425,7 +1641,7 @@ function DirectConversation({ user, onClose, onOpenProfile }) {
           <div className="direct-welcome">
             <Avatar user={user} color={user.avatarColor || "purple"} />
             <h2>{user.displayName}</h2>
-            <p>Este é o começo da sua conversa com @{user.username}.</p>
+            <p>Este é o começo da sua conversa com {user.username}.</p>
           </div>
         </div>
         <form
@@ -1441,7 +1657,7 @@ function DirectConversation({ user, onClose, onOpenProfile }) {
         <div className="direct-profile-banner" />
         <Avatar user={user} color={user.avatarColor || "purple"} />
         <h2>{user.displayName}</h2>
-        <span className="direct-profile-username">@{user.username}</span>
+        <span className="direct-profile-username">{user.username}</span>
         {user.bio && <p>{user.bio}</p>}
         <div className="direct-profile-section">MÚLTIPLAS CONEXÕES</div>
         <button className="direct-profile-link" onClick={onOpenProfile}>
@@ -1667,7 +1883,7 @@ function AuthScreen({ onLogin }) {
       const result = register
         ? await api.register(form)
         : await api.login({ username: form.username, password: form.password });
-      localStorage.setItem("orbit_token", result.token);
+      localStorage.removeItem("orbit_token");
       onLogin(result.user);
     } catch (err) {
       setError(err.message);
@@ -1704,13 +1920,13 @@ function AuthScreen({ onLogin }) {
               />
             </div>
           </div>
-          <div className="auth-brand-copy">
+          {import.meta.env.DEV && <div className="auth-brand-copy">
             <h2>Entrar rapidamente</h2>
             <p>Use a conta local de teste para conhecer o Sesh agora.</p>
             <button type="button" onClick={useDemoAccount}>
               Usar conta demo
             </button>
-          </div>
+          </div>}
           <div className="auth-brand-status">
             <i />
             Servidor local disponível
@@ -1800,7 +2016,7 @@ function AuthScreen({ onLogin }) {
             </button>
           </form>
 
-          {!register && (
+          {import.meta.env.DEV && !register && (
             <div className="auth-demo">
               <div>
                 <strong>Acesso local de teste</strong>
@@ -3022,9 +3238,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     );
   }
   function copyInvite() {
-    copyText(selectedServer.id);
+    const inviteCode = selectedServer.inviteCode || selectedServer.id;
+    copyText(inviteCode);
     setNotice(
-      `Convite copiado! Quem colar este ID no botão "+" entra em "${selectedServer.name}".`,
+      `Convite copiado! Cole o código no botão "+" para entrar em "${selectedServer.name}".`,
     );
   }
   function openProfile(event, userId) {
@@ -3155,7 +3372,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         avatar: accountForm.avatar,
         banner: accountForm.banner,
       };
-      if (currentUser.isCreator) input.badges = accountForm.badges;
+      if (currentUser.isMasterAdmin) input.badges = accountForm.badges;
       const result = await api.updateMe(input);
       onUserUpdate(result.user);
       setNotice("Perfil atualizado!");
@@ -3178,7 +3395,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         wishlist: form.wishlist,
       };
       if (form.password) input.password = form.password;
-      if (currentUser.isCreator) input.badges = form.badges;
+      if (currentUser.isMasterAdmin) input.badges = form.badges;
       const result = await api.updateMe(input);
       onUserUpdate(result.user);
       setNotice("Perfil atualizado!");
@@ -3256,8 +3473,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024)
-      return setNotice("Escolha uma imagem de até 1,5 MB.");
+    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024)
+      return setNotice("Escolha uma imagem válida de até 3 MB.");
     const reader = new FileReader();
     reader.onload = () =>
       setServerModal((current) =>
@@ -3292,8 +3509,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024)
-      return setNotice("Escolha uma imagem de até 1,5 MB.");
+    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024)
+      return setNotice("Escolha uma imagem válida de até 3 MB.");
     const reader = new FileReader();
     reader.onload = async () => {
       try {
@@ -3342,7 +3559,19 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   async function submitJoinServer() {
     const modal = serverModal;
-    const invite = modal.invite.trim();
+    const inviteValue = modal.invite.trim();
+    let decodedInvite = inviteValue;
+    try {
+      decodedInvite = decodeURIComponent(inviteValue);
+    } catch {
+      // Mantem o texto original quando o link tem escape invalido.
+    }
+    const invite =
+      decodedInvite.match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+      )?.[0] ||
+      decodedInvite.replace(/[?#].*$/, "").split("/").filter(Boolean).at(-1) ||
+      "";
     if (!invite || modal.busy) return;
     setServerModal({ ...modal, busy: true });
     try {
@@ -3568,9 +3797,24 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         <div className="profile-backdrop" onClick={() => setProfileView(null)}>
           <section
             className="profile-card"
+            data-profile-effect={
+              profileData && profileData !== "loading"
+                ? profileData.user.profileEffect || "none"
+                : "none"
+            }
             style={{ left: profileView.x, top: profileView.y }}
             onClick={(event) => event.stopPropagation()}
           >
+            <button
+              className="profile-card-close"
+              aria-label="Fechar perfil"
+              onClick={() => setProfileView(null)}
+            >
+              <X size={18} />
+            </button>
+            {profileData && profileData !== "loading" && (
+              <ProfileEffectLayer effect={profileData.user.profileEffect} />
+            )}
             {profileData === "loading" || !profileData ? (
               <div className="profile-body">Carregando perfil...</div>
             ) : (
@@ -3593,7 +3837,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     {profileData.user.displayName}
                   </div>
                   <div className="profile-username">
-                    <span>@{profileData.user.username}</span>
+                    <span>{profileData.user.username}</span>
                     {profileData.user.badges?.map((key) => {
                       const badge = BADGES[key];
                       return badge ? (
@@ -3740,7 +3984,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         {accountForm.displayName || currentUser.displayName}
                       </strong>
                       <span>
-                        @{accountForm.username || currentUser.username}
+                        {accountForm.username || currentUser.username}
                       </span>
                     </div>
                   </div>
@@ -3858,6 +4102,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                       <label className="setting-check" key={key}>
                         <input
                           type="checkbox"
+                          disabled={!currentUser.isMasterAdmin}
                           checked={accountForm.badges.includes(key)}
                           onChange={(event) =>
                             setAccountForm({
@@ -4651,7 +4896,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             onClick={(event) => openProfile(event, currentUser.id)}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>@{currentUser.username}</span>
+            <span>{currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button title="Silenciar">
@@ -4731,6 +4976,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               <img src={server.icon} alt="" className="server-icon-img" />
             ) : (
               server.icon || initials(server.name).slice(0, 1)
+            )}
+            {server.channels.some(
+              (channel) =>
+                channel.type === "voice" &&
+                (voiceStates[channel.id] || []).length > 0,
+            ) && (
+              <span className="server-call-indicator"><Volume2 size={12} /></span>
             )}
           </button>
         ))}
@@ -4898,7 +5150,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             onClick={(event) => openProfile(event, currentUser.id)}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>@{currentUser.username}</span>
+            <span>{currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button
@@ -5305,7 +5557,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               <div className="member-title">MEMBROS — {members.length}</div>
               {members.map((member) => (
                 <div
-                  className="member profile-click"
+                  className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
+                  style={{
+                    "--member-role-color":
+                      member.serverRole?.color || "#8f96a3",
+                  }}
                   key={member.id}
                   onClick={(event) => openProfile(event, member.id)}
                 >
@@ -5334,7 +5590,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         </span>
                       )}
                     </strong>
-                    <span className="member-role">@{member.username}</span>
+                    <span className="member-role">{member.serverRole?.name || member.username}</span>
                   </div>
                 </div>
               ))}
@@ -5522,9 +5778,24 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         <div className="profile-backdrop" onClick={() => setProfileView(null)}>
           <section
             className="profile-card"
+            data-profile-effect={
+              profileData && profileData !== "loading"
+                ? profileData.user.profileEffect || "none"
+                : "none"
+            }
             style={{ left: profileView.x, top: profileView.y }}
             onClick={(event) => event.stopPropagation()}
           >
+            <button
+              className="profile-card-close"
+              aria-label="Fechar perfil"
+              onClick={() => setProfileView(null)}
+            >
+              <X size={18} />
+            </button>
+            {profileData && profileData !== "loading" && (
+              <ProfileEffectLayer effect={profileData.user.profileEffect} />
+            )}
             {profileData === "loading" || !profileData ? (
               <div className="profile-body">Carregando perfil...</div>
             ) : (
@@ -5547,7 +5818,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                     {profileData.user.displayName}
                   </div>
                   <div className="profile-username">
-                    <span>@{profileData.user.username}</span>
+                    <span>{profileData.user.username}</span>
                     {profileData.user.badges?.map((key) => {
                       const badge = BADGES[key];
                       return badge ? (
@@ -5810,7 +6081,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         {accountForm.displayName || currentUser.displayName}
                       </strong>
                       <span>
-                        @{accountForm.username || currentUser.username}
+                        {accountForm.username || currentUser.username}
                       </span>
                     </div>
                   </div>
@@ -5928,6 +6199,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                       <label className="setting-check" key={key}>
                         <input
                           type="checkbox"
+                          disabled={!currentUser.isMasterAdmin}
                           checked={accountForm.badges.includes(key)}
                           onChange={(event) =>
                             setAccountForm({
@@ -6035,25 +6307,38 @@ function App({ currentUser, onLogout, onUserUpdate }) {
 
 function Root() {
   const onAppRoute = window.location.pathname.startsWith("/app");
+  const onAdminRoute = window.location.pathname.startsWith("/admin");
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
   useEffect(() => {
-    if (localStorage.getItem("orbit_token"))
-      api
-        .me()
-        .then((result) => setUser(result.user))
-        .catch(() => localStorage.removeItem("orbit_token"))
-        .finally(() => setChecking(false));
-    else setChecking(false);
+    api
+      .me()
+      .then((result) => {
+        localStorage.removeItem("orbit_token");
+        setUser(result.user);
+      })
+      .catch(() => localStorage.removeItem("orbit_token"))
+      .finally(() => setChecking(false));
   }, []);
-  if (!onAppRoute) return <LandingPage />;
+  if (!onAppRoute && !onAdminRoute) return <LandingPage />;
   if (checking)
     return <div className="loading-screen">Verificando sessão...</div>;
   if (!user) return <AuthScreen onLogin={setUser} />;
+  if (onAdminRoute)
+    return (
+      <AdminPanel
+        user={user}
+        onLogout={async () => {
+          await api.logout().catch(() => {});
+          setUser(null);
+        }}
+      />
+    );
   return (
     <App
       currentUser={user}
-      onLogout={() => {
+      onLogout={async () => {
+        await api.logout().catch(() => {});
         localStorage.removeItem("orbit_token");
         setUser(null);
       }}
@@ -6065,3 +6350,80 @@ const rootElement = document.getElementById("root");
 const appRoot = rootElement.__seshRoot || createRoot(rootElement);
 rootElement.__seshRoot = appRoot;
 appRoot.render(<Root />);
+function AdminPanel({ user, onLogout }) {
+  const [items, setItems] = useState([]);
+  const [type, setType] = useState("banner");
+  const [name, setName] = useState("");
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (user.isMasterAdmin)
+      api.adminCatalog().then((result) => setItems(result.items || [])).catch((err) => setError(err.message));
+  }, [user.isMasterAdmin]);
+  if (!user.isMasterAdmin)
+    return <main className="admin-shell"><section className="admin-card admin-denied"><span>ACESSO RESTRITO</span><h1>Painel Sesh</h1><p>Somente o admin master pode abrir esta área.</p><button onClick={onLogout}>Sair</button></section></main>;
+  function chooseBanner(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 3 * 1024 * 1024)
+      return setError("Escolha uma imagem de até 3 MB.");
+    const reader = new FileReader();
+    reader.onload = () => setValue(String(reader.result));
+    reader.onerror = () => setError("Não foi possível ler a imagem.");
+    reader.readAsDataURL(file);
+  }
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const result = await api.createCatalogItem({ type, name, value });
+      setItems((current) => [...current, result.item]);
+      setName("");
+      setValue("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(itemId) {
+    try {
+      await api.removeCatalogItem(itemId);
+      setItems((current) => current.filter((item) => item.id !== itemId));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+  return (
+    <main className="admin-shell">
+      <section className="admin-card">
+        <header className="admin-header">
+          <div><span>SESH ADMIN MASTER</span><h1>Catálogo de personalização</h1><p>Banners padrão, efeitos e molduras disponíveis aos perfis.</p></div>
+          <button className="prompt-cancel" onClick={onLogout}>Sair</button>
+        </header>
+        <form className="admin-catalog-form" onSubmit={submit}>
+          <select value={type} onChange={(event) => { setType(event.target.value); setValue(""); }}>
+            <option value="banner">Banner padrão</option>
+            <option value="effect">Efeito de perfil</option>
+            <option value="frame">Moldura de perfil</option>
+          </select>
+          <input required value={name} placeholder="Nome" onChange={(event) => setName(event.target.value)} />
+          {type === "banner" ? <input type="file" accept="image/*" onChange={chooseBanner} /> : (
+            <select value={value} required onChange={(event) => setValue(event.target.value)}>
+              <option value="">Escolha</option>
+              {(type === "effect" ? [["sparkles", "Partículas"], ["glow", "Brilho"], ["embers", "Faíscas"]] : [["ruby", "Rubi"], ["gold", "Ouro"], ["neon", "Neon"], ["ice", "Gelo"]]).map(([entry, label]) => <option key={entry} value={entry}>{label}</option>)}
+            </select>
+          )}
+          <button className="prompt-confirm" disabled={busy || !value}>{busy ? "Salvando..." : "Adicionar"}</button>
+        </form>
+        {error && <p className="form-error">{error}</p>}
+        <div className="admin-catalog-list">
+          {items.map((item) => <article key={item.id}><span>{item.type}</span><strong>{item.name}</strong><button onClick={() => remove(item.id)}>Remover</button></article>)}
+        </div>
+      </section>
+    </main>
+  );
+}

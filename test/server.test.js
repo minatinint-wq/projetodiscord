@@ -13,6 +13,8 @@ const projectRoot = path.resolve(
 );
 const port = 34000 + Math.floor(Math.random() * 1000);
 const baseUrl = `http://127.0.0.1:${port}`;
+const tinyPng =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 let tempDir;
 let serverProcess;
 
@@ -41,10 +43,16 @@ async function request(pathname, options = {}) {
   return { response, payload };
 }
 
-function connectVoice(token) {
+async function connectVoice(token) {
+  const ticketResult = await request("/api/auth/ws-ticket", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(ticketResult.response.status, 201);
+  const ticket = ticketResult.payload.ticket;
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(
-      `${baseUrl.replace("http", "ws")}/ws?token=${token}`,
+      `${baseUrl.replace("http", "ws")}/ws?ticket=${encodeURIComponent(ticket)}`,
     );
     socket.once("open", () => resolve(socket));
     socket.once("error", reject);
@@ -135,7 +143,8 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
       headers: auth,
       body: JSON.stringify({
         tag: "PLAY",
-        banner: "data:image/png;base64,c2VzaA==",
+        banner: tinyPng,
+        icon: tinyPng,
         accentColor: "#d6404b",
       }),
     },
@@ -143,12 +152,16 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   assert.equal(customizedServer.response.status, 200);
   assert.equal(customizedServer.payload.server.tag, "PLAY");
   assert.equal(customizedServer.payload.server.accentColor, "#d6404b");
+  assert.match(customizedServer.payload.server.icon, /^data:image\/png/);
 
   const customizedProfile = await request("/api/auth/me", {
     method: "PATCH",
     headers: auth,
     body: JSON.stringify({
       avatarFrame: "ruby",
+      avatar: tinyPng,
+      profileEffect: "glow",
+      bio: "Perfil seguro",
       favoriteGame: "Jogo de teste",
       activityText: "Em uma partida",
       wishlist: "Próxima aventura",
@@ -157,6 +170,17 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   assert.equal(customizedProfile.response.status, 200);
   assert.equal(customizedProfile.payload.user.avatarFrame, "ruby");
   assert.equal(customizedProfile.payload.user.favoriteGame, "Jogo de teste");
+  assert.match(customizedProfile.payload.user.avatar, /^data:image\/png/);
+  assert.equal(customizedProfile.payload.user.profileEffect, "glow");
+  const badgePromotion = await request("/api/auth/me", {
+    method: "PATCH",
+    headers: auth,
+    body: JSON.stringify({ badges: ["rara", "criador"] }),
+  });
+  assert.equal(badgePromotion.response.status, 403);
+  assert.deepEqual(customizedProfile.payload.user.badges, []);
+  assert.equal(customizedProfile.payload.user.badges.includes("criador"), false);
+
 
   const secondUser = await request("/api/auth/register", {
     method: "POST",
@@ -172,6 +196,26 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   const secondAuth = {
     Authorization: `Bearer ${secondUser.payload.token}`,
   };
+  const hiddenProfile = await request(`/api/users/${login.payload.user.id}`, {
+    headers: secondAuth,
+  });
+  assert.equal(hiddenProfile.response.status, 404);
+  const hiddenMessages = await request(
+    `/api/channels/${created.payload.server.channels[0].id}/messages`,
+    { headers: secondAuth },
+  );
+  assert.equal(hiddenMessages.response.status, 404);
+  const massAssignment = await request("/api/auth/me", {
+    method: "PATCH",
+    headers: secondAuth,
+    body: JSON.stringify({
+      id: login.payload.user.id,
+      isCreator: true,
+      ownerId: login.payload.user.id,
+    }),
+  });
+  assert.equal(massAssignment.response.status, 200);
+  assert.equal(massAssignment.payload.user.id, secondUser.payload.user.id);
   const forbidden = await request(`/api/servers/${created.payload.server.id}`, {
     method: "POST",
     headers: secondAuth,
@@ -180,10 +224,18 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   assert.equal(forbidden.response.status, 403);
 
   const joined = await request(
-    `/api/servers/${created.payload.server.id}/join`,
+    `/api/servers/${created.payload.server.inviteCode}/join`,
     { method: "POST", headers: secondAuth },
   );
   assert.equal(joined.response.status, 200);
+  const memberForbidden = await request(`/api/servers/${created.payload.server.id}`, {
+    method: "POST",
+    headers: secondAuth,
+    body: JSON.stringify({ name: "ainda-sem-permissao", type: "text" }),
+  });
+  assert.equal(memberForbidden.response.status, 403);
+  assert.notEqual(created.payload.server.inviteCode, created.payload.server.id);
+
   const voiceChannel = created.payload.server.channels.find(
     (channel) => channel.type === "voice",
   );

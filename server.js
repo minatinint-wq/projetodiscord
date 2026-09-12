@@ -24,35 +24,43 @@ const COLLECTIONS = [
   "channels",
   "messages",
   "memberships",
+  "adminCatalog",
+  "subscriptions",
   "friendships",
 ];
 const sessions = new Map();
+const wsTickets = new Map();
+const loginAttempts = new Map();
 const sockets = new Map();
 const voiceRooms = new Map();
-const CREATOR_EMAIL = String(process.env.CREATOR_EMAIL || "")
+const MASTER_ADMIN_EMAIL = String(process.env.MASTER_ADMIN_EMAIL || "")
   .trim()
   .toLowerCase();
+const MASTER_ADMIN_PASSWORD = String(process.env.MASTER_ADMIN_PASSWORD || "");
+const CREATOR_EMAILS = new Set(
+  String(process.env.CREATOR_EMAILS || process.env.CREATOR_EMAIL || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 const ALLOWED_BADGES = [
+  "criador",
+  "fundador",
   "rara",
-  "apoiador",
   "apoiador_inicial",
+  "nitro_classic",
   "mes_1",
   "mes_3",
   "mes_6",
   "mes_9",
   "mes_12",
-  "explorador",
-  "anfitriao",
-  "voz",
-  "criador",
-  "fundador",
+  "verificado",
   "moderador",
   "desenvolvedor",
-  "eventos",
-  "verificado",
   "cacador_bugs",
   "artista",
   "streamer",
+  "apoiador",
 ];
 const LEGACY_BADGES = {
   booster: "apoiador",
@@ -60,6 +68,84 @@ const LEGACY_BADGES = {
   dev: "desenvolvedor",
   star: "fundador",
 };
+const SUBSCRIPTION_PLANS = {
+  classic: {
+    id: "classic",
+    name: "Nitro Classic",
+    priceCents: 1500,
+  },
+  booster: {
+    id: "booster",
+    name: "Booster",
+    priceCents: 3000,
+  },
+};
+const SYSTEM_BADGES = new Set(["nitro_classic", "apoiador_inicial", "apoiador", "mes_1", "mes_3", "mes_6", "mes_9", "mes_12"]);
+const ROLE_PERMISSIONS = [
+  "manageChannels",
+  "sendMessages",
+  "connectVoice",
+  "useCamera",
+  "shareScreen",
+];
+const ROLE_STYLES = ["solid", "glow", "pulse", "blink"];
+function defaultRoles() {
+  return [
+    {
+      id: "owner",
+      name: "Dono",
+      color: "#ef5964",
+      style: "glow",
+      position: 0,
+      permissions: Object.fromEntries(
+        ROLE_PERMISSIONS.map((permission) => [permission, true]),
+      ),
+    },
+    {
+      id: "member",
+      name: "Membro",
+      color: "#8f96a3",
+      style: "solid",
+      position: 999,
+      permissions: {
+        manageChannels: false,
+        sendMessages: true,
+        connectVoice: true,
+        useCamera: true,
+        shareScreen: true,
+      },
+    },
+  ];
+}
+function normalizedRoles(roles) {
+  const defaults = defaultRoles();
+  if (!Array.isArray(roles)) return defaults;
+  const custom = roles
+    .filter((role) => !["owner", "member"].includes(role?.id))
+    .slice(0, 23)
+    .map((role, index) => ({
+      id: /^[a-zA-Z0-9_-]{1,50}$/.test(String(role.id || ""))
+        ? String(role.id)
+        : "role_" + id(),
+      name: String(role.name || "Novo cargo").trim().slice(0, 40),
+      color: /^#[0-9a-fA-F]{6}$/.test(String(role.color || ""))
+        ? String(role.color)
+        : "#c93642",
+      style: ROLE_STYLES.includes(role.style) ? role.style : "solid",
+      position: index + 1,
+      permissions: Object.fromEntries(
+        ROLE_PERMISSIONS.map((permission) => [
+          permission,
+          Boolean(role.permissions?.[permission]),
+        ]),
+      ),
+    }));
+  return [
+    defaults[0],
+    ...custom,
+    { ...defaults[1], position: custom.length + 1 },
+  ];
+}
 let database;
 let pgClient = null;
 let saveQueue = Promise.resolve();
@@ -125,6 +211,8 @@ const normalizeDatabase = (input) => {
       .toUpperCase();
     return {
       ...server,
+      inviteCode: server.inviteCode || crypto.randomBytes(12).toString("base64url"),
+      roles: normalizedRoles(server.roles),
       tag: candidateTag.length >= 2 ? candidateTag : "SESH",
       banner: server.banner || null,
       accentColor: /^#[0-9a-fA-F]{6}$/.test(server.accentColor || "")
@@ -132,6 +220,12 @@ const normalizeDatabase = (input) => {
         : "#c93642",
     };
   });
+  normalized.memberships = normalized.memberships.map((membership) => ({
+    ...membership,
+    roleId:
+      membership.roleId ||
+      (membership.role === "owner" ? "owner" : "member"),
+  }));
   return normalized;
 };
 
@@ -181,6 +275,8 @@ function starterServer(user) {
   return {
     server: {
       id: serverId,
+      inviteCode: crypto.randomBytes(12).toString("base64url"),
+      roles: defaultRoles(),
       name: `Comunidade de ${user.displayName}`,
       icon: initials(user.displayName),
       tag: "SESH",
@@ -189,7 +285,7 @@ function starterServer(user) {
       ownerId: user.id,
       createdAt: now(),
     },
-    membership: { userId: user.id, serverId, role: "owner", joinedAt: now() },
+    membership: { userId: user.id, serverId, role: "owner", roleId: "owner", joinedAt: now() },
     channels: [
       {
         id: generalId,
@@ -249,11 +345,14 @@ async function loadDatabase() {
     database = normalizeDatabase(loaded || blankDatabase());
   }
 
-  if (
-    !database.users.length ||
+  const shouldSeedDemo =
+    process.env.SEED_DEMO_USER === "true" ||
     (!DATABASE_URL &&
-      process.env.SEED_DEMO_USER !== "false" &&
-      !database.users.some((user) => user.username === "demo"))
+      !isProduction &&
+      process.env.SEED_DEMO_USER !== "false");
+  if (
+    shouldSeedDemo &&
+    !database.users.some((user) => user.username === "demo")
   ) {
     const password = hashPassword("demo123");
     const userId = id();
@@ -272,6 +371,28 @@ async function loadDatabase() {
     database.memberships.push(starter.membership);
     database.channels.push(...starter.channels);
     database.messages.push(starter.message);
+  }
+  if (MASTER_ADMIN_EMAIL && MASTER_ADMIN_PASSWORD.length >= 8) {
+    let admin = database.users.find(
+      (user) => (user.email || "").toLowerCase() === MASTER_ADMIN_EMAIL,
+    );
+    if (!admin) {
+      const baseUsername = "sesh_admin";
+      const username = database.users.some((user) => user.username === baseUsername)
+        ? baseUsername + "_" + crypto.randomBytes(3).toString("hex")
+        : baseUsername;
+      admin = {
+        id: id(),
+        username,
+        displayName: "Admin Master",
+        email: MASTER_ADMIN_EMAIL,
+        password: hashPassword(MASTER_ADMIN_PASSWORD),
+        avatarColor: "red",
+        badges: ["criador"],
+        createdAt: now(),
+      };
+      database.users.push(admin);
+    }
   }
   for (const user of database.users) {
     const badges = Array.isArray(user.badges) ? user.badges : [];
@@ -301,15 +422,32 @@ function saveDatabase() {
   saveQueue = saveQueue.catch(() => {}).then(persistDatabase);
   return saveQueue;
 }
+function securityHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy":
+      "camera=(self), microphone=(self), display-capture=(self), geolocation=()",
+    "Content-Security-Policy":
+      "default-src 'self'; img-src 'self' data: https:; media-src 'self' blob:; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    ...(isProduction
+      ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" }
+      : {}),
+  };
+}
 function json(res, status, payload) {
   const headers = {
+    ...securityHeaders(),
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-    "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-store",
   };
-  if (CORS_ORIGIN) headers["Access-Control-Allow-Origin"] = CORS_ORIGIN;
+  if (CORS_ORIGIN) {
+    headers["Access-Control-Allow-Origin"] = CORS_ORIGIN;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  }
   res.writeHead(status, headers);
   res.end(JSON.stringify(payload));
 }
@@ -322,7 +460,7 @@ function publicUser(user) {
     avatar: user.avatar || null,
     banner: user.banner || null,
     bio: user.bio || "",
-    badges: user.badges || [],
+    badges: badgesForUser(user),
     status: user.status || "online",
     nameStyle: user.nameStyle || "default",
     nameColor: user.nameColor || "#f1f3f5",
@@ -337,23 +475,63 @@ function publicUser(user) {
   };
 }
 function isCreator(user) {
+  const email = (user?.email || "").toLowerCase();
+  return Boolean(email && (email === MASTER_ADMIN_EMAIL || CREATOR_EMAILS.has(email)));
+}
+function isMasterAdmin(user) {
   return Boolean(
-    CREATOR_EMAIL && (user?.email || "").toLowerCase() === CREATOR_EMAIL,
+    MASTER_ADMIN_EMAIL &&
+      (user?.email || "").toLowerCase() === MASTER_ADMIN_EMAIL,
   );
 }
 function sanitizeBadges(target, badges) {
   const selected = Array.isArray(badges)
     ? [...new Set(badges.filter((badge) => ALLOWED_BADGES.includes(badge)))]
     : [];
-  return isCreator(target)
-    ? selected
-    : selected.filter((badge) => badge !== "criador");
+  const creatorOnly = new Set(["criador", "desenvolvedor", "cacador_bugs"]);
+  return selected.filter(
+    (badge) => !creatorOnly.has(badge) || isCreator(target),
+  );
+}
+function activeSubscriptionFor(userId) {
+  return database.subscriptions
+    .filter((subscription) => subscription.userId === userId && subscription.status === "active")
+    .sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)))[0];
+}
+function subscriptionBadges(user) {
+  const subscription = activeSubscriptionFor(user.id);
+  if (!subscription) return [];
+  const badges = [];
+  if (subscription.earlySupporter) badges.push("apoiador_inicial");
+  if (subscription.planId === "classic") badges.push("nitro_classic");
+  if (subscription.planId === "booster") {
+    badges.push("apoiador");
+    const months = Math.max(
+      1,
+      Math.floor((Date.now() - new Date(subscription.startedAt).getTime()) / (30 * 24 * 60 * 60 * 1000)) + 1,
+    );
+    badges.push(
+      months >= 12 ? "mes_12" :
+      months >= 9 ? "mes_9" :
+      months >= 6 ? "mes_6" :
+      months >= 3 ? "mes_3" : "mes_1",
+    );
+  }
+  return badges;
+}
+function badgesForUser(user) {
+  const manual = Array.isArray(user.badges) ? user.badges : [];
+  return [...new Set([
+    ...manual.filter((badge) => !SYSTEM_BADGES.has(badge)),
+    ...subscriptionBadges(user),
+  ])];
 }
 function sessionUser(user) {
   return {
     ...publicUser(user),
     email: user.email || "",
     isCreator: isCreator(user),
+    isMasterAdmin: isMasterAdmin(user),
   };
 }
 function broadcastAll(event) {
@@ -397,10 +575,111 @@ function friendView(friendship, viewerId) {
     ...publicUser(other),
   };
 }
+function sessionToken(req) {
+  const bearer = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (bearer) return bearer;
+  const cookie = String(req.headers.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("sesh_session="));
+  return cookie ? decodeURIComponent(cookie.slice("sesh_session=".length)) : "";
+}
+function setSessionCookie(res, token) {
+  res.setHeader(
+    "Set-Cookie",
+    "sesh_session=" + encodeURIComponent(token) +
+      "; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800" +
+      (isProduction ? "; Secure" : ""),
+  );
+}
+function clearSessionCookie(res) {
+  res.setHeader(
+    "Set-Cookie",
+    "sesh_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" +
+      (isProduction ? "; Secure" : ""),
+  );
+}
+function canViewUser(viewer, target) {
+  if (!viewer || !target) return false;
+  if (viewer.id === target.id) return true;
+  const friends = database.friendships.some(
+    (item) =>
+      item.status === "accepted" &&
+      [item.requesterId, item.addresseeId].includes(viewer.id) &&
+      [item.requesterId, item.addresseeId].includes(target.id),
+  );
+  if (friends) return true;
+  const viewerServers = new Set(
+    database.memberships
+      .filter((item) => item.userId === viewer.id)
+      .map((item) => item.serverId),
+  );
+  return database.memberships.some(
+    (item) => item.userId === target.id && viewerServers.has(item.serverId),
+  );
+}
+function loginLimitKey(req, identifier) {
+  return (req.socket.remoteAddress || "unknown") + ":" + identifier;
+}
+function loginBlocked(req, identifier) {
+  const key = loginLimitKey(req, identifier);
+  const current = loginAttempts.get(key);
+  if (!current || current.resetAt <= Date.now()) {
+    loginAttempts.delete(key);
+    return false;
+  }
+  return current.count >= 8;
+}
+function recordLoginFailure(req, identifier) {
+  const key = loginLimitKey(req, identifier);
+  const current = loginAttempts.get(key);
+  loginAttempts.set(key, {
+    count: current?.resetAt > Date.now() ? current.count + 1 : 1,
+    resetAt: current?.resetAt > Date.now()
+      ? current.resetAt
+      : Date.now() + 15 * 60_000,
+  });
+}
 function getUser(req) {
-  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const token = sessionToken(req);
   const userId = sessions.get(token);
   return database.users.find((user) => user.id === userId);
+}
+function safeImageDataUrl(value, maxLength = 4_000_000) {
+  if (typeof value !== "string" || value.length > maxLength) return false;
+  const match = value.match(
+    /^data:image\/(png|jpeg|gif|webp);base64,([a-z0-9+/=]+)$/i,
+  );
+  if (!match) return false;
+  let bytes;
+  try {
+    bytes = Buffer.from(match[2], "base64");
+  } catch {
+    return false;
+  }
+  if (!bytes.length) return false;
+  const mime = match[1].toLowerCase();
+  if (mime === "png")
+    return bytes.subarray(0, 8).equals(
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    );
+  if (mime === "jpeg")
+    return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  if (mime === "gif")
+    return ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString());
+  return (
+    bytes.subarray(0, 4).toString() === "RIFF" &&
+    bytes.subarray(8, 12).toString() === "WEBP"
+  );
+}
+function requestOriginAllowed(req) {
+  const origin = String(req.headers.origin || "");
+  if (!origin) return true;
+  if (CORS_ORIGIN) return origin === CORS_ORIGIN;
+  const protocol =
+    String(req.headers["x-forwarded-proto"] || "").split(",")[0] ||
+    (req.socket.encrypted ? "https" : "http");
+  return origin === protocol + "://" + req.headers.host;
 }
 async function body(req) {
   let raw = "";
@@ -435,6 +714,40 @@ function serverForUser(user, serverId) {
 function channelForUser(user, channelId) {
   const channel = database.channels.find((item) => item.id === channelId);
   return channel && serverForUser(user, channel.serverId) ? channel : null;
+}
+function membershipFor(user, serverId) {
+  return database.memberships.find(
+    (membership) =>
+      membership.serverId === serverId && membership.userId === user?.id,
+  );
+}
+function roleForMembership(server, membership) {
+  const roles = normalizedRoles(server.roles);
+  return (
+    roles.find((role) => role.id === membership?.roleId) ||
+    roles.find((role) =>
+      role.id === (membership?.role === "owner" ? "owner" : "member"),
+    )
+  );
+}
+function hasServerPermission(user, server, permission) {
+  if (!user || !server) return false;
+  if (server.ownerId === user.id) return true;
+  const membership = membershipFor(user, server.id);
+  return Boolean(
+    roleForMembership(server, membership)?.permissions?.[permission],
+  );
+}
+function memberView(server, membership) {
+  const person = database.users.find((item) => item.id === membership.userId);
+  if (!person) return null;
+  const serverRole = roleForMembership(server, membership);
+  return {
+    ...publicUser(person),
+    roleId: serverRole?.id || "member",
+    serverRole,
+    joinedAt: membership.joinedAt,
+  };
 }
 function decorateMessage(message) {
   const user = database.users.find((item) => item.id === message.authorId);
@@ -528,14 +841,15 @@ function voiceStatesFor(serverId) {
 async function handler(req, res) {
   if (req.method === "OPTIONS") return json(res, 204, {});
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (
+    ["POST", "PATCH", "DELETE"].includes(req.method) &&
+    !requestOriginAllowed(req)
+  )
+    return json(res, 403, { error: "Origem da requisicao nao permitida." });
   try {
     if (url.pathname === "/api/health") {
       if (pgClient) await pgClient.query("SELECT 1");
-      return json(res, 200, {
-        ok: true,
-        storage: pgClient ? "postgresql" : "local",
-        time: now(),
-      });
+      return json(res, 200, { ok: true });
     }
     if (url.pathname === "/api/auth/register" && req.method === "POST") {
       const input = await body(req);
@@ -583,6 +897,7 @@ async function handler(req, res) {
       await saveDatabase();
       const token = id();
       sessions.set(token, user.id);
+      setSessionCookie(res, token);
       return json(res, 201, { token, user: sessionUser(user) });
     }
     if (url.pathname === "/api/auth/login" && req.method === "POST") {
@@ -590,15 +905,23 @@ async function handler(req, res) {
       const identifier = String(input.username || "")
         .trim()
         .toLowerCase();
+      if (loginBlocked(req, identifier))
+        return json(res, 429, {
+          error: "Muitas tentativas. Aguarde 15 minutos e tente novamente.",
+        });
       const user = database.users.find(
         (item) =>
           item.username === identifier ||
           (item.email || "").toLowerCase() === identifier,
       );
-      if (!user || !verifyPassword(input.password || "", user.password))
+      if (!user || !verifyPassword(input.password || "", user.password)) {
+        recordLoginFailure(req, identifier);
         return json(res, 401, { error: "Credenciais inválidas." });
+      }
+      loginAttempts.delete(loginLimitKey(req, identifier));
       const token = id();
       sessions.set(token, user.id);
+      setSessionCookie(res, token);
       return json(res, 200, { token, user: sessionUser(user) });
     }
     if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
@@ -627,6 +950,7 @@ async function handler(req, res) {
             ".woff2": "font/woff2",
           };
           res.writeHead(200, {
+            ...securityHeaders(),
             "Content-Type":
               types[path.extname(resolved).toLowerCase()] ||
               "application/octet-stream",
@@ -637,7 +961,10 @@ async function handler(req, res) {
         }
         try {
           const index = await fs.readFile(path.join(distDir, "index.html"));
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.writeHead(200, {
+            ...securityHeaders(),
+            "Content-Type": "text/html; charset=utf-8",
+          });
           return res.end(index);
         } catch {
           /* dist ainda não existe */
@@ -646,8 +973,111 @@ async function handler(req, res) {
     }
     const user = getUser(req);
     if (!user) return json(res, 401, { error: "Autenticação necessária." });
-    if (url.pathname === "/api/auth/me" && req.method === "GET")
+    if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+      sessions.delete(sessionToken(req));
+      clearSessionCookie(res);
+      return json(res, 200, { ok: true });
+    }
+    if (url.pathname === "/api/auth/ws-ticket" && req.method === "POST") {
+      const ticket = crypto.randomBytes(24).toString("base64url");
+      wsTickets.set(ticket, { userId: user.id, expiresAt: Date.now() + 30_000 });
+      return json(res, 201, { ticket });
+    }
+    if (url.pathname === "/api/subscriptions/plans" && req.method === "GET")
+      return json(res, 200, { plans: Object.values(SUBSCRIPTION_PLANS) });
+    if (url.pathname === "/api/subscriptions/me" && req.method === "GET") {
+      const subscription = activeSubscriptionFor(user.id) || null;
+      return json(res, 200, {
+        subscription,
+        badges: subscriptionBadges(user),
+      });
+    }
+    const adminSubscriptionMatch = url.pathname.match(new RegExp("^/api/admin/users/([^/]+)/subscription$"));
+    if (adminSubscriptionMatch && req.method === "PATCH") {
+      if (!isMasterAdmin(user))
+        return json(res, 403, { error: "Acesso de admin master necessário." });
+      const target = database.users.find(
+        (item) => item.id === adminSubscriptionMatch[1],
+      );
+      if (!target) return json(res, 404, { error: "Usuário não encontrado." });
+      const input = await body(req);
+      const plan = SUBSCRIPTION_PLANS[input.planId];
+      if (!plan) return json(res, 400, { error: "Plano inválido." });
+      if (input.status !== "active" && input.status !== "canceled")
+        return json(res, 400, { error: "Status inválido." });
+      let subscription = database.subscriptions.find(
+        (item) => item.userId === target.id && item.planId === plan.id,
+      );
+      if (!subscription) {
+        const earlySupporter =
+          input.status === "active" &&
+          database.subscriptions.filter((item) => item.earlySupporter).length < 100;
+        subscription = {
+          id: id(),
+          userId: target.id,
+          planId: plan.id,
+          status: input.status,
+          earlySupporter,
+          startedAt: now(),
+          updatedAt: now(),
+          provider: String(input.provider || "manual"),
+          providerReference: String(input.providerReference || "").slice(0, 120),
+        };
+        database.subscriptions.push(subscription);
+      } else {
+        subscription.status = input.status;
+        subscription.updatedAt = now();
+      }
+      await saveDatabase();
+      const output = publicUser(target);
+      broadcastAll({ type: "user.updated", user: output });
+      return json(res, 200, { subscription, user: output });
+    }
+    if (url.pathname === "/api/catalog" && req.method === "GET")
+      return json(res, 200, {
+        items: database.adminCatalog.filter((item) => item.active !== false),
+      });
+    if (url.pathname === "/api/admin/catalog" && req.method === "GET") {
+      if (!isMasterAdmin(user))
+        return json(res, 403, { error: "Acesso de admin master necessário." });
+      return json(res, 200, { items: database.adminCatalog });
+    }
+    if (url.pathname === "/api/admin/catalog" && req.method === "POST") {
+      if (!isMasterAdmin(user))
+        return json(res, 403, { error: "Acesso de admin master necessário." });
+      const input = await body(req);
+      const type = String(input.type || "");
+      if (!["banner", "effect", "frame"].includes(type))
+        return json(res, 400, { error: "Tipo de item inválido." });
+      const name = String(input.name || "").trim().slice(0, 50);
+      if (!name) return json(res, 400, { error: "Nome obrigatório." });
+      const value = String(input.value || "").trim().slice(0, 4_000_000);
+      if (!value) return json(res, 400, { error: "Valor obrigatório." });
+      if (type === "banner" && !safeImageDataUrl(value) && !/^#[0-9a-fA-F]{6}$/.test(value))
+        return json(res, 400, { error: "Banner inválido." });
+      if (type === "effect" && !["sparkles", "glow", "embers"].includes(value))
+        return json(res, 400, { error: "Efeito inválido." });
+      if (type === "frame" && !["ruby", "gold", "neon", "ice"].includes(value))
+        return json(res, 400, { error: "Moldura inválida." });
+      const item = { id: id(), type, name, value, active: true, createdAt: now() };
+      database.adminCatalog.push(item);
+      await saveDatabase();
+      return json(res, 201, { item });
+    }
+    const catalogItemMatch = url.pathname.match(new RegExp("^/api/admin/catalog/([^/]+)$"));
+    if (catalogItemMatch && req.method === "DELETE") {
+      if (!isMasterAdmin(user))
+        return json(res, 403, { error: "Acesso de admin master necessário." });
+      const item = database.adminCatalog.find((entry) => entry.id === catalogItemMatch[1]);
+      if (!item) return json(res, 404, { error: "Item não encontrado." });
+      item.active = false;
+      await saveDatabase();
+      return json(res, 200, { ok: true });
+    }
+    if (url.pathname === "/api/auth/me" && req.method === "GET") {
+      if (req.headers.authorization) setSessionCookie(res, sessionToken(req));
       return json(res, 200, { user: sessionUser(user) });
+    }
     if (url.pathname === "/api/auth/me" && req.method === "PATCH") {
       const input = await body(req);
       const displayName =
@@ -697,9 +1127,7 @@ async function handler(req, res) {
       if (input.avatar !== undefined) {
         if (input.avatar === null || input.avatar === "") user.avatar = null;
         else if (
-          typeof input.avatar === "string" &&
-          input.avatar.startsWith("data:image/") &&
-          input.avatar.length <= 4000000
+          safeImageDataUrl(input.avatar)
         )
           user.avatar = input.avatar;
         else
@@ -710,9 +1138,7 @@ async function handler(req, res) {
       if (input.banner !== undefined) {
         if (input.banner === null || input.banner === "") user.banner = null;
         else if (
-          typeof input.banner === "string" &&
-          input.banner.startsWith("data:image/") &&
-          input.banner.length <= 4000000
+          safeImageDataUrl(input.banner)
         )
           user.banner = input.banner;
         else if (
@@ -800,9 +1226,9 @@ async function handler(req, res) {
           .trim()
           .slice(0, 300);
       if (input.badges !== undefined) {
-        if (!isCreator(user))
+        if (!isMasterAdmin(user))
           return json(res, 403, {
-            error: "Somente o criador pode gerenciar insígnias.",
+            error: "Somente o admin master pode gerenciar insígnias.",
           });
         user.badges = sanitizeBadges(user, input.badges);
       }
@@ -827,7 +1253,8 @@ async function handler(req, res) {
     const profileMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
     if (profileMatch && req.method === "GET") {
       const target = database.users.find((item) => item.id === profileMatch[1]);
-      if (!target) return json(res, 404, { error: "Usuário não encontrado." });
+      if (!target || !canViewUser(user, target))
+        return json(res, 404, { error: "Usuário não encontrado." });
       const badges = [...(target.badges || [])];
       let voice = null;
       for (const [channelId, room] of voiceRooms)
@@ -842,9 +1269,9 @@ async function handler(req, res) {
     }
     const badgeMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/badges$/);
     if (badgeMatch && req.method === "PATCH") {
-      if (!isCreator(user))
+      if (!isMasterAdmin(user))
         return json(res, 403, {
-          error: "Somente o criador pode gerenciar insígnias.",
+          error: "Somente o admin master pode gerenciar insígnias.",
         });
       const target = database.users.find((item) => item.id === badgeMatch[1]);
       if (!target) return json(res, 404, { error: "Usuário não encontrado." });
@@ -868,15 +1295,15 @@ async function handler(req, res) {
         return json(res, 400, { error: "Nome do servidor é obrigatório." });
       let icon = initials(name).slice(0, 1);
       if (
-        typeof input.icon === "string" &&
-        input.icon.startsWith("data:image/") &&
-        input.icon.length <= 2000000
+        safeImageDataUrl(input.icon)
       )
         icon = input.icon;
       else if (typeof input.icon === "string" && input.icon)
         return json(res, 400, { error: "Ícone inválido." });
       const server = {
+        inviteCode: crypto.randomBytes(12).toString("base64url"),
         id: id(),
+        roles: defaultRoles(),
         name,
         icon,
         tag: String(input.tag || initials(name))
@@ -892,7 +1319,7 @@ async function handler(req, res) {
       database.memberships.push({
         userId: user.id,
         serverId: server.id,
-        role: "owner",
+        role: "owner", roleId: "owner",
         joinedAt: now(),
       });
       const templates = {
@@ -963,9 +1390,7 @@ async function handler(req, res) {
         if (input.icon === null || input.icon === "")
           server.icon = initials(server.name).slice(0, 1);
         else if (
-          typeof input.icon === "string" &&
-          input.icon.startsWith("data:image/") &&
-          input.icon.length <= 2000000
+          safeImageDataUrl(input.icon)
         )
           server.icon = input.icon;
         else return json(res, 400, { error: "Ícone inválido." });
@@ -983,9 +1408,7 @@ async function handler(req, res) {
       if (input.banner !== undefined) {
         if (input.banner === null || input.banner === "") server.banner = null;
         else if (
-          typeof input.banner === "string" &&
-          input.banner.startsWith("data:image/") &&
-          input.banner.length <= 4000000
+          safeImageDataUrl(input.banner)
         )
           server.banner = input.banner;
         else
@@ -996,6 +1419,34 @@ async function handler(req, res) {
         if (!/^#[0-9a-fA-F]{6}$/.test(color))
           return json(res, 400, { error: "Cor inválida." });
         server.accentColor = color;
+      }
+      if (input.roles !== undefined) {
+        server.roles = normalizedRoles(input.roles);
+        const validRoleIds = new Set(server.roles.map((role) => role.id));
+        for (const membership of database.memberships)
+          if (
+            membership.serverId === server.id &&
+            !validRoleIds.has(membership.roleId)
+          )
+            membership.roleId =
+              membership.userId === server.ownerId ? "owner" : "member";
+      }
+      if (input.memberRoles !== undefined) {
+        if (!input.memberRoles || typeof input.memberRoles !== "object")
+          return json(res, 400, { error: "Atribuição de cargos inválida." });
+        const validRoleIds = new Set(
+          normalizedRoles(server.roles).map((role) => role.id),
+        );
+        for (const [userId, roleId] of Object.entries(input.memberRoles)) {
+          const membership = database.memberships.find(
+            (item) => item.serverId === server.id && item.userId === userId,
+          );
+          if (!membership || userId === server.ownerId) continue;
+          if (!validRoleIds.has(roleId) || roleId === "owner")
+            return json(res, 400, { error: "Cargo inválido." });
+          membership.roleId = roleId;
+          membership.role = roleId === "member" ? "member" : "custom";
+        }
       }
       await saveDatabase();
       broadcastServer(server.id, {
@@ -1017,16 +1468,16 @@ async function handler(req, res) {
         server: decorateServer(server, user),
         members: database.memberships
           .filter((m) => m.serverId === server.id)
-          .map((m) =>
-            publicUser(database.users.find((item) => item.id === m.userId)),
-          ),
+          .map((m) => memberView(server, m))
+          .filter(Boolean)
+          .sort((a, b) => (a.serverRole?.position ?? 999) - (b.serverRole?.position ?? 999)),
         voice: voiceStatesFor(server.id),
       });
     }
     if (serverMatch && req.method === "POST") {
       const server = serverForUser(user, serverMatch[1]);
-      if (!server || server.ownerId !== user.id)
-        return json(res, 403, { error: "Somente o dono pode criar canais." });
+      if (!server || !hasServerPermission(user, server, "manageChannels"))
+        return json(res, 403, { error: "Seu cargo não pode criar canais." });
       const input = await body(req);
       const channel = {
         id: id(),
@@ -1055,7 +1506,7 @@ async function handler(req, res) {
       const server =
         channel &&
         database.servers.find((item) => item.id === channel.serverId);
-      if (!channel || !server || server.ownerId !== user.id)
+      if (!channel || !server || !hasServerPermission(user, server, "manageChannels"))
         return json(res, 403, { error: "Sem permissão." });
       database.channels = database.channels.filter(
         (item) => item.id !== channel.id,
@@ -1076,7 +1527,7 @@ async function handler(req, res) {
       const server =
         channel &&
         database.servers.find((item) => item.id === channel.serverId);
-      if (!channel || !server || server.ownerId !== user.id)
+      if (!channel || !server || !hasServerPermission(user, server, "manageChannels"))
         return json(res, 403, { error: "Sem permissão." });
       const input = await body(req);
       if (input.name !== undefined) {
@@ -1102,7 +1553,9 @@ async function handler(req, res) {
     );
     if (serverJoinMatch && req.method === "POST") {
       const server = database.servers.find(
-        (item) => item.id === serverJoinMatch[1],
+        (item) =>
+          item.inviteCode === serverJoinMatch[1] ||
+          item.id === serverJoinMatch[1],
       );
       if (!server)
         return json(res, 404, {
@@ -1116,7 +1569,7 @@ async function handler(req, res) {
         database.memberships.push({
           userId: user.id,
           serverId: server.id,
-          role: "member",
+          role: "member", roleId: "member",
           joinedAt: now(),
         });
         await saveDatabase();
@@ -1269,12 +1722,36 @@ async function handler(req, res) {
 
 await loadDatabase();
 const server = http.createServer(handler);
+function validRealtimeRelay(event) {
+  if (!event || typeof event.targetUserId !== "string") return false;
+  if (event.targetUserId.length > 80) return false;
+  if (event.type === "voice.ice")
+    return (
+      event.candidate &&
+      typeof event.candidate === "object" &&
+      typeof event.candidate.candidate === "string" &&
+      event.candidate.candidate.length <= 4096
+    );
+  const description =
+    event.type === "voice.offer" ? event.offer : event.answer;
+  return (
+    description &&
+    typeof description === "object" &&
+    ["offer", "answer"].includes(description.type) &&
+    typeof description.sdp === "string" &&
+    description.sdp.length <= 100_000
+  );
+}
 const wss = new WebSocketServer({ server, path: "/ws" });
 wss.on("connection", (socket, req) => {
-  const token = new URL(req.url, `http://${req.headers.host}`).searchParams.get(
-    "token",
-  );
-  const userId = sessions.get(token);
+  const ticket = new URL(
+    req.url,
+    `http://${req.headers.host}`,
+  ).searchParams.get("ticket");
+  const ticketData = wsTickets.get(ticket);
+  wsTickets.delete(ticket);
+  const userId =
+    ticketData?.expiresAt > Date.now() ? ticketData.userId : null;
   if (!userId) return socket.close(1008, "Unauthorized");
   socket.isAlive = true;
   socket.on("pong", () => {
@@ -1290,8 +1767,11 @@ wss.on("connection", (socket, req) => {
     });
   socket.on("message", (raw) => {
     try {
+      if (raw.length > 150_000) return socket.close(1009, "Message too large");
       const event = JSON.parse(raw.toString());
       if (event.type === "voice.join" || event.type === "voice.leave") {
+        if (typeof event.channelId !== "string" || event.channelId.length > 80)
+          return;
         const channel = database.channels.find(
           (item) => item.id === event.channelId && item.type === "voice",
         );
@@ -1321,6 +1801,8 @@ wss.on("connection", (socket, req) => {
         if (event.type === "voice.leave" && room.size === 0)
           voiceRooms.delete(channel.id);
       } else if (event.type === "voice.media") {
+        if (typeof event.channelId !== "string" || event.channelId.length > 80)
+          return;
         const channel = database.channels.find(
           (item) => item.id === event.channelId && item.type === "voice",
         );
@@ -1339,13 +1821,25 @@ wss.on("connection", (socket, req) => {
       } else if (
         ["voice.offer", "voice.answer", "voice.ice"].includes(event.type)
       ) {
+        if (!validRealtimeRelay(event) || event.targetUserId === userId) return;
         const sharedRoom = [...voiceRooms.values()].some(
           (room) => room.has(userId) && room.has(event.targetUserId),
         );
         if (!sharedRoom) return;
         const target = sockets.get(event.targetUserId);
         if (target?.readyState === 1)
-          target.send(JSON.stringify({ ...event, fromUserId: userId }));
+          target.send(
+            JSON.stringify({
+              type: event.type,
+              targetUserId: event.targetUserId,
+              fromUserId: userId,
+              ...(event.type === "voice.offer" ? { offer: event.offer } : {}),
+              ...(event.type === "voice.answer" ? { answer: event.answer } : {}),
+              ...(event.type === "voice.ice"
+                ? { candidate: event.candidate }
+                : {}),
+            }),
+          );
       }
     } catch {
       /* ignore malformed realtime events */
