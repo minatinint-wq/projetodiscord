@@ -6794,3 +6794,11 @@ body[data-profile-plate="neon"] .profile-card {
 .role-list-icon { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; overflow: hidden; place-items: center; border-radius: 4px; background: var(--role-preview-color); }
 .role-list-icon img { width: 100%; height: 100%; object-fit: cover; }
 .profile-image-error { margin: 2px 0 10px; color: #ff9ca3; font-size: 12px; line-height: 1.4; }
+
+.profile-avatar-photo-tile { position: relative; display: grid; overflow: hidden; place-items: center; cursor: pointer; }
+.profile-avatar-photo-tile > .avatar { transition: filter .16s ease, transform .16s ease; }
+.profile-avatar-photo-tile > span { position: absolute; right: 7px; bottom: 7px; left: 7px; padding: 5px 4px; border-radius: 5px; color: #fff; background: #111214d9; font-size: 10px; font-weight: 800; text-align: center; opacity: 0; transform: translateY(4px); transition: opacity .16s ease, transform .16s ease; }
+.profile-avatar-photo-tile:hover > .avatar { filter: brightness(.68); transform: scale(.96); }
+.profile-avatar-photo-tile:hover > span, .profile-avatar-photo-tile:focus-within > span { opacity: 1; transform: translateY(0); }
+.profile-avatar-photo-tile input { display: none; }
+.profile-image-error { grid-column: 1 / -1; }

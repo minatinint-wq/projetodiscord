@@ -1421,19 +1421,16 @@ function ProfileSettingsPanel({
           </button>
           <div className="profile-settings-side-title">Avatar e decorações</div>
           <div className="profile-settings-tiles">
+            <label className="profile-avatar-photo-tile" aria-label="Trocar foto do perfil">
+              <Avatar user={form} color="purple" />
+              <span>Trocar foto</span>
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={(event) => chooseProfileImage("avatar", event)} />
+            </label>
             <button
               type="button"
               aria-label="Alterar moldura do avatar"
               onClick={() =>
                 setCustomizer({ kind: "frame", key: "avatarFrame" })
-              }
-            >
-              <Avatar user={form} color="purple" />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setCustomizer({ kind: "effect", key: "profileEffect" })
               }
             >
               <Plus size={22} />
