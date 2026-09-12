@@ -85,6 +85,8 @@ export const api = {
     }),
   joinServer: (serverId) =>
     request(`/api/servers/${serverId}/join`, { method: "POST" }),
+  leaveServer: (serverId) =>
+    request(`/api/servers/${serverId}`, { method: "DELETE" }),
   updateServer: (serverId, input) =>
     request(`/api/servers/${serverId}`, {
       method: "PATCH",

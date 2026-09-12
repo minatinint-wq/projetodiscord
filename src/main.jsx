@@ -2289,6 +2289,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const localStreamRef = useRef(null);
   const audioRefs = useRef(new Map());
   const [contextMenu, setContextMenu] = useState(null);
+  const [serverContextMenu, setServerContextMenu] = useState(null);
   const [badgeMenu, setBadgeMenu] = useState(null);
   const [badgeEditor, setBadgeEditor] = useState(null);
   const [pinnedChannels, setPinnedChannels] = useState(() => {
@@ -2303,6 +2304,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       return JSON.parse(localStorage.getItem("sesh_muted") || "[]");
     } catch {
       return [];
+    }
+  });
+  const [serverPreferences, setServerPreferences] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sesh_server_preferences") || "{}");
+    } catch {
+      return {};
     }
   });
   const [dialog, setDialog] = useState(null);
@@ -2759,6 +2767,20 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       // Sesh owns the context menu across the app. Capture mode below keeps
       // the browser's native menu from winning this interaction.
       event.preventDefault();
+      const serverIcon = event.target.closest(".server-icon[data-server-id]");
+      if (serverIcon) {
+        const server = servers.find((item) => item.id === serverIcon.dataset.serverId);
+        if (server) {
+          event.stopPropagation();
+          setServerContextMenu({
+            x: Math.min(event.clientX, window.innerWidth - 275),
+            y: Math.min(event.clientY, window.innerHeight - 490),
+            server,
+            submenu: null,
+          });
+          return;
+        }
+      }
       const ownPanel = event.target.closest(".user-panel");
       if (ownPanel) {
         event.stopPropagation();
@@ -2830,7 +2852,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     };
     document.addEventListener("contextmenu", onContextMenu, true);
     return () => document.removeEventListener("contextmenu", onContextMenu, true);
-  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer]);
+  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer, servers]);
   useEffect(() => {
     api
       .servers()
@@ -3067,9 +3089,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     };
   }, []);
   useEffect(() => {
-    if (!contextMenu && !badgeMenu) return;
+    if (!contextMenu && !serverContextMenu && !badgeMenu) return;
     const close = () => {
       setContextMenu(null);
+      setServerContextMenu(null);
       setBadgeMenu(null);
     };
     const onKey = (event) => {
@@ -3083,7 +3106,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       window.removeEventListener("resize", close);
       window.removeEventListener("keydown", onKey);
     };
-  }, [contextMenu, badgeMenu]);
+  }, [contextMenu, serverContextMenu, badgeMenu]);
   async function createPeer(targetUserId, initiator) {
     if (peersRef.current.has(targetUserId))
       return peersRef.current.get(targetUserId);
@@ -3438,11 +3461,24 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     setList(next);
     saveList(key, next);
   }
-  function copyText(text) {
+  function copyText(text, successMessage = "Copiado para a área de transferência.") {
     navigator.clipboard
       ?.writeText(text)
-      .then(() => setNotice("Copiado para a área de transferência."))
+      .then(() => setNotice(successMessage))
       .catch(() => setNotice("Não foi possível copiar."));
+  }
+  function copyOwnHandle() {
+    const handle = currentUser.tag
+      ? `${currentUser.username}#${currentUser.tag}`
+      : currentUser.username;
+    copyText(handle, `${handle} copiado. Agora é só enviar para adicionarem você.`);
+  }
+  function updateServerPreference(serverId, changes) {
+    setServerPreferences((current) => {
+      const next = { ...current, [serverId]: { ...current[serverId], ...changes } };
+      localStorage.setItem("sesh_server_preferences", JSON.stringify(next));
+      return next;
+    });
   }
   function askText(title, placeholder, initialValue, callback) {
     setDialog({ title, placeholder, value: initialValue || "", callback });
@@ -3470,12 +3506,41 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         : current,
     );
   }
-  function copyInvite() {
-    const inviteCode = selectedServer.inviteCode || selectedServer.id;
-    copyText(inviteCode);
-    setNotice(
-      `Convite copiado! Cole o código no botão "+" para entrar em "${selectedServer.name}".`,
-    );
+  function copyInvite(server = selectedServer) {
+    const inviteCode = server.inviteCode || server.id;
+    copyText(inviteCode, `Convite personalizado "${inviteCode}" copiado.`);
+  }
+  async function customizeInvite(server) {
+    if (server.role !== "owner") {
+      setNotice("Somente o dono pode personalizar o convite.");
+      return;
+    }
+    const inviteCode = window.prompt("Seu convite personalizado (3 a 32 letras, números ou hífen):", server.inviteCode || "");
+    if (inviteCode === null) return;
+    try {
+      const result = await api.updateServer(server.id, { inviteCode });
+      setServers((current) => current.map((item) => item.id === server.id ? { ...item, ...result.server } : item));
+      setSelectedServer((current) => current?.id === server.id ? { ...current, ...result.server } : current);
+      setNotice(`Convite personalizado: ${result.server.inviteCode}`);
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+  async function leaveServer(server) {
+    if (server.role === "owner") {
+      setNotice("Transfira a propriedade antes de sair do seu próprio servidor.");
+      return;
+    }
+    if (!window.confirm(`Sair de "${server.name}"?`)) return;
+    try {
+      await api.leaveServer(server.id);
+      setServers((current) => current.filter((item) => item.id !== server.id));
+      if (selectedServer?.id === server.id) setSelectedServer(null);
+      setServerContextMenu(null);
+      setNotice(`Você saiu de "${server.name}".`);
+    } catch (err) {
+      setNotice(err.message);
+    }
   }
   function openProfile(event, userId) {
     event.stopPropagation();
@@ -5163,7 +5228,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </span>
           <div
             className="user-details"
-            onClick={(event) => openProfile(event, currentUser.id)}
+            title="Clique para copiar seu nome de usuário"
+            onClick={copyOwnHandle}
           >
             <strong>{currentUser.displayName}</strong>
             <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
@@ -5235,6 +5301,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         {servers.map((server, index) => (
           <button
             key={server.id}
+            data-server-id={server.id}
             className={`server-icon ${colors[index % colors.length]} ${selectedServer.id === server.id ? "active" : ""}`}
             onClick={() => {
               setSelectedServer(server);
@@ -5423,7 +5490,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </span>
           <div
             className="user-details"
-            onClick={(event) => openProfile(event, currentUser.id)}
+            title="Clique para copiar seu nome de usuário"
+            onClick={copyOwnHandle}
           >
             <strong>{currentUser.displayName}</strong>
             <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
@@ -6024,7 +6092,34 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           </button>
         </div>
       )}
-      {dialog && (
+      {serverContextMenu && (() => {
+        const server = serverContextMenu.server;
+        const preferences = serverPreferences[server.id] || {};
+        const muted = preferences.muteUntil === "forever" || Number(preferences.muteUntil) > Date.now();
+        const chooseMute = (duration, label) => {
+          updateServerPreference(server.id, { muteUntil: duration === "forever" ? "forever" : Date.now() + duration });
+          setServerContextMenu(null);
+          setNotice(`Notificações de "${server.name}" silenciadas ${label}.`);
+        };
+        return <>
+          <div className="context-menu server-context-menu" style={{ left: serverContextMenu.x, top: serverContextMenu.y }} onClick={(event) => event.stopPropagation()}>
+            <button className="context-item" onClick={() => { setNotice(`Tudo em "${server.name}" foi marcado como lido.`); setServerContextMenu(null); }}>Marcar como lida</button>
+            <button className="context-item" onClick={() => { copyInvite(server); setServerContextMenu(null); }}>Convidar para o servidor</button>
+            <button className="context-item" onClick={() => { customizeInvite(server); setServerContextMenu(null); }}>Personalizar convite</button>
+            <div className="context-sep" />
+            <button className="context-item" onClick={() => setServerContextMenu((current) => ({ ...current, submenu: current.submenu === "mute" ? null : "mute" }))}>{muted ? "Reativar notificações" : "Silenciar servidor"}<span className="context-arrow">›</span></button>
+            <button className="context-item" onClick={() => { updateServerPreference(server.id, { hideMuted: !preferences.hideMuted }); setNotice(preferences.hideMuted ? "Canais silenciados visíveis." : "Canais silenciados ocultos."); }}>Ocultar canais silenciados</button>
+            <button className="context-item" onClick={() => { if (server.role === "owner") { setSelectedServer(server); setServerSettingsOpen(true); } else setNotice("Somente o dono pode alterar o servidor."); setServerContextMenu(null); }}>Config. do servidor<span className="context-arrow">›</span></button>
+            <button className="context-item" onClick={() => { openSettings("account"); setServerContextMenu(null); }}>Config. de privacidade<span className="context-arrow">›</span></button>
+            <button className="context-item" onClick={() => { openSettings("account"); setServerContextMenu(null); }}>Editar perfil por servidor</button>
+            <div className="context-sep" />
+            <button className="context-item context-danger" onClick={() => leaveServer(server)}>Sair do servidor</button>
+          </div>
+          {serverContextMenu.submenu === "mute" && <div className="context-menu server-mute-menu" style={{ left: Math.min(serverContextMenu.x + 270, window.innerWidth - 220), top: serverContextMenu.y + 116 }} onClick={(event) => event.stopPropagation()}>
+            {[[15 * 60_000, "Por 15 minutos"], [60 * 60_000, "Por 1 hora"], [3 * 60 * 60_000, "Por 3 horas"], [8 * 60 * 60_000, "Por 8 horas"], [24 * 60 * 60_000, "Por 24 horas"], ["forever", "Até eu ligá-las de novo"]].map(([duration, label]) => <button key={label} className="context-item" onClick={() => chooseMute(duration, label.toLowerCase())}>{label}</button>)}
+          </div>}
+        </>;
+      })()}      {dialog && (
         <div className="modal-backdrop" onClick={() => setDialog(null)}>
           <section
             className="prompt-dialog"

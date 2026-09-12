@@ -6574,3 +6574,6 @@ body[data-profile-plate="neon"] .profile-card {
 .game-interest-list button:hover, .game-interest-list button.game-interest-selected { border-color: #5865f2; background: #303258; }
 .game-interest-icon { display: inline-grid; flex: 0 0 24px; width: 24px; height: 24px; place-items: center; color: #fff; font-size: 11px; font-weight: 800; border-radius: 7px; }
 .game-interest-list span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.server-context-menu { min-width: 264px; }
+.server-mute-menu { min-width: 228px; }

@@ -1456,6 +1456,22 @@ async function handler(req, res) {
           });
         server.tag = tag;
       }
+      if (input.inviteCode !== undefined) {
+        const inviteCode = String(input.inviteCode || "")
+          .trim()
+          .toLowerCase();
+        if (!/^[a-z0-9-]{3,32}$/.test(inviteCode))
+          return json(res, 400, {
+            error: "O convite deve ter 3 a 32 letras, números ou hífens.",
+          });
+        if (
+          database.servers.some(
+            (item) => item.id !== server.id && item.inviteCode === inviteCode,
+          )
+        )
+          return json(res, 409, { error: "Esse convite já está em uso." });
+        server.inviteCode = inviteCode;
+      }
       if (input.banner !== undefined) {
         if (input.banner === null || input.banner === "") server.banner = null;
         else if (
@@ -1556,6 +1572,20 @@ async function handler(req, res) {
           .sort((a, b) => (a.serverRole?.position ?? 999) - (b.serverRole?.position ?? 999)),
         voice: voiceStatesFor(server.id),
       });
+    }
+    if (serverMatch && req.method === "DELETE") {
+      const server = serverForUser(user, serverMatch[1]);
+      if (!server) return json(res, 404, { error: "Servidor não encontrado." });
+      if (server.ownerId === user.id)
+        return json(res, 400, {
+          error: "O dono não pode sair do servidor. Transfira a propriedade primeiro.",
+        });
+      database.memberships = database.memberships.filter(
+        (membership) =>
+          !(membership.serverId === server.id && membership.userId === user.id),
+      );
+      await saveDatabase();
+      return json(res, 200, { ok: true, serverId: server.id });
     }
     if (serverMatch && req.method === "POST") {
       const server = serverForUser(user, serverMatch[1]);
