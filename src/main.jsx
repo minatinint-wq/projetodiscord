@@ -172,7 +172,8 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
     />
   );
 }
-function BadgeContextMenu({ menu, onAdd, onModerate }) {
+function BadgeContextMenu({ menu, onAdd, onModerate, onAddFriend, onCopyHandle }) {
+  const isSelf = menu.user.id === menu.currentUserId;
   return (
     <div
       className="context-menu badge-context-menu"
@@ -182,7 +183,16 @@ function BadgeContextMenu({ menu, onAdd, onModerate }) {
       <button className="context-item" onClick={() => menu.onProfile?.()}>
         Perfil
       </button>
-      {onModerate && menu.user.id !== menu.currentUserId && <>
+      {!isSelf && <>
+        <button className="context-item" onClick={onCopyHandle}>
+          Copiar nome de usuário
+        </button>
+        <button className="context-item" onClick={onAddFriend}>
+          Adicionar amigo
+        </button>
+      </>}
+      {(onModerate || onAdd) && <div className="context-sep" />}
+      {onModerate && !isSelf && <>
         <button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>
           {menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}
         </button>
@@ -2818,7 +2828,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           return;
         }
       }
-      if (!currentUser.isMasterAdmin && !canModerate) return;
       const row = event.target.closest(".member, .voice-member, .voice-participant, .voice-tile, .message");
       if (!row) return;
       const username =
@@ -2847,7 +2856,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         user: target,
         currentUserId: currentUser.id,
         canModerate,
-        onProfile: () => setProfileView({ userId: target.id }),
+        onProfile: () => {
+          setProfileView({ userId: target.id });
+          setBadgeMenu(null);
+        },
       });
     };
     document.addEventListener("contextmenu", onContextMenu, true);
@@ -3472,6 +3484,22 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       ? `${currentUser.username}#${currentUser.tag}`
       : currentUser.username;
     copyText(handle, `${handle} copiado. Agora é só enviar para adicionarem você.`);
+  }
+  function copyMemberHandle(user) {
+    const handle = user.tag ? `${user.username}#${user.tag}` : user.username;
+    copyText(handle, `${handle} copiado.`);
+    setBadgeMenu(null);
+  }
+  async function addFriendFromMenu(user) {
+    try {
+      const result = await api.addFriend(user.username);
+      setNotice(result.accepted ? "Vocês agora são amigos!" : `Convite enviado para @${user.username}.`);
+      api.friends().then(setFriendsData).catch(() => {});
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBadgeMenu(null);
+    }
   }
   function updateServerPreference(serverId, changes) {
     setServerPreferences((current) => {
@@ -4845,6 +4873,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           menu={badgeMenu}
           onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
+          onCopyHandle={() => copyMemberHandle(badgeMenu.user)}
+          onAddFriend={() => addFriendFromMenu(badgeMenu.user)}
         />
       )}
       {badgeEditor && (
