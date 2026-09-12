@@ -161,6 +161,7 @@ function normalizedRoles(roles) {
         : "#c93642",
       style: ROLE_STYLES.includes(role.style) ? role.style : "solid",
       hoist: Boolean(role.hoist),
+      icon: safeImageDataUrl(role.icon, 350_000) ? role.icon : null,
       position: index + 1,
       permissions: Object.fromEntries(
         ROLE_PERMISSIONS.map((permission) => [

@@ -1128,6 +1128,7 @@ function VoiceSettingsPanel({ user, onClose, onAccount, onLogout }) {
 function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, saving, onClose }) {
   const [tab, setTab] = useState("display");
   const [query, setQuery] = useState("");
+  const [imageError, setImageError] = useState("");
   const permissions = ROLE_PERMISSION_GROUPS.map((group) => ({
     ...group,
     permissions: group.permissions.filter(([key, label]) =>
@@ -1135,6 +1136,17 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, savi
     ),
   })).filter((group) => group.permissions.length);
   const roleMembers = members.filter((member) => member.roleId === role.id);
+  function chooseRoleIcon(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return setImageError("Escolha uma imagem PNG, JPG, GIF ou WebP.");
+    if (file.size > 250 * 1024) return setImageError("A imagem do cargo precisa ter no máximo 250 KB.");
+    const reader = new FileReader();
+    reader.onerror = () => setImageError("Não foi possível ler essa imagem.");
+    reader.onload = () => { setImageError(""); onUpdate(role.id, { icon: String(reader.result) }); };
+    reader.readAsDataURL(file);
+  }
   return (
     <div className="role-config-backdrop" onClick={onClose}>
       <section className="role-config-modal" onClick={(event) => event.stopPropagation()}>
@@ -1153,6 +1165,7 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, savi
             <label>Nome do cargo<input value={role.name} maxLength={40} onChange={(event) => onUpdate(role.id, { name: event.target.value })} /></label>
             <label>Cor do cargo<input type="color" value={role.color} onChange={(event) => onUpdate(role.id, { color: event.target.value })} /></label>
             <label>Estilo<select value={role.style || "solid"} onChange={(event) => onUpdate(role.id, { style: event.target.value })}><option value="solid">Sólido</option><option value="glow">Brilho</option><option value="pulse">Pulso</option><option value="blink">Piscar</option></select></label>
+            <div className="role-icon-upload"><div className="role-icon-preview" style={{ "--role-preview-color": role.color }}>{role.icon ? <img src={role.icon} alt="" /> : <i />}</div><div><strong>Ícone do cargo</strong><small>Envie uma imagem de até 250 KB para identificar este cargo.</small><div><label className="role-icon-button">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={chooseRoleIcon} /></label>{role.icon && <button type="button" onClick={() => onUpdate(role.id, { icon: null })}>Remover</button>}</div>{imageError && <em>{imageError}</em>}</div></div>
             <label className="role-hoist-setting"><span><strong>Separar membros deste cargo</strong><small>Mostra este cargo como uma seção própria na lateral, seguindo a ordem da lista.</small></span><input type="checkbox" checked={Boolean(role.hoist)} onChange={(event) => onUpdate(role.id, { hoist: event.target.checked })} /></label>
           </section>
         )}
@@ -1268,7 +1281,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <p className="server-role-hint">A lista define a prioridade: cargos mais acima aparecem primeiro. Use “Separar membros” dentro de cada cargo para criar uma seção na lateral.</p>
             <section className="settings-roles-list">
               {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>@everyone · aplicadas a todos os membros</small></span></div><button type="button" className="role-edit" onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
-              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className="role-color-dot" /><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
               {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
             </section>
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
