@@ -2081,6 +2081,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
     username: lockedEmail,
     displayName: "",
     email: "",
+    phone: "",
     password: "",
   });
   const [error, setError] = useState("");
@@ -2109,6 +2110,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
       username: "demo",
       displayName: "",
       email: "",
+      phone: "",
       password: "demo123",
     });
     setError("");
@@ -2198,6 +2200,19 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                   placeholder="voce@exemplo.com"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </label>
+            )}
+            {register && (
+              <label className="auth-field">
+                <span>Telefone <em>(opcional)</em></span>
+                <input
+                  type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </label>
             )}

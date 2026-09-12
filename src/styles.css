@@ -5059,9 +5059,9 @@ body[data-profile-effect="embers"] .profile-card {
 }
 .auth-card {
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(390px, 1.1fr);
-  width: min(1020px, 100%);
-  min-height: 610px;
+  grid-template-columns: minmax(380px, 1fr) minmax(540px, 1.2fr);
+  width: min(1280px, 100%);
+  min-height: 690px;
   padding: 0;
   overflow: hidden;
   border: 1px solid #372326;
@@ -5201,6 +5201,13 @@ body[data-profile-effect="embers"] .profile-card {
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+}
+.auth-field > span em {
+  color: #81777b;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .auth-card .auth-field input {
   height: 49px;
@@ -5540,6 +5547,13 @@ body[data-profile-effect="embers"] .profile-card {
 }
 .auth-card form {
   gap: 15px;
+}
+.auth-field > span em {
+  color: #81777b;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .auth-card .auth-field input {
   height: 46px;

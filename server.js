@@ -879,6 +879,8 @@ async function handler(req, res) {
       const email = String(input.email || "")
         .trim()
         .toLowerCase();
+      const phone = String(input.phone || "").trim();
+      const phoneDigits = phone.replace(/\D/g, "");
       if (!username || String(input.password || "").length < 6)
         return json(res, 400, {
           error:
@@ -892,6 +894,10 @@ async function handler(req, res) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
         return json(res, 400, {
           error: "Informe um e-mail verdadeiro e válido (ex.: voce@email.com).",
+        });
+      if (phone && (phoneDigits.length < 10 || phoneDigits.length > 15))
+        return json(res, 400, {
+          error: "Informe um telefone válido, com DDD.",
         });
       if (database.users.some((user) => user.username === username))
         return json(res, 409, {
@@ -908,6 +914,7 @@ async function handler(req, res) {
         username,
         displayName,
         email,
+        phone: phoneDigits || null,
         password: hashPassword(input.password),
         avatarColor: "purple",
         createdAt: now(),
