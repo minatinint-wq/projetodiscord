@@ -42,11 +42,15 @@ import {
 import { api, connectSocket } from "./api";
 import SettingsHub from "./SettingsHub";
 import ProfileEditor, { StyledName, GameIcon } from "./ProfileEditor";
+import ProfileDialog from "./ProfileDialog";
+import ProfileCard from "./ProfileCard";
+
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
 import { microphone, mediaError } from "./media";
 import "./styles.css";
 import "./refinement.css";
+import "./profile.css";
 
 const colors = ["purple", "orange", "green", "blue"];
 const PROFILE_NAME_COLORS = [
@@ -250,10 +254,22 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
 }
 function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles, onAddFriend, onCopyHandle }) {
   const isSelf = menu.user.id === menu.currentUserId;
+  const element = useRef(null);
+  const [position, setPosition] = useState({left: menu.x, top: menu.y});
+  useEffect(() => {
+    const place = () => { const rect = element.current?.getBoundingClientRect(); if(rect) setPosition({
+      left: Math.max(8, Math.min(menu.x, window.innerWidth - rect.width - 8)),
+      top: Math.max(8, Math.min(menu.y, window.innerHeight - rect.height - 8))
+    }); };
+    place(); window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [menu]);
   return (
     <div
       className="context-menu badge-context-menu"
-      style={{ left: menu.x, top: menu.y }}
+      ref={element}
+      aria-label="Ações do membro"
+      style={position}
       onClick={(event) => event.stopPropagation()}
     >
       <button className="context-item" onClick={() => menu.onProfile?.()}>
@@ -282,7 +298,7 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
             onChange={(event) => onAssignRole(event.target.value)}
           >
             {menu.assignableRoles.map((role) => (
-              <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>
+              <option key={role.id} value={role.id}>{role.name}</option>
             ))}
           </select>
         </label>}
@@ -932,8 +948,11 @@ function FavoriteGameActivity({user}) {
   const game=GAME_CATALOG.find(game=>game.id===user.gameInterests?.[0]);
   return game ? <div className="favorite-game-activity"><GameIcon game={game}/><div><strong>{game.name}</strong><small>Jogo de interesse</small></div></div> : null;
 }
+function ProfileBadges(user) {
+  return user.badges?.map(key => BADGES[key] ? <span className="profile-badge" key={key} title={BADGES[key].label}><BadgeIcon badge={BADGES[key]}/></span> : null);
+}
 function ProfileSettingsPanel(props) {
-  return <ProfileEditor {...props} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer}/>;
+  return <ProfileEditor {...props} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}/>;
 }
 function bannerStyleValue(banner) {
   if (!banner) return undefined;
@@ -1485,6 +1504,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [channelModal, setChannelModal] = useState(null);
   const [presenceMap, setPresenceMap] = useState({});
   const [statusMenu, setStatusMenu] = useState(false);
+  useEffect(() => {
+    if(!statusMenu)return;
+    const close=event=>{if(!event.target.closest(".quick-profile,.user-avatar-btn"))setStatusMenu(false);};
+    const key=event=>{if(event.key==="Escape")setStatusMenu(false);};
+    document.addEventListener("pointerdown",close);document.addEventListener("keydown",key);
+    return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",key);};
+  },[statusMenu]);
   const handledInviteRef = useRef(false);
   useEffect(() => {
     const invite = new URLSearchParams(window.location.search).get("invite")?.trim();
@@ -1548,7 +1574,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     let active = true;
     setProfileData("loading");
     api.profile(profileView.userId).then(result => { if (active) setProfileData(result); })
-      .catch(err => { if (active) { setNotice(err.message); setProfileData(null); } });
+      .catch(err => { if (active) { setNotice(err.message); setProfileData({error: err.message}); } });
     const onKey = event => { if (event.key === "Escape") setProfileView(null); };
     window.addEventListener("keydown", onKey);
     return () => { active = false; window.removeEventListener("keydown", onKey); };
@@ -1663,39 +1689,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           return;
         }
       }
-      const row = event.target.closest(".member, .voice-member, .voice-participant, .voice-tile, .message");
+      // Resolve by stable ID, never by display names (which may be shared).
+      const row = event.target.closest("[data-member-id]");
       if (!row) return;
-      const username =
-        row.querySelector(".member-role")?.textContent?.replace(/^@/, "") ||
-        row.querySelector(".message-meta strong")?.textContent;
-      const displayName =
-        row.querySelector(".voice-member-name")?.textContent ||
-        row.querySelector(".message-meta strong")?.textContent ||
-        row.querySelector("strong")?.textContent;
-      const target =
-        members.find(
-          (item) =>
-            item.username === username || item.displayName === displayName,
-        ) ||
-        messages.find((item) => item.author?.displayName === displayName)
-          ?.author ||
-        Object.values(voiceStates)
-          .flat()
-          .find((item) => item.displayName === displayName);
-      if (!target) return;
-      event.preventDefault();
-      event.stopPropagation();
-      setBadgeMenu({
-        x: Math.min(event.clientX, window.innerWidth - 240),
-        y: Math.min(event.clientY, window.innerHeight - 70),
-        user: target,
-        currentUserId: currentUser.id,
-        canModerate,
-        onProfile: () => {
-          setProfileView({ userId: target.id });
-          setBadgeMenu(null);
-        },
-      });
+      const id = row.dataset.memberId;
+      const target = members.find(item => item.id === id) ||
+        messages.find(item => item.author?.id === id)?.author ||
+        Object.values(voiceStates).flat().find(item => item.id === id);
+      if (target) openMemberMenu(event, target);
     };
     document.addEventListener("contextmenu", onContextMenu, true);
     return () => document.removeEventListener("contextmenu", onContextMenu, true);
@@ -1897,6 +1898,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         // User updates are broadcast to all connected people. Only the
         // matching event may refresh this browser's authenticated session.
         if (event.user.id === currentUser.id) onUserUpdate(event.user);
+        setProfileData(current => current?.user?.id === event.user.id ? {...current,user:{...current.user,...event.user}} : current);
       }
       if (event.type === "friends.updated")
         api
@@ -2403,6 +2405,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
     );
     const actorPosition = ownMember?.serverRole?.position ?? 999;
+    const targetPosition = user.serverRole?.position ?? members.find(member => member.id === user.id)?.serverRole?.position ?? 999;
+    const mayModerateTarget = canModerate && user.id !== currentUser.id &&
+      user.roleId !== "owner" && (selectedServer.role === "owner" || actorPosition < targetPosition);
     const assignableRoles = (selectedServer?.roles || []).filter((role) =>
       role.id !== "owner" && (selectedServer.role === "owner" || role.position > actorPosition),
     );
@@ -2411,7 +2416,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       y: Math.min(event.clientY, window.innerHeight - 210),
       user,
       currentUserId: currentUser.id,
-      canModerate,
+      canModerate: mayModerateTarget,
       assignableRoles,
       onProfile: () => {
         setProfileView({ userId: user.id });
@@ -2652,6 +2657,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         bio: form.bio,
         avatar: form.avatar,
         banner: form.banner,
+        bannerPreset: form.bannerPreset, bannerPositionX: form.bannerPositionX, bannerPositionY: form.bannerPositionY,
+        effectIntensity: form.effectIntensity, effectSpeed: form.effectSpeed,
         email: form.email,
         favoriteGame: form.favoriteGame,
         gameInterests: form.gameInterests,
@@ -3020,24 +3027,17 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     (person) => person.presence === "voice" || person.presence === "online",
   );
   const statusMenuEl = () => (
-    <div className="status-menu" onClick={(event) => event.stopPropagation()}>
-      {[
-        ["online", "Online"],
-        ["idle", "Ausente"],
-        ["dnd", "Não perturbar"],
-        ["invisible", "Invisível"],
-      ].map(([value, label]) => (
-        <button
-          key={value}
-          className={`status-row ${currentUser.status === value ? "status-row-on" : ""}`}
-          onClick={() => setStatus(value)}
-        >
-          <span
-            className={`presence-dot presence-dot-menu presence-${value === "invisible" ? "offline" : value}`}
-          />
-          {label}
-        </button>
-      ))}
+    <div className="quick-profile" role="dialog" aria-label="Meu perfil rápido" onClick={event=>event.stopPropagation()}>
+      <ProfileCard user={currentUser} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges} presence={presenceFor(currentUser.id)}/>
+      {voiceConnected&&voiceChannel&&<div className="quick-voice"><strong>Em voz · {voiceChannel.name}</strong><button onClick={()=>{setStatusMenu(false);openVoiceFromProfile({channelId:voiceChannel.id,channelName:voiceChannel.name});}}>Abrir chamada de voz</button></div>}
+      <div className="quick-profile-actions">
+        <button onClick={()=>{setStatusMenu(false);openSettings("account");}}><Settings size={16}/>Editar perfil e banner</button>
+        <button onClick={()=>{setStatusMenu(false);setProfileView({userId:currentUser.id});}}><Eye size={16}/>Ver perfil completo</button>
+        <button onClick={copyOwnHandle}>Copiar meu usuário</button>
+      </div>
+      <details><summary>Status · {({online:"Disponível",idle:"Ausente",dnd:"Não perturbar",invisible:"Invisível"})[currentUser.status||"online"]}</summary>
+      {[["online","Disponível"],["idle","Ausente"],["dnd","Não perturbar"],["invisible","Invisível"]].map(([value,label])=><button key={value} className="status-row" onClick={()=>setStatus(value)}><span className={"presence-dot presence-dot-menu presence-"+(value==="invisible"?"offline":value)}/>{label}</button>)}</details>
+      <div className="quick-profile-actions"><button onClick={()=>{setStatusMenu(false);onLogout();}}><LogOut size={16}/>Sair da conta</button></div>
     </div>
   );
   const guideActive =
@@ -3102,131 +3102,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </section>
         </div>
       )}
-      {profileView && !selectedServer && (
-        <div className="profile-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setProfileView(null); }}>
-          <section
-            className="profile-card"
-            data-profile-effect={
-              profileData && profileData !== "loading"
-                ? profileData.user.profileEffect || "none"
-                : "none"
-            }
-            style={{ left: profileView.x, top: profileView.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              className="profile-card-close"
-              aria-label="Fechar perfil"
-              onClick={() => setProfileView(null)}
-            >
-              <X size={18} />
-            </button>
-            {profileData && profileData !== "loading" && (
-              <ProfileEffectLayer effect={profileData.user.profileEffect} />
-            )}
-            {profileData === "loading" || !profileData ? (
-              <div className="profile-body">Carregando perfil...</div>
-            ) : (
-              <>
-                <div
-                  className="profile-banner"
-                  style={bannerStyle(profileData.user.banner)}
-                />
-                <div className="profile-body">
-                  <span className="avatar-dot-wrap profile-avatar-wrap">
-                    <Avatar
-                      user={profileData.user}
-                      color={profileData.user.avatarColor || "purple"}
-                    />
-                    <span
-                      className={`presence-dot presence-lg presence-${presenceFor(profileData.user.id)}`}
-                    />
-                  </span>
-                  <div className="profile-name">
-                    <StyledName user={profileData.user}/>
-                  </div>
-                  <div className="profile-username">
-                    <span>{profileData.user.username}</span>
-                    {profileData.user.badges?.map((key) => {
-                      const badge = BADGES[key];
-                      return badge ? (
-                        <BadgeIcon
-                          className="profile-badge-img"
-                          key={key}
-                          badge={badge}
-                        />
-                      ) : null;
-                    })}
-                  </div>
-                  <div className="profile-created-at">
-                    Membro desde {profileData.user.createdAt ? new Date(profileData.user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "data não disponível"}
-                  </div>
-                  {profileData.user.bio && (
-                    <div className="profile-bio">{profileData.user.bio}</div>
-                  )}
-                  {(profileData.user.activityText ||
-                    profileData.user.favoriteGame) && (
-                    <div className="profile-entertainment">
-                      <strong>
-                        {profileData.user.activityText || "Jogando agora"}
-                      </strong>
-                      {profileData.user.favoriteGame && (
-                        <ProfileGames user={profileData.user}/>
-                      )}
-                    </div>
-                  )}
-                  {(profileData.user.activityText ||
-                    profileData.user.favoriteGame) && (
-                    <div className="profile-entertainment">
-                      <strong>
-                        {profileData.user.activityText || "Jogando agora"}
-                      </strong>
-                      {profileData.user.favoriteGame && (
-                        <ProfileGames user={profileData.user}/>
-                      )}
-                    </div>
-                  )}
-                  {profileData.user.bio && profileData.user.bio.length > 80 && (
-                    <button
-                      className="profile-bio-link"
-                      onClick={() => setNotice(profileData.user.bio)}
-                    >
-                      Ver biografia completa
-                    </button>
-                  )}
-                  {profileData.voice && (
-                    <div className="profile-voice">
-                      <div className="profile-voice-title">
-                        <Volume2 size={11} /> EM VOZ
-                      </div>
-                      <div className="profile-voice-channel">
-                        <Volume2 size={14} /> {profileData.voice.channelName}
-                      </div>
-                      <button
-                        className="profile-voice-join"
-                        onClick={() => openVoiceFromProfile(profileData.voice)}
-                      >
-                        Abrir chamada de voz
-                      </button>
-                    </div>
-                  )}
-                  {profileData.user.id === currentUser.id && (
-                    <button
-                      className="profile-voice-join"
-                      onClick={() => {
-                        setProfileView(null);
-                        openSettings();
-                      }}
-                    >
-                      Editar perfil
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
-        </div>
-      )}
+      {profileView && !selectedServer && (<ProfileDialog key={profileView.userId} data={profileData} currentUser={currentUser}
+          onClose={() => setProfileView(null)}
+          onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
+          onEdit={() => {setProfileView(null); openSettings("account");}}
+          onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
+          onAddFriend={addFriendFromMenu} onVoice={openVoiceFromProfile}
+          Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
+          presence={presenceFor(profileView.userId)}
+          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
+          serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/> )}
       {notice && !selectedServer && (
         <button className="notice" onClick={() => setNotice("")}>
           {notice}
@@ -4203,7 +4088,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           {statusMenu && statusMenuEl()}
           <span
             className="user-avatar-btn"
-            title="Alterar meu status"
+            title="Abrir meu perfil"
+            role="button" tabIndex={0} aria-expanded={statusMenu}
+            onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setStatusMenu(current=>!current);}}}
             onClick={() => setStatusMenu((current) => !current)}
           >
             <span className="avatar-dot-wrap">
@@ -4421,6 +4308,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       {(voiceStates[channel.id] || []).map((participant) => (
                         <div
                           className="voice-member profile-click"
+                          data-member-id={participant.id}
                           key={participant.id}
                           onClick={(event) =>
                             openProfile(event, participant.id)
@@ -4472,7 +4360,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           {statusMenu && statusMenuEl()}
           <span
             className="user-avatar-btn"
-            title="Alterar meu status"
+            title="Abrir meu perfil"
+            role="button" tabIndex={0} aria-expanded={statusMenu}
+            onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setStatusMenu(current=>!current);}}}
             onClick={() => setStatusMenu((current) => !current)}
           >
             <span className="avatar-dot-wrap">
@@ -4825,7 +4715,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                 </div>
                 <div className="messages-list">
                   {filteredMessages.map((message) => (
-                    <article className="message" key={message.id}>
+                    <article className="message" key={message.id} data-member-id={message.author.id}>
                       <Avatar
                         user={message.author}
                         color={message.author.avatarColor || "purple"}
@@ -4906,6 +4796,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
                       style={{ "--member-role-color": member.serverRole?.color || "#8f96a3" }}
                       key={member.id}
+                      data-member-id={member.id}
                       onClick={(event) => openProfile(event, member.id)}
                       onContextMenu={(event) => openMemberMenu(event, member)}
                     >
@@ -5130,109 +5021,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </section>
         </div>
       )}
-      {profileView && (
-        <div className="profile-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setProfileView(null); }}>
-          <section
-            className="profile-card"
-            data-profile-effect={
-              profileData && profileData !== "loading"
-                ? profileData.user.profileEffect || "none"
-                : "none"
-            }
-            style={{ left: profileView.x, top: profileView.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              className="profile-card-close"
-              aria-label="Fechar perfil"
-              onClick={() => setProfileView(null)}
-            >
-              <X size={18} />
-            </button>
-            {profileData && profileData !== "loading" && (
-              <ProfileEffectLayer effect={profileData.user.profileEffect} />
-            )}
-            {profileData === "loading" || !profileData ? (
-              <div className="profile-body">Carregando perfil...</div>
-            ) : (
-              <>
-                <div
-                  className="profile-banner"
-                  style={bannerStyle(profileData.user.banner)}
-                />
-                <div className="profile-body">
-                  <span className="avatar-dot-wrap profile-avatar-wrap">
-                    <Avatar
-                      user={profileData.user}
-                      color={profileData.user.avatarColor || "purple"}
-                    />
-                    <span
-                      className={`presence-dot presence-lg presence-${presenceFor(profileData.user.id)}`}
-                    />
-                  </span>
-                  <div className="profile-name">
-                    <StyledName user={profileData.user}/>
-                  </div>
-                  <div className="profile-username">
-                    <span>{profileData.user.username}</span>
-                    {profileData.user.badges?.map((key) => {
-                      const badge = BADGES[key];
-                      return badge ? (
-                        <BadgeIcon
-                          className="profile-badge-img"
-                          key={key}
-                          badge={badge}
-                        />
-                      ) : null;
-                    })}
-                  </div>
-                  <div className="profile-created-at">
-                    Membro desde {profileData.user.createdAt ? new Date(profileData.user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "data não disponível"}
-                  </div>
-                  {profileData.user.bio && (
-                    <div className="profile-bio">{profileData.user.bio}</div>
-                  )}
-                  {profileData.user.bio && profileData.user.bio.length > 80 && (
-                    <button
-                      className="profile-bio-link"
-                      onClick={() => setNotice(profileData.user.bio)}
-                    >
-                      Ver biografia completa
-                    </button>
-                  )}
-                  {profileData.voice && (
-                    <div className="profile-voice">
-                      <div className="profile-voice-title">
-                        <Volume2 size={11} /> EM VOZ
-                      </div>
-                      <div className="profile-voice-channel">
-                        <Volume2 size={14} /> {profileData.voice.channelName}
-                      </div>
-                      <button
-                        className="profile-voice-join"
-                        onClick={() => openVoiceFromProfile(profileData.voice)}
-                      >
-                        Abrir chamada de voz
-                      </button>
-                    </div>
-                  )}
-                  {profileData.user.id === currentUser.id && (
-                    <button
-                      className="profile-voice-join"
-                      onClick={() => {
-                        setProfileView(null);
-                        openSettings();
-                      }}
-                    >
-                      Editar perfil
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
-        </div>
-      )}
+      {profileView && (<ProfileDialog key={profileView.userId} data={profileData} currentUser={currentUser}
+          onClose={() => setProfileView(null)}
+          onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
+          onEdit={() => {setProfileView(null); openSettings("account");}}
+          onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
+          onAddFriend={addFriendFromMenu} onVoice={openVoiceFromProfile}
+          Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
+          presence={presenceFor(profileView.userId)}
+          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
+          serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/> )}
       {channelModal && (
         <div className="modal-backdrop" onClick={() => setChannelModal(null)}>
           <section

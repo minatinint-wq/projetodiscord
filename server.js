@@ -525,6 +525,11 @@ function publicUser(user) {
     avatarColor: user.avatarColor,
     avatar: user.avatar || null,
     banner: user.banner || null,
+    bannerPreset: user.bannerPreset || "aurora",
+    bannerPositionX: user.bannerPositionX ?? 50,
+    bannerPositionY: user.bannerPositionY ?? 50,
+    effectIntensity: user.effectIntensity || "balanced",
+    effectSpeed: user.effectSpeed || "normal",
     bio: user.bio || "",
     badges: badgesForUser(user),
     status: user.status || "online",
@@ -1381,6 +1386,20 @@ async function handler(req, res) {
         ].includes(input.nameEffect)
           ? input.nameEffect
           : "solid";
+      for (const field of ["bannerPositionX", "bannerPositionY"]) {
+        if (input[field] === undefined) continue;
+        if (typeof input[field] !== "number" || !Number.isFinite(input[field]) || input[field] < 0 || input[field] > 100)
+          return json(res, 400, {error: "Posição do banner inválida."});
+        user[field] = input[field];
+      }
+      for (const [field, allowed] of Object.entries({
+        bannerPreset: ["aurora","midnight","sunset","ocean","forest","candy","ember","silver"],
+        effectIntensity: ["subtle","balanced","vivid"], effectSpeed: ["slow","normal","fast"]
+      })) {
+        if (input[field] === undefined) continue;
+        if (!allowed.includes(input[field])) return json(res, 400, {error: "Personalização de perfil inválida."});
+        user[field] = input[field];
+      }
       if (input.profileTheme !== undefined)
         user.profileTheme = [
           "default",
@@ -1424,8 +1443,8 @@ async function handler(req, res) {
         user.gameInterests = [...new Set(input.gameInterests.map(String))]
           .filter((gameId) => GAME_IDS.has(gameId))
           .slice(0, 12);
-        if (input.favoriteGame === undefined && user.gameInterests[0])
-          user.favoriteGame = GAME_CATALOG.find((game) => game.id === user.gameInterests[0])?.name || "";
+        // One source of truth: the first selected interest is the featured game.
+        user.favoriteGame = GAME_CATALOG.find((game) => game.id === user.gameInterests[0])?.name || "";
       }
       if (input.activityText !== undefined)
         user.activityText = String(input.activityText || "")
@@ -1473,17 +1492,17 @@ async function handler(req, res) {
       const target = database.users.find((item) => item.id === profileMatch[1]);
       if (!target || !canViewUser(user, target))
         return json(res, 404, { error: "Usuário não encontrado." });
-      const badges = [...(target.badges || [])];
+
       let voice = null;
       for (const [channelId, room] of voiceRooms)
         if (room.has(target.id)) {
           const channel = database.channels.find(
             (item) => item.id === channelId,
           );
-          if (channel)
+          if (channel && channelForUser(user, channel.id))
             voice = { channelId: channel.id, channelName: channel.name };
         }
-      return json(res, 200, { user: { ...publicUser(target), badges }, voice });
+      return json(res, 200, { user: publicUser(target), voice });
     }
     const badgeMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/badges$/);
     if (badgeMatch && req.method === "PATCH") {

@@ -3,12 +3,14 @@ export const PROFILE_EFFECTS = [
  ["aurora","Aurora boreal"],["confetti","Confete"],["hearts","Corações"],["cosmic","Cosmos"],
  ["lightning","Tempestade"],["fireflies","Vagalumes"],["sakura","Pétalas de cerejeira"],
  ["snow","Neve"],["matrix","Chuva digital"],["bubbles","Bolhas"],["prism","Prisma"],
+ ["meteors","Meteoros"],["butterflies","Borboletas"],["diamonds","Diamantes"],
 ];
 export const AVATAR_FRAMES = [
  ["none","Sem moldura"],["ruby","Rubi"],["gold","Ouro"],["neon","Neon"],["ice","Cristal"],
  ["rainbow","Rainbow RGB"],["sakura","Sakura"],["galaxy","Galáxia"],["inferno","Inferno"],
  ["ocean","Oceano"],["cyber","Cyber"],["aurora","Aurora"],["sunset","Pôr do sol"],
  ["jade","Jade"],["royal","Realeza"],["rose","Quartzo rosa"],["electric","Elétrica"],
+ ["halo","Halo"],["blossom","Florescer"],["thorn","Espinhos"],
 ];
 export const NAME_EFFECTS = [
  ["solid","Sólido"],["gradient","Degradê"],["neon","Neon"],["rgb","RGB"],["rainbow","Arco-íris"],

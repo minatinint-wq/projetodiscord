@@ -79,6 +79,24 @@ test("DM persiste texto e imagem e respeita preferências",async()=>{
  await req("/api/auth/me","PATCH",{preferences:{allowDirectMessages:false}},owner.token);
  assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"bloqueada"},guest.token)).status,403);
 });
+test("banner animado mantém bytes e enquadramento com Nitro",async()=>{
+ const admin=await req("/api/auth/login","POST",{username:"test-admin@sesh.local",password:"test-admin-password"});
+ await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"active"},admin.token);
+ const result=await req("/api/auth/me","PATCH",{banner:gif,bannerPositionX:25,bannerPositionY:80,effectSpeed:"slow",effectIntensity:"subtle",profileEffect:"butterflies"},guest.token);
+ assert.equal(result.status,200);assert.equal(result.user.banner,gif);assert.equal(result.user.bannerPositionY,80);
+ const profile=await req("/api/users/"+guest.user.id,"GET",undefined,owner.token);
+ assert.equal(profile.user.banner,gif);assert.equal(profile.user.bannerPositionX,25);assert(profile.user.badges.includes("nitro_classic"));
+ const invalid=await req("/api/auth/me","PATCH",{bannerPositionY:101,bio:"invalid changes"},guest.token);assert.equal(invalid.status,400);
+ assert.equal((await req("/api/auth/me","GET",undefined,guest.token)).user.bannerPositionY,80);
+ await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"canceled"},admin.token);
+});
+test("favorito acompanha seleção e limpa quando remove jogos",async()=>{
+ const games=(await req("/api/games","GET",undefined,guest.token)).games;
+ const result=await req("/api/auth/me","PATCH",{favoriteGame:"valor antigo",gameInterests:[games[0].id,games[1].id]},guest.token);
+ assert.equal(result.user.favoriteGame,games[0].name);
+ assert.deepEqual((await req("/api/users/"+guest.user.id,"GET",undefined,owner.token)).user.gameInterests,[games[0].id,games[1].id]);
+ const cleared=await req("/api/auth/me","PATCH",{gameInterests:[]},guest.token);assert.equal(cleared.user.favoriteGame,"");
+});
 test("novos cosméticos são aceitos e persistidos",async()=>{
  const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"fireflies",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
  assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"fireflies");assert.equal(result.user.nameEffect,"rainbow");
