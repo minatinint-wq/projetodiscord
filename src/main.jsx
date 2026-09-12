@@ -63,7 +63,7 @@ const BADGES = {
   },
   nitro_classic: {
     label: "Nitro Classic",
-    image: "/badges/nitro-classic.svg",
+    image: "/badges/nitro-classic.png",
   },
   verificado: { label: "Perfil verificado", image: "/badges/verified.svg" },
   moderador: { label: "Moderador", image: "/badges/moderator.svg" },
