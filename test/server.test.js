@@ -236,6 +236,22 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   assert.equal(memberForbidden.response.status, 403);
   assert.notEqual(created.payload.server.inviteCode, created.payload.server.id);
 
+  const visibleProfile = await request(`/api/users/${login.payload.user.id}`, {
+    headers: secondAuth,
+  });
+  assert.equal(visibleProfile.response.status, 200);
+  assert.ok(visibleProfile.payload.user.createdAt);
+
+  const friendRequest = await request("/api/friends", {
+    method: "POST",
+    headers: secondAuth,
+    body: JSON.stringify({ username: login.payload.user.username }),
+  });
+  assert.equal(friendRequest.response.status, 201);
+  const visitorStillLoggedIn = await request("/api/auth/me", { headers: secondAuth });
+  assert.equal(visitorStillLoggedIn.response.status, 200);
+  assert.equal(visitorStillLoggedIn.payload.user.id, secondUser.payload.user.id);
+
   const voiceChannel = created.payload.server.channels.find(
     (channel) => channel.type === "voice",
   );
@@ -255,62 +271,15 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     );
     await ownerJoined;
 
-    const roomReady = waitForSocketEvent(
-      ownerSocket,
-      (event) =>
-        event.type === "voice.participants" &&
-        event.participants.length === 2,
+    const visitorDenied = waitForSocketEvent(
+      visitorSocket,
+      (event) => event.type === "voice.denied" && event.channelId === voiceChannel.id,
     );
     visitorSocket.send(
       JSON.stringify({ type: "voice.join", channelId: voiceChannel.id }),
     );
-    const orderedRoom = await roomReady;
-    assert.deepEqual(
-      orderedRoom.participants.map((participant) => participant.id),
-      [login.payload.user.id, secondUser.payload.user.id],
-    );
-
-    const mediaUpdated = waitForSocketEvent(
-      ownerSocket,
-      (event) =>
-        event.type === "voice.participants" &&
-        event.participants.some(
-          (participant) =>
-            participant.id === secondUser.payload.user.id &&
-            participant.camera &&
-            participant.screen,
-        ),
-    );
-    visitorSocket.send(
-      JSON.stringify({
-        type: "voice.media",
-        channelId: voiceChannel.id,
-        camera: true,
-        screen: true,
-      }),
-    );
-    const mediaEvent = await mediaUpdated;
-    const visitorState = mediaEvent.participants.find(
-      (participant) => participant.id === secondUser.payload.user.id,
-    );
-    assert.equal(visitorState.camera, true);
-    assert.equal(visitorState.screen, true);
-
-    const offerRelayed = waitForSocketEvent(
-      ownerSocket,
-      (event) =>
-        event.type === "voice.offer" &&
-        event.fromUserId === secondUser.payload.user.id,
-    );
-    visitorSocket.send(
-      JSON.stringify({
-        type: "voice.offer",
-        targetUserId: login.payload.user.id,
-        offer: { type: "offer", sdp: "smoke-test" },
-      }),
-    );
-    const offer = await offerRelayed;
-    assert.equal(offer.offer.sdp, "smoke-test");
+    const denied = await visitorDenied;
+    assert.equal(denied.reason, "Confirme seu e-mail para entrar em chamadas de voz.");
   } finally {
     ownerSocket.close();
     visitorSocket.close();

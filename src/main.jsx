@@ -2076,6 +2076,8 @@ function LandingPage() {
 
 function AuthScreen({ onLogin, lockedEmail = "" }) {
   const [register, setRegister] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
+  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get("reset_password") || "");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     username: lockedEmail,
@@ -2087,6 +2089,8 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  async function submitForgot(event) { event.preventDefault(); setLoading(true); try { await api.forgotPassword(form.username); setError("Se a conta existir, enviamos um link de recuperação para o e-mail cadastrado."); } catch (err) { setError(err.message); } finally { setLoading(false); } }
+  async function submitReset(event) { event.preventDefault(); setLoading(true); try { await api.resetPassword(resetToken, form.password); window.history.replaceState({}, "", "/app"); setForgotPassword(false); setError("Senha alterada. Entre com sua nova senha."); } catch (err) { setError(err.message); } finally { setLoading(false); } }
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -2157,7 +2161,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             </p>
           </div>
 
-          <form onSubmit={submit}>
+          <form onSubmit={resetToken ? submitReset : forgotPassword ? submitForgot : submit}>
             {register && (
               <label className="auth-field">
                 <span>Nome de exibição</span>
@@ -2172,7 +2176,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 />
               </label>
             )}
-            {!lockedEmail ? (
+            {!resetToken && !register && !forgotPassword && (!lockedEmail ? (
             <label className="auth-field">
               <span>Usuário ou e-mail</span>
               <input
@@ -2189,7 +2193,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 <span>CONTA ADMINISTRATIVA</span>
                 <strong>{lockedEmail}</strong>
               </div>
-            )}
+            ))}
             {register && (
               <label className="auth-field">
                 <span>E-mail</span>
@@ -2216,8 +2220,8 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 />
               </label>
             )}
-            <label className="auth-field">
-              <span>Senha</span>
+            {!forgotPassword && <label className="auth-field">
+              <span>{resetToken ? "Nova senha" : "Senha"}</span>
               <div className="auth-password-field">
                 <input
                   required
@@ -2238,14 +2242,15 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </label>
+            </label>}
+            {forgotPassword && <label className="auth-field"><span>Usuário ou e-mail</span><input required autoFocus value={form.username} placeholder="Digite seu usuário ou e-mail" onChange={(e) => setForm({ ...form, username: e.target.value })} /></label>}
             {error && (
               <div className="form-error" role="alert">
                 {error}
               </div>
             )}
             <button className="auth-submit" disabled={loading}>
-              {loading ? "Entrando..." : register ? "Criar conta" : "Entrar"}
+              {loading ? "Enviando..." : resetToken ? "Salvar nova senha" : forgotPassword ? "Enviar link de recuperação" : register ? "Criar conta" : "Entrar"}
             </button>
           </form>
 
@@ -2261,7 +2266,9 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             </div>
           )}
 
-          <div className="auth-switch-row">
+          {!resetToken && !forgotPassword && !register && <button className="auth-forgot" type="button" onClick={() => { setForgotPassword(true); setError(""); }}>Esqueci minha senha</button>}
+          {(forgotPassword || resetToken) && <button className="auth-forgot" type="button" onClick={() => { window.history.replaceState({}, "", "/app"); setForgotPassword(false); setError(""); }}>Voltar para entrar</button>}
+          {!resetToken && !forgotPassword && <div className="auth-switch-row">
             <span>{register ? "Já faz parte?" : "Novo por aqui?"}</span>
             <button
               className="auth-switch"
@@ -2272,7 +2279,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             >
               {register ? "Entrar na minha conta" : "Criar uma conta"}
             </button>
-          </div>
+          </div>}
         </section>
       </div>
     </div>
@@ -3101,7 +3108,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           ),
         );
         // User updates are broadcast to all connected people. Only the
-        // matching event may refresh this browser''s authenticated session.
+        // matching event may refresh this browser's authenticated session.
         if (event.user.id === currentUser.id) onUserUpdate(event.user);
       }
       if (event.type === "friends.updated")
@@ -3629,7 +3636,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   function copyInvite(server = selectedServer) {
     const inviteCode = server.inviteCode || server.id;
-    copyText(inviteCode, `Convite personalizado "${inviteCode}" copiado.`);
+    const inviteUrl = `${window.location.origin}/app?invite=${encodeURIComponent(inviteCode)}`;
+    copyText(inviteUrl, "Link completo do convite copiado.");
   }
   async function customizeInvite(server) {
     if (server.role !== "owner") {
@@ -4022,9 +4030,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       // Mantem o texto original quando o link tem escape invalido.
     }
     const invite =
-      decodedInvite.match(
-        /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
-      )?.[0] ||
+      decodedInvite.match(/[?&]invite=([^&#/]+)/i)?.[1] ||
+      decodedInvite.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ||
       decodedInvite.replace(/[?#].*$/, "").split("/").filter(Boolean).at(-1) ||
       "";
     if (!invite || modal.busy) return;
@@ -4192,8 +4199,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const guideActive =
     guideServer === selectedServer?.id &&
     !localStorage.getItem(`sesh_guide_${selectedServer?.id}`);
+  async function resendEmailVerification() { try { await api.resendVerification(); setNotice("E-mail de confirmação reenviado."); } catch (err) { setNotice(err.message); } }
   const overlays = (
     <>
+      {!currentUser.emailVerified && <div className="email-verification-banner"><span>Confirme seu e-mail para liberar chamadas de voz.</span><button onClick={resendEmailVerification}>Reenviar e-mail</button></div>}
       {serverSettingsOpen && selectedServer && (
         <ServerSettingsPanel
           server={selectedServer}

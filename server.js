@@ -19,6 +19,9 @@ const CORS_ORIGIN = String(process.env.CORS_ORIGIN || "").trim();
 const DATA_ENCRYPTION_KEY = String(
   process.env.DATA_ENCRYPTION_KEY || "",
 ).trim();
+const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
+const RESEND_FROM_EMAIL = String(process.env.RESEND_FROM_EMAIL || "").trim();
+const SESH_PUBLIC_URL = String(process.env.SESH_PUBLIC_URL || "").trim().replace(/\/$/, "");
 const COLLECTIONS = [
   "users",
   "servers",
@@ -28,6 +31,8 @@ const COLLECTIONS = [
   "adminCatalog",
   "subscriptions",
   "friendships",
+  "emailVerifications",
+  "passwordResets",
 ];
 const sessions = new Map();
 const wsTickets = new Map();
@@ -205,6 +210,7 @@ const normalizeDatabase = (input) => {
     favoriteGame: user.favoriteGame || "",
     activityText: user.activityText || "",
     wishlist: user.wishlist || "",
+    emailVerifiedAt: user.emailVerifiedAt === undefined ? now() : user.emailVerifiedAt,
   }));
   normalized.servers = normalized.servers.map((server) => {
     const candidateTag = String(server.tag || server.name || "SESH")
@@ -365,6 +371,7 @@ async function loadDatabase() {
       username: "demo",
       displayName: "Usuário Demo",
       email: "demo@sesh.local",
+      emailVerifiedAt: now(),
       password,
       avatarColor: "purple",
       createdAt: now(),
@@ -390,6 +397,7 @@ async function loadDatabase() {
         username,
         displayName: "Admin Master",
         email: MASTER_ADMIN_EMAIL,
+        emailVerifiedAt: now(),
         password: hashPassword(MASTER_ADMIN_PASSWORD),
         avatarColor: "red",
         badges: ["criador"],
@@ -543,10 +551,41 @@ function badgesForUser(user) {
     ...subscriptionBadges(user),
   ])];
 }
+async function issueEmailVerification(user) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== user.id);
+  database.emailVerifications.push({
+    id: id(), userId: user.id,
+    tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
+    createdAt: now(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  });
+  await saveDatabase();
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !SESH_PUBLIC_URL) return { sent: false, configured: false };
+  const verificationUrl = `${SESH_PUBLIC_URL}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [user.email], subject: "Confirme seu e-mail no Sesh", html: `<p>Olá, ${user.displayName}.</p><p>Confirme seu e-mail para liberar chamadas de voz:</p><p><a href="${verificationUrl}">Confirmar e-mail</a></p><p>Este link expira em 24 horas.</p>` }),
+  });
+  if (!response.ok) throw new Error("Não foi possível enviar o e-mail de confirmação.");
+  return { sent: true, configured: true };
+}
+async function issuePasswordReset(user) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  database.passwordResets = database.passwordResets.filter((item) => item.userId !== user.id);
+  database.passwordResets.push({ id: id(), userId: user.id, tokenHash: crypto.createHash("sha256").update(token).digest("hex"), createdAt: now(), expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  await saveDatabase();
+  if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !SESH_PUBLIC_URL) return { sent: false };
+  const resetUrl = `${SESH_PUBLIC_URL}/app?reset_password=${encodeURIComponent(token)}`;
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [user.email], subject: "Redefina sua senha do Sesh", html: `<p><a href="${resetUrl}">Criar nova senha</a></p><p>Expira em 1 hora.</p>` }) });
+  if (!response.ok) throw new Error("Não foi possível enviar o e-mail de recuperação.");
+  return { sent: true };
+}
 function sessionUser(user) {
   return {
     ...publicUser(user),
     email: user.email || "",
+    emailVerified: Boolean(user.emailVerifiedAt),
     isCreator: isCreator(user),
     isMasterAdmin: isMasterAdmin(user),
   };
@@ -871,6 +910,20 @@ async function handler(req, res) {
       if (pgClient) await pgClient.query("SELECT 1");
       return json(res, 200, { ok: true });
     }
+    if (url.pathname === "/api/auth/verify-email" && req.method === "GET") {
+      const token = String(url.searchParams.get("token") || "");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const record = database.emailVerifications.find((item) => item.tokenHash === tokenHash);
+      if (!record || new Date(record.expiresAt).getTime() < Date.now())
+        return json(res, 400, { error: "Link de confirmação inválido ou expirado." });
+      const target = database.users.find((item) => item.id === record.userId);
+      if (!target) return json(res, 404, { error: "Conta não encontrada." });
+      target.emailVerifiedAt = now();
+      database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== target.id);
+      await saveDatabase();
+      res.writeHead(302, { Location: "/app?email_verified=1" });
+      return res.end();
+    }
     if (url.pathname === "/api/auth/register" && req.method === "POST") {
       const input = await body(req);
       const username = String(input.username || "")
@@ -916,6 +969,7 @@ async function handler(req, res) {
         displayName,
         email,
         phone: phoneDigits || null,
+        emailVerifiedAt: null,
         password: hashPassword(input.password),
         avatarColor: "purple",
         createdAt: now(),
@@ -925,7 +979,23 @@ async function handler(req, res) {
       const token = id();
       sessions.set(token, user.id);
       setSessionCookie(res, token);
-      return json(res, 201, { token, user: sessionUser(user) });
+      let verificationEmailSent = false;
+      try { verificationEmailSent = (await issueEmailVerification(user)).sent; } catch {}
+      return json(res, 201, { token, user: sessionUser(user), verificationEmailSent });
+    }
+    if (url.pathname === "/api/auth/forgot-password" && req.method === "POST") {
+      const input = await body(req); const identifier = String(input.identifier || "").trim().toLowerCase();
+      const target = database.users.find((item) => item.username === identifier || (item.email || "").toLowerCase() === identifier);
+      if (target) { try { await issuePasswordReset(target); } catch {} }
+      return json(res, 200, { ok: true });
+    }
+    if (url.pathname === "/api/auth/reset-password" && req.method === "POST") {
+      const input = await body(req); const tokenHash = crypto.createHash("sha256").update(String(input.token || "")).digest("hex");
+      const record = database.passwordResets.find((item) => item.tokenHash === tokenHash);
+      if (!record || new Date(record.expiresAt).getTime() < Date.now()) return json(res, 400, { error: "Link de recuperação inválido ou expirado." });
+      if (String(input.password || "").length < 6) return json(res, 400, { error: "A senha precisa ter pelo menos 6 caracteres." });
+      const target = database.users.find((item) => item.id === record.userId); if (!target) return json(res, 404, { error: "Conta não encontrada." });
+      target.password = hashPassword(String(input.password)); database.passwordResets = database.passwordResets.filter((item) => item.userId !== target.id); await saveDatabase(); return json(res, 200, { ok: true });
     }
     if (url.pathname === "/api/auth/login" && req.method === "POST") {
       const input = await body(req);
@@ -1108,6 +1178,17 @@ async function handler(req, res) {
       await saveDatabase();
       return json(res, 200, { ok: true });
     }
+    if (url.pathname === "/api/auth/resend-verification" && req.method === "POST") {
+      if (user.emailVerifiedAt) return json(res, 400, { error: "Seu e-mail já está confirmado." });
+      const recent = database.emailVerifications.find((item) => item.userId === user.id);
+      if (recent && Date.now() - new Date(recent.createdAt).getTime() < 60_000)
+        return json(res, 429, { error: "Aguarde um minuto para reenviar." });
+      try {
+        const result = await issueEmailVerification(user);
+        if (!result.configured) return json(res, 503, { error: "Envio de e-mail ainda não foi configurado." });
+        return json(res, 200, { ok: true });
+      } catch (err) { return json(res, 502, { error: err.message }); }
+    }
     if (url.pathname === "/api/auth/me" && req.method === "GET") {
       if (req.headers.authorization) setSessionCookie(res, sessionToken(req));
       return json(res, 200, { user: sessionUser(user) });
@@ -1149,7 +1230,11 @@ async function handler(req, res) {
           )
         )
           return json(res, 409, { error: "Este e-mail já está cadastrado." });
-        user.email = email;
+        if (email !== user.email) {
+          user.email = email;
+          user.emailVerifiedAt = null;
+          database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== user.id);
+        }
       }
       if (input.password !== undefined) {
         if (String(input.password).length < 6)
@@ -1936,8 +2021,8 @@ wss.on("connection", (socket, req) => {
         if (!voiceRooms.has(channel.id)) voiceRooms.set(channel.id, new Map());
         const caller = database.users.find((item) => item.id === userId);
         const membership = membershipFor(caller, channel.serverId);
-        if (event.type === "voice.join" && (!hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
-          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
+        if (event.type === "voice.join" && (!caller.emailVerifiedAt || !hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
+          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: !caller.emailVerifiedAt ? "Confirme seu e-mail para entrar em chamadas de voz." : membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
           return;
         }
         const room = voiceRooms.get(channel.id);

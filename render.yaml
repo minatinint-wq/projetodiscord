@@ -25,7 +25,12 @@ services:
         sync: false
       - key: CREATOR_EMAIL
         sync: false
-
+      - key: SESH_PUBLIC_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
   # Uma chamada externa a cada 10 min mantém o serviço acessível em planos
   # que não suspendem processos. Informe a URL pública após o primeiro deploy.
   - type: cron
