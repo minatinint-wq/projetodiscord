@@ -1,5 +1,6 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { GAME_CATALOG } from "../game-catalog.js";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -406,6 +407,16 @@ function WorkingFontStyleModal({ user, onClose, onApply }) {
     "desenho",
     "pop",
     "gummy",
+    "rgb",
+    "rainbow",
+    "pink_pulse",
+    "blue_gradient",
+    "aurora",
+    "holographic",
+    "glitch",
+    "fire",
+    "ice",
+    "starlight",
     "prism",
   ];
   const colors = PROFILE_NAME_COLORS;
@@ -503,6 +514,11 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItem
               ["sparkles", "Brilhos"],
               ["glow", "Brilho"],
               ["embers", "Faíscas"],
+              ["aurora", "Aurora"],
+              ["confetti", "Confete"],
+              ["hearts", "Corações"],
+              ["cosmic", "Cósmico"],
+              ["lightning", "Raio"],
             ], "effect")
           : kind === "frame"
             ? catalogOptions([
@@ -511,6 +527,12 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItem
                 ["gold", "Dourada"],
                 ["neon", "Neon"],
                 ["ice", "Cristal"],
+                ["rainbow", "RGB"],
+                ["sakura", "Sakura"],
+                ["galaxy", "Galáxia"],
+                ["inferno", "Inferno"],
+                ["ocean", "Oceano"],
+                ["cyber", "Cyber"],
               ], "frame")
             : [
                 ["default", "Padrão"],
@@ -1320,10 +1342,17 @@ function ProfileSettingsPanel({
     profilePlate: user.profilePlate || "default",
     profileEffect: user.profileEffect || "none",
     avatarFrame: user.avatarFrame || "none",
+    gameInterests: user.gameInterests || [],
     favoriteGame: user.favoriteGame || "",
     activityText: user.activityText || "",
     wishlist: user.wishlist || "",
   });
+  const [gameQuery, setGameQuery] = useState("");
+  const filteredGames = useMemo(() => GAME_CATALOG.filter((game) =>
+    !gameQuery.trim() || game.name.toLowerCase().includes(gameQuery.trim().toLowerCase()),
+  ).slice(0, 80), [gameQuery]);
+  const toggleGame = (game) => update("gameInterests", form.gameInterests.includes(game.id)
+    ? form.gameInterests.filter((gameId) => gameId !== game.id) : [...form.gameInterests, game.id].slice(0, 12));
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === "Escape") onClose();
@@ -1520,6 +1549,25 @@ function ProfileSettingsPanel({
                       }
                     />
                   </label>
+                </div>
+                <div className="game-interest-picker">
+                  <div className="game-interest-head">
+                    <strong>Jogos de interesse</strong>
+                    <span>{form.gameInterests.length}/12</span>
+                  </div>
+                  <input
+                    value={gameQuery}
+                    placeholder="Pesquisar nos 400 jogos mais populares"
+                    onChange={(event) => setGameQuery(event.target.value)}
+                  />
+                  <div className="game-interest-list">
+                    {filteredGames.map((game) => (
+                      <button type="button" key={game.id} className={form.gameInterests.includes(game.id) ? "game-interest-selected" : ""} onClick={() => toggleGame(game)}>
+                        <span className="game-interest-icon" style={{ background: game.accent }}>{game.name.slice(0, 1)}</span>
+                        <span>{game.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
               <div className="profile-settings-fields">
@@ -1962,6 +2010,7 @@ function LandingPage() {
           <span>Sesh</span>
         </a>
         <p>Comunicação local em desenvolvimento.</p>
+        <a href="/legal.html">Termos, privacidade e comunidade</a>
         <a href="/app">Entrar</a>
       </footer>
     </main>
@@ -2701,10 +2750,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     if (selectedServer && homeTab.startsWith("dm:")) setHomeTab("online");
   }, [selectedServer, homeTab]);
   useEffect(() => {
-    if (!currentUser.isMasterAdmin) return;
+    const ownMember = members.find((member) => member.id === currentUser.id);
+    const canModerate = Boolean(
+      selectedServer && (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
+    );
+    if (!currentUser.isMasterAdmin && !canModerate) return;
     const onContextMenu = (event) => {
       const card = event.target.closest(".profile-card");
-      if (card && profileData?.user) {
+      if (card && profileData?.user && currentUser.isMasterAdmin) {
         event.preventDefault();
         event.stopPropagation();
         setBadgeMenu({
@@ -2740,11 +2793,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         x: Math.min(event.clientX, window.innerWidth - 240),
         y: Math.min(event.clientY, window.innerHeight - 70),
         user: target,
+        currentUserId: currentUser.id,
+        canModerate,
+        onProfile: () => setProfileView({ userId: target.id }),
       });
     };
     document.addEventListener("contextmenu", onContextMenu);
     return () => document.removeEventListener("contextmenu", onContextMenu);
-  }, [currentUser.isMasterAdmin, profileData, members, messages, voiceStates]);
+  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer]);
   useEffect(() => {
     api
       .servers()
@@ -3473,6 +3529,22 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setNotice(err.message);
     }
   }
+  async function moderateMember(target, input) {
+    if (!selectedServer || !target) return;
+    try {
+      const result = await api.moderateMember(selectedServer.id, target.id, input);
+      setMembers((current) => current.map((member) =>
+        member.id === result.member.id ? { ...member, ...result.member } : member,
+      ));
+      setNotice(input.textMuted !== undefined
+        ? result.member.textMuted ? "Chat silenciado no servidor." : "Chat liberado."
+        : result.member.voiceMuted ? "Voz silenciada no servidor." : "Voz liberada.");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBadgeMenu(null);
+    }
+  }
   function onAvatarFile(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -3538,6 +3610,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         banner: form.banner,
         email: form.email,
         favoriteGame: form.favoriteGame,
+        gameInterests: form.gameInterests,
         activityText: form.activityText,
         wishlist: form.wishlist,
       };
@@ -4675,7 +4748,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       {badgeMenu && (
         <BadgeContextMenu
           menu={badgeMenu}
-          onAdd={() => openBadgeEditor(badgeMenu.user)}
+          onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
+          onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
         />
       )}
       {badgeEditor && (

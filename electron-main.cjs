@@ -5,6 +5,7 @@ const {
   session,
   desktopCapturer,
   safeStorage,
+  shell,
 } = require("electron");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -15,6 +16,40 @@ const { pathToFileURL } = require("node:url");
 let backend;
 let window;
 const backendPort = app.isPackaged ? 38471 : 3001;
+function isNewerVersion(candidate, current) {
+  const parse = (value) => String(value || "0.0.0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const next = parse(candidate);
+  const installed = parse(current);
+  for (let index = 0; index < 3; index += 1) {
+    if (next[index] !== installed[index]) return next[index] > installed[index];
+  }
+  return false;
+}
+async function checkForUpdates() {
+  const manifestUrl = String(process.env.SESH_UPDATE_MANIFEST_URL || "https://sesh-web.onrender.com/releases/latest.json").trim();
+  if (!app.isPackaged || !manifestUrl) return;
+  try {
+    const response = await fetch(manifestUrl, {
+      headers: { "user-agent": `Sesh/${app.getVersion()}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    const manifest = await response.json();
+    if (!response.ok || !isNewerVersion(manifest.version, app.getVersion()) || !/^https?:\/\//.test(manifest.downloadUrl || "")) return;
+    const result = await dialog.showMessageBox(window, {
+      type: "info",
+      title: "Atualização do Sesh disponível",
+      message: `A versão ${manifest.version} está disponível.`,
+      detail: manifest.notes || "Baixe o novo pacote para continuar com recursos e correções atuais.",
+      buttons: ["Atualizar agora", "Mais tarde"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (result.response === 0) await shell.openExternal(manifest.downloadUrl);
+  } catch {
+    // Atualizações são opcionais; a ausência temporária do manifesto não bloqueia o app.
+  }
+}
 
 function encryptedDataKey() {
   if (!safeStorage.isEncryptionAvailable())
@@ -143,6 +178,7 @@ app.whenReady().then(async () => {
     return;
   }
   createWindow();
+  setTimeout(checkForUpdates, 2_500);
 });
 app.on("window-all-closed", () => {
   if (backend?.listening) backend.close();

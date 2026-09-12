@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
+import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "data");
@@ -484,6 +485,7 @@ function publicUser(user) {
     profileEffect: user.profileEffect || "none",
     avatarFrame: user.avatarFrame || "none",
     favoriteGame: user.favoriteGame || "",
+    gameInterests: Array.isArray(user.gameInterests) ? user.gameInterests.filter((gameId) => GAME_IDS.has(gameId)).slice(0, 12) : [],
     activityText: user.activityText || "",
     wishlist: user.wishlist || "",
   };
@@ -1054,6 +1056,13 @@ async function handler(req, res) {
       return json(res, 200, {
         items: database.adminCatalog.filter((item) => item.active !== false),
       });
+    if (url.pathname === "/api/games" && req.method === "GET") {
+      const query = String(url.searchParams.get("q") || "").trim().toLowerCase();
+      return json(res, 200, {
+        games: GAME_CATALOG.filter((game) => !query || game.name.toLowerCase().includes(query))
+          .slice(0, 400),
+      });
+    }
     if (url.pathname === "/api/admin/catalog" && req.method === "GET") {
       if (!isMasterAdmin(user))
         return json(res, 403, { error: "Acesso de admin master necessário." });
@@ -1249,6 +1258,15 @@ async function handler(req, res) {
         user.favoriteGame = String(input.favoriteGame || "")
           .trim()
           .slice(0, 80);
+      if (input.gameInterests !== undefined) {
+        if (!Array.isArray(input.gameInterests))
+          return json(res, 400, { error: "Lista de jogos inválida." });
+        user.gameInterests = [...new Set(input.gameInterests.map(String))]
+          .filter((gameId) => GAME_IDS.has(gameId))
+          .slice(0, 12);
+        if (input.favoriteGame === undefined && user.gameInterests[0])
+          user.favoriteGame = GAME_CATALOG.find((game) => game.id === user.gameInterests[0])?.name || "";
+      }
       if (input.activityText !== undefined)
         user.activityText = String(input.activityText || "")
           .trim()
