@@ -271,15 +271,18 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     );
     await ownerJoined;
 
-    const visitorDenied = waitForSocketEvent(
-      visitorSocket,
-      (event) => event.type === "voice.denied" && event.channelId === voiceChannel.id,
+    const roomReady = waitForSocketEvent(
+      ownerSocket,
+      (event) => event.type === "voice.participants" && event.participants.length === 2,
     );
     visitorSocket.send(
       JSON.stringify({ type: "voice.join", channelId: voiceChannel.id }),
     );
-    const denied = await visitorDenied;
-    assert.equal(denied.reason, "Confirme seu e-mail para entrar em chamadas de voz.");
+    const room = await roomReady;
+    assert.deepEqual(
+      room.participants.map((participant) => participant.id),
+      [login.payload.user.id, secondUser.payload.user.id],
+    );
   } finally {
     ownerSocket.close();
     visitorSocket.close();

@@ -958,7 +958,7 @@ async function handler(req, res) {
         displayName,
         email,
         phone: phoneDigits || null,
-        emailVerifiedAt: null,
+        emailVerifiedAt: now(),
         password: hashPassword(input.password),
         avatarColor: "purple",
         createdAt: now(),
@@ -1207,8 +1207,6 @@ async function handler(req, res) {
           return json(res, 409, { error: "Este e-mail já está cadastrado." });
         if (email !== user.email) {
           user.email = email;
-          user.emailVerifiedAt = null;
-          database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== user.id);
         }
       }
       if (input.password !== undefined) {
@@ -1996,8 +1994,8 @@ wss.on("connection", (socket, req) => {
         if (!voiceRooms.has(channel.id)) voiceRooms.set(channel.id, new Map());
         const caller = database.users.find((item) => item.id === userId);
         const membership = membershipFor(caller, channel.serverId);
-        if (event.type === "voice.join" && (!caller.emailVerifiedAt || !hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
-          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: !caller.emailVerifiedAt ? "Confirme seu e-mail para entrar em chamadas de voz." : membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
+        if (event.type === "voice.join" && (!hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
+          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
           return;
         }
         const room = voiceRooms.get(channel.id);

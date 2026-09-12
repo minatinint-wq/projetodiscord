@@ -4217,10 +4217,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const guideActive =
     guideServer === selectedServer?.id &&
     !localStorage.getItem(`sesh_guide_${selectedServer?.id}`);
-  async function resendEmailVerification() { try { await api.resendVerification(); setNotice("E-mail de confirmação reenviado."); } catch (err) { setNotice(err.message); } }
   const overlays = (
     <>
-      {!currentUser.emailVerified && <div className="email-verification-banner"><span>Confirme seu e-mail para liberar chamadas de voz.</span><button onClick={resendEmailVerification}>Reenviar e-mail</button></div>}
       {serverSettingsOpen && selectedServer && (
         <ServerSettingsPanel
           server={selectedServer}
