@@ -1,0 +1,20 @@
+import {test,expect} from "@playwright/test";
+test("sobreposição e cores aparecem na prévia e no perfil após salvar",async({page})=>{
+ const errors=[];page.on("pageerror",e=>errors.push(e.message));
+ await page.request.post("/api/auth/login",{data:{username:"demo",password:"demo123"}});
+ await page.goto("/app");await page.getByTitle("Configurações",{exact:true}).click();await page.getByRole("button",{name:"Editar perfil e conta"}).click();
+ const editor=page.getByRole("dialog",{name:"Editar perfil",exact:true});
+ await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
+ await editor.getByRole("button",{name:"Anéis orbitais",exact:true}).click();
+ await editor.getByLabel("Cor de fundo",{exact:true}).fill("#080c30");
+ await editor.getByLabel("Cor de destaque",{exact:true}).fill("#81bcff");
+ await expect(editor.locator(".identity-card .overlay-orbital")).toBeVisible();
+ await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+ await editor.getByLabel("Fechar perfil",{exact:true}).click();
+ await page.getByTitle("Abrir meu perfil",{exact:true}).click();await page.getByRole("button",{name:"Ver perfil completo"}).click();
+ await expect(page.locator(".identity-dialog>.overlay-orbital")).toBeVisible();
+ await expect(page.locator(".identity-dialog")).toHaveCSS("--profile-surface","#080c30");
+ await expect(page.locator(".identity-dialog")).toHaveCSS("--profile-accent","#81bcff");
+ await page.screenshot({path:"test-results/profile-overlay.png"});
+ expect(errors).toEqual([]);
+});

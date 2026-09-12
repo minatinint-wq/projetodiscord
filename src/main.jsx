@@ -2671,6 +2671,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         banner: form.banner,
         bannerPreset: form.bannerPreset, bannerPositionX: form.bannerPositionX, bannerPositionY: form.bannerPositionY,
         effectIntensity: form.effectIntensity, effectSpeed: form.effectSpeed,
+        profileOverlay: form.profileOverlay, profilePrimaryColor: form.profilePrimaryColor, profileAccentColor: form.profileAccentColor,
         email: form.email,
         favoriteGame: form.favoriteGame,
         gameInterests: form.gameInterests,

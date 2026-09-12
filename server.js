@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
-import { PROFILE_EFFECTS, AVATAR_FRAMES } from "./cosmetics.js";
+import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS } from "./cosmetics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -530,6 +530,9 @@ function publicUser(user) {
     bannerPositionY: user.bannerPositionY ?? 50,
     effectIntensity: user.effectIntensity || "balanced",
     effectSpeed: user.effectSpeed || "normal",
+    profileOverlay: user.profileOverlay || "none",
+    profilePrimaryColor: user.profilePrimaryColor || null,
+    profileAccentColor: user.profileAccentColor || null,
     bio: user.bio || "",
     badges: badgesForUser(user),
     status: user.status || "online",
@@ -1393,6 +1396,12 @@ async function handler(req, res) {
         ].includes(input.nameEffect)
           ? input.nameEffect
           : "solid";
+      for (const field of ["profilePrimaryColor", "profileAccentColor"]) {
+        if (input[field] === undefined) continue;
+        if (input[field] !== null && (typeof input[field] !== "string" || !/^#[0-9a-fA-F]{6}$/.test(input[field])))
+          return json(res, 400, {error: "Cor do perfil inválida."});
+        user[field] = input[field];
+      }
       for (const field of ["bannerPositionX", "bannerPositionY"]) {
         if (input[field] === undefined) continue;
         if (typeof input[field] !== "number" || !Number.isFinite(input[field]) || input[field] < 0 || input[field] > 100)
@@ -1401,7 +1410,8 @@ async function handler(req, res) {
       }
       for (const [field, allowed] of Object.entries({
         bannerPreset: ["aurora","midnight","sunset","ocean","forest","candy","ember","silver"],
-        effectIntensity: ["subtle","balanced","vivid"], effectSpeed: ["slow","normal","fast"]
+        effectIntensity: ["subtle","balanced","vivid"], effectSpeed: ["slow","normal","fast"],
+        profileOverlay: PROFILE_OVERLAYS.map(([id])=>id)
       })) {
         if (input[field] === undefined) continue;
         if (!allowed.includes(input[field])) return json(res, 400, {error: "Personalização de perfil inválida."});

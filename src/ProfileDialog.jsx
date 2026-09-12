@@ -3,6 +3,8 @@ import {X,Gamepad2,MessageSquare,UserPlus,Volume2,PenLine,Sparkles,Heart} from "
 import ProfileCard from "./ProfileCard";
 import {GameIcon,StyledName} from "./ProfileIdentity";
 import {GAME_CATALOG} from "../game-catalog";
+import {profilePresentation} from "./profilePresentation";
+import ProfileOverlay from "./ProfileOverlay";
 export default function ProfileDialog({data,currentUser,onClose,onRetry,onEdit,onMessage,onAddFriend,onVoice,Avatar,ProfileEffectLayer,renderBadges,presence,isFriend,serverRole}){
  const [tab,setTab]=useState("profile"),root=useRef(null);
  useEffect(()=>{const previous=document.activeElement;root.current?.querySelector("button")?.focus();return()=>previous?.isConnected&&previous.focus();},[]);
@@ -18,7 +20,8 @@ export default function ProfileDialog({data,currentUser,onClose,onRetry,onEdit,o
   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
  }
  return <div className="identity-backdrop" onClick={event=>event.target===event.currentTarget&&onClose()} onKeyDown={keyDown}>
- <section ref={root} className="identity-dialog" role="dialog" aria-modal="true" aria-label={user?"Perfil de "+user.displayName:"Perfil"}>
+ <section ref={root} className="identity-dialog" style={profilePresentation(user||{})} role="dialog" aria-modal="true" aria-label={user?"Perfil de "+user.displayName:"Perfil"}>
+ <ProfileOverlay effect={user?.profileOverlay}/>
  <button className="identity-close" onClick={onClose} aria-label="Fechar perfil"><X size={20}/></button>
  {!user?<div className="identity-loading">{data?.error?<><h2>Não foi possível abrir o perfil</h2><p role="alert">{data.error}</p><button className="prompt-confirm" onClick={onRetry}>Tentar novamente</button></>:<p role="status">Carregando perfil…</p>}</div>:<>
  <aside className="identity-side"><ProfileCard {...{user,Avatar,ProfileEffectLayer,renderBadges,presence}}/>

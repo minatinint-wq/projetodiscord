@@ -2,11 +2,13 @@ import React from "react";
 import {StyledName,GameIcon} from "./ProfileIdentity";
 import {GAME_CATALOG} from "../game-catalog";
 import {bannerPresentation,profilePresentation} from "./profilePresentation";
+import ProfileOverlay from "./ProfileOverlay";
 export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges,presence="offline"}){
  const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(g=>g.id===id)).filter(Boolean);
  return <section className={"identity-card identity-plate-"+(user.profilePlate||"default")} style={profilePresentation(user)} data-effect={user.profileEffect||"none"}>
   <div className="identity-banner" style={bannerPresentation(user)}/>
   <ProfileEffectLayer effect={user.profileEffect}/>
+  <ProfileOverlay effect={user.profileOverlay}/>
   <div className="identity-card-body">
    <div className="identity-avatar"><Avatar user={user}/><span className={"presence-dot presence-"+presence}/></div>
    {!!user.badges?.length&&<div className="identity-badges">{renderBadges?.(user)}</div>}

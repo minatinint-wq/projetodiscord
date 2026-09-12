@@ -12,6 +12,10 @@ export const AVATAR_FRAMES = [
  ["jade","Jade"],["royal","Realeza"],["rose","Quartzo rosa"],["electric","Elétrica"],
  ["halo","Halo"],["blossom","Florescer"],["thorn","Espinhos"],
 ];
+export const PROFILE_OVERLAYS = [
+ ["none","Sem sobreposição"],["orbital","Anéis orbitais"],["runes","Portal rúnico"],
+ ["crystal","Cristais"],["nebula","Nebulosa"],["petals","Jardim lunar"],["circuit","Circuito holográfico"],
+];
 export const NAME_EFFECTS = [
  ["solid","Sólido"],["gradient","Degradê"],["neon","Neon"],["rgb","RGB"],["rainbow","Arco-íris"],
  ["pink_pulse","Rosa pulsante"],["blue_gradient","Azul degradê"],["aurora","Aurora"],

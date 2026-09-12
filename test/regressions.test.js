@@ -116,6 +116,14 @@ test("arquivos de chat são validados e respeitam permissão de anexar",async()=
   assert.equal((await req(route,"POST",{attachment:{...file,...changes}},owner.token)).status,400);
  }
 });
+test("sobreposição e cores personalizadas persistem e validam entradas",async()=>{
+ const input={profileOverlay:"orbital",profilePrimaryColor:"#080c30",profileAccentColor:"#81bcff"};
+ const updated=await req("/api/auth/me","PATCH",input,guest.token);assert.equal(updated.status,200);
+ const publicProfile=await req("/api/users/"+guest.user.id,"GET",undefined,owner.token);
+ for(const [key,value] of Object.entries(input))assert.equal(publicProfile.user[key],value);
+ assert.equal((await req("/api/auth/me","PATCH",{profilePrimaryColor:"url(bad)"},guest.token)).status,400);
+ assert.equal((await req("/api/auth/me","PATCH",{profileOverlay:"unknown"},guest.token)).status,400);
+});
 test("novos cosméticos são aceitos e persistidos",async()=>{
  const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"fireflies",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
  assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"fireflies");assert.equal(result.user.nameEffect,"rainbow");

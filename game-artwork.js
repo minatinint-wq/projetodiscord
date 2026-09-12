@@ -1,22 +1,22 @@
 // Game artwork metadata; original source retained per image.
 export const GAME_ARTWORK = {
   "Counter-Strike 2": {
-    "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/942c04efaa5bc87afb6f2a97dbf17ac614c8a84d/capsule_231x87.jpg?t=1788998864",
+    "url": "https://shared.akamai.steamstatic.com/community_assets/images/apps/730/8dbc71957312bbd3baea65848b545be9eae2a355.jpg",
     "source": "https://store.steampowered.com/app/730/",
     "name": "Counter-Strike 2"
   },
   "Apex Legends": {
-    "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1172470/9d25b2de9ae52a1ec06797daeaf700feba1459cc/capsule_231x87.jpg?t=1786031871",
+    "url": "https://shared.akamai.steamstatic.com/community_assets/images/apps/1172470/8986dd626da56db5f3fe09bc1b8871739de8b00d.jpg",
     "source": "https://store.steampowered.com/app/1172470/",
     "name": "Apex Legends™"
   },
   "Dota 2": {
-    "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/570/capsule_231x87.jpg?t=1769535998",
+    "url": "https://shared.akamai.steamstatic.com/community_assets/images/apps/570/48eb825bb93787945065b460bdc109e395384ebf.jpg",
     "source": "https://store.steampowered.com/app/570/",
     "name": "Dota 2"
   },
   "Call of Duty: Warzone": {
-    "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1962663/7d7e3d61cc753838f539af34419117d2050b4cb0/capsule_231x87_alt_assets_19.jpg?t=1784823026",
+    "url": "https://shared.akamai.steamstatic.com/community_assets/images/apps/1938090/8eaf32220060344996cbf11f697a4f4be943e5f3.jpg",
     "source": "https://store.steampowered.com/app/1962663/",
     "name": "Call of Duty®: Warzone™"
   },
@@ -446,8 +446,8 @@ export const GAME_ARTWORK = {
     "name": "GUILTY GEAR -STRIVE-"
   },
   "Brawlhalla": {
-    "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/291550/f556b92e2c31af26bcc9846e1e1e5d49f0b11175/capsule_231x87_alt_assets_11.jpg?t=1787157167",
-    "source": "https://store.steampowered.com/app/291550/",
+    "url": "https://www.brawlhalla.com/favicon.png",
+    "source": "https://www.brawlhalla.com/",
     "name": "Brawlhalla"
   },
   "Granblue Fantasy Versus: Rising": {
@@ -1416,8 +1416,8 @@ export const GAME_ARTWORK = {
     "name": "Outlast"
   },
   "Minecraft": {
-    "url": "https://thumb.wikimedia.org/wikipedia/en/thumb/b/be/Minecraft_game_logo_2023.png/120px-Minecraft_game_logo_2023.png?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
-    "source": "https://en.wikipedia.org/wiki/File:Minecraft_game_logo_2023.png",
+    "url": "https://www.minecraft.net/etc.clientlibs/minecraftnet/clientlibs/clientlib-site/resources/android-icon-192x192.png",
+    "source": "https://www.minecraft.net/",
     "name": "Minecraft"
   },
   "Roblox": {

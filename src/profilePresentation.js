@@ -14,5 +14,9 @@ export function bannerPresentation(user){
  return {backgroundImage:background.startsWith("#")?"none":background,backgroundColor:background.startsWith("#")?background:undefined,backgroundSize:"cover",backgroundPosition:(user.bannerPositionX??50)+"% "+(user.bannerPositionY??50)+"%"};
 }
 export function profilePresentation(user){
- return {"--profile-accent":PROFILE_THEMES.find(([id])=>id===user.profileTheme)?.[2]||"#9485fa","--profile-effect-opacity":{subtle:.4,balanced:.7,vivid:1}[user.effectIntensity]??.7,"--profile-effect-speed":{slow:1.7,normal:1,fast:.65}[user.effectSpeed]??1};
+ const surface=user.profilePrimaryColor||({purple:"#241b35",pink:"#321d30",blue:"#17283d",green:"#182d26",red:"#321e26",midnight:"#111323",sunset:"#322224",ocean:"#132a30",aurora:"#202033"})[user.profileTheme]||"#191923";
+ const rgb=surface.slice(1).match(/../g).map(c=>parseInt(c,16)),light=rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>150;
+ const end="#"+rgb.map(c=>Math.round(c*.62).toString(16).padStart(2,"0")).join("");
+
+ return {"--profile-surface":surface,"--profile-surface-end":end,"--profile-ink":light?"#20202a":"#edeef4","--profile-muted":light?"#41414e":"#b5b6c9","--profile-accent":user.profileAccentColor||PROFILE_THEMES.find(([id])=>id===user.profileTheme)?.[2]||"#9485fa","--profile-effect-opacity":{subtle:.4,balanced:.7,vivid:1}[user.effectIntensity]??.7,"--profile-effect-speed":{slow:1.7,normal:1,fast:.65}[user.effectSpeed]??1};
 }
