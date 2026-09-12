@@ -1170,61 +1170,34 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onClose }) {
 }
 function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [form, setForm] = useState({
-    name: server.name || "",
-    tag: server.tag || "",
-    icon: server.icon || null,
-    banner: server.banner || null,
-    accentColor: server.accentColor || "#c93642",
-    roles: server.roles || [],
-    memberRoles: Object.fromEntries(
-      members.filter((member) => member.id !== server.ownerId).map((member) => [member.id, member.roleId || "member"]),
-    ),
+    name: server.name || "", tag: server.tag || "", icon: server.icon || null,
+    banner: server.banner || null, accentColor: server.accentColor || "#c93642", roles: server.roles || [],
+    memberRoles: Object.fromEntries(members.filter((member) => member.id !== server.ownerId).map((member) => [member.id, member.roleId || "member"])),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rolesSaved, setRolesSaved] = useState(false);
   const [roleEditorId, setRoleEditorId] = useState(null);
+  const [settingsSection, setSettingsSection] = useState("overview");
   useEffect(() => {
-    const handleEscape = (event) => {
-      if (event.key === "Escape") onClose();
-    };
+    const handleEscape = (event) => { if (event.key === "Escape") onClose(); };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
   function addRole() {
-    setForm((current) => ({
-      ...current,
-      roles: [
-        ...current.roles,
-        {
-          id: `role_${Date.now()}`,
-          name: "Novo cargo",
-          color: "#c93642",
-          style: "solid",
-          permissions: { ...DEFAULT_CUSTOM_ROLE_PERMISSIONS },
-        },
-      ],
-    }));
+    const roleId = `role_${Date.now()}`;
+    setForm((current) => ({ ...current, roles: [...current.roles, { id: roleId, name: "Novo cargo", color: "#c93642", style: "solid", permissions: { ...DEFAULT_CUSTOM_ROLE_PERMISSIONS } }] }));
+    setRoleEditorId(roleId);
   }
   function updateRole(roleId, patch) {
-    setForm((current) => ({
-      ...current,
-      roles: current.roles.map((role) =>
-        role.id === roleId ? { ...role, ...patch } : role,
-      ),
-    }));
+    setForm((current) => ({ ...current, roles: current.roles.map((role) => role.id === roleId ? { ...role, ...patch } : role) }));
   }
   function assignRoleMember(userId, roleId) {
-    setForm((current) => ({
-      ...current,
-      memberRoles: { ...current.memberRoles, [userId]: roleId },
-    }));
+    setForm((current) => ({ ...current, memberRoles: { ...current.memberRoles, [userId]: roleId } }));
   }
   function moveRole(roleId, direction) {
     setForm((current) => {
-      const custom = current.roles
-        .map((role, index) => ({ role, index }))
-        .filter(({ role }) => !["owner", "member"].includes(role.id));
+      const custom = current.roles.map((role, index) => ({ role, index })).filter(({ role }) => !["owner", "member"].includes(role.id));
       const from = custom.findIndex(({ role }) => role.id === roleId);
       const to = from + direction;
       if (from < 0 || to < 0 || to >= custom.length) return current;
@@ -1233,252 +1206,85 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
       return { ...current, roles };
     });
   }
-  function chooseIcon(event) {
+  function chooseImage(key, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Escolha um arquivo de imagem valido.");
-      return;
-    }
-    if (file.size > 3 * 1024 * 1024) {
-      setError("Escolha um icone de ate 3 MB.");
-      return;
-    }
+    if (!file || !file.type.startsWith("image/")) { if (file) setError("Escolha um arquivo de imagem válido."); return; }
+    if (file.size > 3 * 1024 * 1024) { setError("Escolha uma imagem de até 3 MB."); return; }
     const reader = new FileReader();
-    reader.onerror = () => setError("Nao foi possivel ler essa imagem.");
-    reader.onload = () => {
-      setError("");
-      setForm((current) => ({ ...current, icon: String(reader.result) }));
-    };
-    reader.readAsDataURL(file);
-  }
-  function chooseBanner(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      setError("Escolha um banner de até 3 MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onerror = () => setError("Nao foi possivel ler essa imagem.");
-    reader.onload = () => {
-      setError("");
-      setForm((current) => ({ ...current, banner: String(reader.result) }));
-    };
+    reader.onerror = () => setError("Não foi possível ler essa imagem.");
+    reader.onload = () => { setError(""); setForm((current) => ({ ...current, [key]: String(reader.result) })); };
     reader.readAsDataURL(file);
   }
   async function saveRoles() {
-    setError("");
-    setRolesSaved(false);
-    setBusy(true);
-    try {
-      await onSave({ roles: form.roles, memberRoles: form.memberRoles });
-      setRolesSaved(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+    setError(""); setRolesSaved(false); setBusy(true);
+    try { await onSave({ roles: form.roles, memberRoles: form.memberRoles }); setRolesSaved(true); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   }
   async function submit(event) {
-    event.preventDefault();
-    setError("");
-    setBusy(true);
+    event.preventDefault(); setError(""); setBusy(true);
     try {
-      await onSave({
-        name: form.name.trim(),
-        tag: form.tag.trim().toUpperCase(),
-        icon: form.icon,
-        banner: form.banner,
-        memberRoles: form.memberRoles,
-        accentColor: form.accentColor,
-        roles: form.roles,
-      });
+      await onSave({ name: form.name.trim(), tag: form.tag.trim().toUpperCase(), icon: form.icon, banner: form.banner, accentColor: form.accentColor, roles: form.roles, memberRoles: form.memberRoles });
       onClose();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   }
+  const customRoles = form.roles.filter((role) => !["owner", "member"].includes(role.id));
+  const defaultRole = form.roles.find((role) => role.id === "member");
+  const configurableMembers = members.filter((member) => member.id !== server.ownerId);
   return (
     <div className="modal-backdrop server-settings-backdrop" onClick={onClose}>
-      <section
-        className="server-settings-modal"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button className="modal-close" onClick={onClose}>
-          <X size={18} />
-        </button>
-        <header>
-          <span>CONFIGURAÇÕES DO SERVIDOR</span>
-          <h2>Identidade da comunidade</h2>
-          <p>Personalize como o servidor aparece para os membros.</p>
-        </header>
-        <div
-          className="server-settings-preview"
-          style={{
-            ...bannerStyleValue(form.banner),
-            "--server-accent": form.accentColor,
-          }}
-        >
-          <div className="server-settings-icon">
-            {form.icon?.startsWith?.("data:image/") ? (
-              <img src={form.icon} alt="" />
-            ) : (
-              <span>{String(form.icon || form.name || "S").slice(0, 2)}</span>
-            )}
-          </div>
-          <div>
-            <strong>{form.name || "Nome do servidor"}</strong>
-            {form.tag && <span>{form.tag}</span>}
-          </div>
-        </div>
-        <form onSubmit={submit}>
-          <label>
-            Nome do servidor
-            <input
-              required
-              maxLength="80"
-              value={form.name}
-              onChange={(event) =>
-                setForm({ ...form, name: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            Tag do servidor
-            <input
-              maxLength="4"
-              placeholder="SESH"
-              value={form.tag}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  tag: event.target.value
-                    .replace(/[^a-z0-9]/gi, "")
-                    .toUpperCase(),
-                })
-              }
-            />
-            <small>De 2 a 4 letras ou números. Ela aparece nos membros.</small>
-          </label>
-          <label>
-            Cor de destaque
-            <input
-              type="color"
-              value={form.accentColor}
-              onChange={(event) =>
-                setForm({ ...form, accentColor: event.target.value })
-              }
-            />
-          </label>
-          <section className="server-role-editor">
-            <div className="server-role-editor-head">
-              <div>
-                <strong>Cargos e permissões</strong>
-                <small>A ordem acima tem prioridade e define o destaque lateral.</small>
-              </div>
-              <div className="server-role-editor-actions">
-                <button type="button" onClick={addRole}>Adicionar cargo</button>
-                <button type="button" className="role-save" onClick={saveRoles} disabled={busy}>
-                  {busy ? "Salvando..." : "Salvar cargos"}
-                </button>
-              </div>
+      <section className="server-settings-modal server-settings-workspace" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Fechar configurações"><X size={18} /></button>
+        <aside className="server-settings-nav" aria-label="Configurações do servidor">
+          <div className="server-settings-nav-title">SERVIDOR DE {String(form.name || "SESH").toUpperCase()}</div>
+          <button type="button" className={settingsSection === "overview" ? "active" : ""} onClick={() => setSettingsSection("overview")}>Visão geral</button>
+          <button type="button" className={settingsSection === "roles" ? "active" : ""} onClick={() => setSettingsSection("roles")}>Cargos</button>
+          <button type="button" className={settingsSection === "members" ? "active" : ""} onClick={() => setSettingsSection("members")}>Membros</button>
+          <div className="server-settings-nav-divider" />
+          <p>As alterações são salvas em cada seção.</p>
+        </aside>
+        <main className="server-settings-content">
+          {settingsSection === "overview" && <form className="server-overview-form" onSubmit={submit}>
+            <header><span>VISÃO GERAL</span><h2>Perfil do servidor</h2><p>Escolha como sua comunidade aparece para todos os membros.</p></header>
+            <div className="server-settings-preview" style={{ ...bannerStyleValue(form.banner), "--server-accent": form.accentColor }}>
+              <div className="server-settings-icon">{form.icon?.startsWith?.("data:image/") ? <img src={form.icon} alt="" /> : <span>{String(form.icon || form.name || "S").slice(0, 2)}</span>}</div>
+              <div><strong>{form.name || "Nome do servidor"}</strong>{form.tag && <span>{form.tag}</span>}</div>
             </div>
-            {form.roles
-              .filter((role) => !["owner", "member"].includes(role.id))
-              .map((role, index) => (
-                <article
-                  key={role.id}
-                  className={`role-editor-card role-preview-${role.style || "solid"}`}
-                  style={{ "--role-preview-color": role.color }}
-                >
-                  <div className="role-list-row">
-                    <i className="role-color-dot" />
-                    <div><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Membros ficam na lista geral"}</small></div>
-                    <div className="role-list-actions">
-                      <button type="button" className="role-move" title="Subir" onClick={() => moveRole(role.id, -1)}>↑</button>
-                      <button type="button" className="role-move" title="Descer" onClick={() => moveRole(role.id, 1)}>↓</button>
-                      <button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button>
-                      <button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button>
-                    </div>
-                  </div>
-                  <span className="role-order">#{index + 1}</span>
-                </article>              ))}
-            {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}
-          </section>
-          {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && (
-            <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={members.filter((member) => member.id !== server.ownerId)} onUpdate={updateRole} onAssignMember={assignRoleMember} onClose={() => setRoleEditorId(null)} />
-          )}
-          <section className="server-role-assignments">
-            <div className="server-role-editor-head">
-              <div>
-                <strong>Atribuir cargos</strong>
-                <small>Escolha o cargo de cada membro. O dono permanece no topo.</small>
-              </div>
+            <div className="server-overview-fields">
+              <label>Nome do servidor<input required maxLength="80" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+              <label>Tag do servidor<input maxLength="4" placeholder="SESH" value={form.tag} onChange={(event) => setForm({ ...form, tag: event.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase() })} /><small>De 2 a 4 letras ou números.</small></label>
+              <label>Cor de destaque<input type="color" value={form.accentColor} onChange={(event) => setForm({ ...form, accentColor: event.target.value })} /></label>
             </div>
-            {members.filter((member) => member.id !== server.ownerId).map((member) => (
-              <label className="server-role-member" key={member.id}>
-                <span>
-                  <Avatar user={member} color={member.avatarColor || "purple"} small />
-                  <strong>{member.displayName}</strong>
-                </span>
-                <select
-                  value={form.memberRoles[member.id] || "member"}
-                  onChange={(event) => setForm((current) => ({
-                    ...current,
-                    memberRoles: { ...current.memberRoles, [member.id]: event.target.value },
-                  }))}
-                >
-                  {form.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-                </select>
-              </label>
-              ))}
-          </section>
-          <div className="server-banner-actions">
-            <label className="secondary-setting">
-              Escolher icone
-              <input type="file" accept="image/*" onChange={chooseIcon} />
-            </label>
-            {form.icon && (
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, icon: null })}
-              >
-                Remover icone
-              </button>
-            )}
-            <label className="secondary-setting">
-              Escolher banner
-              <input type="file" accept="image/*" onChange={chooseBanner} />
-            </label>
-            {form.banner && (
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, banner: null })}
-              >
-                Remover banner
-              </button>
-            )}
-          </div>
-          {error && <div className="form-error">{error}</div>}
-          <div className="prompt-actions">
-            <button type="button" className="prompt-cancel" onClick={onClose}>
-              Cancelar
-            </button>
-            <button className="prompt-confirm" disabled={busy}>
-              {busy ? "Salvando..." : "Salvar servidor"}
-            </button>
-          </div>
-        </form>
+            <section className="server-media-controls"><div><strong>Imagem do servidor</strong><small>Use um ícone e um banner para deixar a comunidade reconhecível.</small></div><div className="server-banner-actions"><label className="secondary-setting">Escolher ícone<input type="file" accept="image/*" onChange={(event) => chooseImage("icon", event)} /></label>{form.icon && <button type="button" onClick={() => setForm({ ...form, icon: null })}>Remover ícone</button>}<label className="secondary-setting">Escolher banner<input type="file" accept="image/*" onChange={(event) => chooseImage("banner", event)} /></label>{form.banner && <button type="button" onClick={() => setForm({ ...form, banner: null })}>Remover banner</button>}</div></section>
+            {error && <div className="form-error">{error}</div>}
+            <div className="prompt-actions"><button type="button" className="prompt-cancel" onClick={onClose}>Cancelar</button><button className="prompt-confirm" disabled={busy}>{busy ? "Salvando..." : "Salvar alterações"}</button></div>
+          </form>}
+          {settingsSection === "roles" && <section className="server-roles-page">
+            <header><span>CARGOS</span><h2>Cargos e permissões</h2><p>Organize os membros e defina o que cada grupo pode fazer no servidor.</p></header>
+            <div className="server-roles-toolbar"><span>{customRoles.length} cargo{customRoles.length === 1 ? "" : "s"} criado{customRoles.length === 1 ? "" : "s"}</span><button type="button" className="role-create" onClick={addRole}>Criar cargo</button></div>
+            <p className="server-role-hint">A lista define a prioridade: cargos mais acima aparecem primeiro. Use “Separar membros” dentro de cada cargo para criar uma seção na lateral.</p>
+            <section className="settings-roles-list">
+              {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>@everyone · aplicadas a todos os membros</small></span></div><button type="button" className="role-edit" onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
+              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className="role-color-dot" /><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
+            </section>
+            {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
+            <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar cargos"}</button></div>
+          </section>}
+          {settingsSection === "members" && <section className="server-members-page">
+            <header><span>MEMBROS</span><h2>Gerenciar membros</h2><p>Defina um cargo para cada pessoa. O dono do servidor permanece no topo.</p></header>
+            <section className="settings-members-list">{configurableMembers.map((member) => <label className="server-role-member" key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><select value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{form.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
+            {rolesSaved && <p className="role-save-feedback">Membros atualizados.</p>}{error && <div className="form-error">{error}</div>}
+            <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar membros"}</button></div>
+          </section>}
+        </main>
+        {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} onUpdate={updateRole} onAssignMember={assignRoleMember} onClose={() => setRoleEditorId(null)} />}
       </section>
     </div>
   );
 }
-
 function ProfileSettingsPanel({
   user,
   onClose,

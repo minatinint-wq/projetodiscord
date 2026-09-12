@@ -6716,3 +6716,59 @@ body[data-profile-plate="neon"] .profile-card {
 @media (max-width: 650px) { .role-config-backdrop { padding: 8px; } .role-config-modal { width: 100%; max-height: calc(100vh - 16px); padding: 18px; } .role-config-tabs { gap: 15px; } .role-list-actions .role-move { display: none; } }
 .member-role-group { margin: 0 0 12px; }
 .member-role-group-title { padding: 6px 14px; color: var(--role-group-color, #b5bac1); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+
+/* Espaço de configurações: cada assunto ganha uma tela, sem formulário gigante. */
+.server-settings-workspace { display: grid; grid-template-columns: 250px minmax(0, 1fr); width: min(1180px, calc(100vw - 48px)); height: min(780px, calc(100vh - 48px)); max-height: none; padding: 0; overflow: hidden; background: #17181c; }
+.server-settings-workspace .modal-close { z-index: 3; top: 20px; right: 20px; }
+.server-settings-nav { display: flex; flex-direction: column; gap: 3px; padding: 28px 18px; border-right: 1px solid #292b30; background: #111214; }
+.server-settings-nav-title { overflow: hidden; padding: 0 10px 15px; color: #b5bac1; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.server-settings-nav button { width: 100%; padding: 9px 10px; border-radius: 6px; color: #b5bac1; background: transparent; font-size: 14px; font-weight: 600; text-align: left; }
+.server-settings-nav button:hover { color: #f2f3f5; background: #25262b; }
+.server-settings-nav button.active { color: #fff; background: #35373c; }
+.server-settings-nav-divider { height: 1px; margin: 12px 10px; background: #292b30; }
+.server-settings-nav p { margin: 0; padding: 0 10px; color: #85868d; font-size: 11px; line-height: 1.45; }
+.server-settings-content { min-width: 0; overflow: auto; padding: 42px clamp(28px, 5vw, 70px) 34px; }
+.server-settings-content > section, .server-overview-form { max-width: 790px; margin: 0 auto; }
+.server-settings-content header { padding: 0 46px 22px 0; }
+.server-settings-content header span { color: #b5bac1; font-size: 11px; font-weight: 800; }
+.server-settings-content header h2 { margin: 5px 0 7px; color: #f2f3f5; font-size: 24px; }
+.server-settings-content header p { margin: 0; color: #b5bac1; font-size: 14px; line-height: 1.45; }
+.server-overview-form { display: block !important; }
+.server-overview-form .server-settings-preview { display: flex; min-height: 118px; margin: 0 0 22px; border-radius: 10px; }
+.server-overview-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.server-overview-fields label { display: grid; gap: 7px; color: #f2f3f5; font-size: 12px; font-weight: 700; }
+.server-overview-fields label:first-child { grid-column: 1 / -1; }
+.server-overview-fields input:not([type="color"]) { height: 42px; padding: 0 11px; border: 1px solid #3a3d45; border-radius: 7px; color: #f2f3f5; background: #111214; }
+.server-overview-fields input[type="color"] { width: 52px; height: 42px; padding: 3px; border: 1px solid #3a3d45; border-radius: 7px; background: #111214; }
+.server-overview-fields small { color: #85868d; font-size: 11px; font-weight: 400; }
+.server-media-controls { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 24px 0; padding: 18px; border: 1px solid #303238; border-radius: 9px; background: #111214; }
+.server-media-controls > div:first-child { display: grid; gap: 4px; }
+.server-media-controls strong { color: #f2f3f5; font-size: 13px; }
+.server-media-controls small { color: #b5bac1; font-size: 11px; }
+.server-media-controls .server-banner-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.server-roles-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.server-roles-toolbar > span { color: #b5bac1; font-size: 12px; }
+.role-create, .role-page-actions .prompt-confirm { border-radius: 7px; padding: 9px 14px; color: #fff; background: #5865f2; font-weight: 700; }
+.server-role-hint { margin: 0 0 15px; color: #b5bac1; font-size: 12px; line-height: 1.5; }
+.settings-roles-list { border-top: 1px solid #303238; }
+.settings-role-item { position: relative; display: flex; align-items: center; gap: 14px; min-height: 67px; padding: 10px 44px 10px 4px; border-bottom: 1px solid #303238; background: transparent; }
+.settings-role-item:hover { background: #1e1f22; }
+.settings-role-main { display: flex; align-items: center; min-width: 0; gap: 11px; }
+.settings-role-main > span { display: grid; min-width: 0; gap: 3px; }
+.settings-role-main strong { color: #f2f3f5; font-size: 14px; }
+.settings-role-main small { color: #aeb4bf; font-size: 11px; }
+.settings-role-item .role-color-dot { box-shadow: none; }
+.settings-role-item.default-role { --role-preview-color: #b5bac1; }
+.settings-role-item > .role-edit { margin-left: auto; }
+.settings-role-item .role-list-actions { margin-left: auto; }
+.settings-role-item .role-list-actions button, .settings-role-item > .role-edit { padding: 7px 9px; border-radius: 6px; }
+.settings-role-item .role-order { right: 8px; bottom: 8px; }
+.role-empty-state { display: grid; justify-items: start; gap: 5px; padding: 26px 4px; color: #b5bac1; }
+.role-empty-state strong { color: #f2f3f5; font-size: 14px; }
+.role-empty-state span { font-size: 12px; }
+.role-page-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.settings-members-list { border-top: 1px solid #303238; }
+.settings-members-list .server-role-member { margin: 0; padding: 12px 4px; border-bottom: 1px solid #303238; }
+.settings-members-list .server-role-member small { display: block; color: #aeb4bf; font-size: 11px; }
+.settings-members-list select { min-width: 150px; height: 36px; padding: 0 9px; border: 1px solid #3a3d45; border-radius: 6px; color: #f2f3f5; background: #111214; }
+@media (max-width: 760px) { .server-settings-workspace { display: block; width: 100vw; height: 100dvh; border: 0; border-radius: 0; } .server-settings-nav { flex-direction: row; align-items: center; overflow-x: auto; padding: 12px 54px 12px 12px; border-right: 0; border-bottom: 1px solid #292b30; } .server-settings-nav-title, .server-settings-nav-divider, .server-settings-nav p { display: none; } .server-settings-nav button { width: auto; flex: 0 0 auto; } .server-settings-content { height: calc(100dvh - 61px); padding: 26px 18px; } .server-overview-fields { grid-template-columns: 1fr; } .server-overview-fields label:first-child { grid-column: auto; } .server-media-controls { display: grid; } .server-media-controls .server-banner-actions { justify-content: flex-start; } .settings-role-item { align-items: flex-start; flex-wrap: wrap; padding-right: 34px; } .settings-role-item .role-list-actions { width: 100%; margin-left: 23px; } }
