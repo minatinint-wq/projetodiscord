@@ -2767,7 +2767,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         });
         return;
       }
-      const row = event.target.closest(".member, .voice-member, .message");
+      const row = event.target.closest(".member, .voice-member, .voice-participant, .voice-tile, .message");
       if (!row) return;
       const username =
         row.querySelector(".member-role")?.textContent?.replace(/^@/, "") ||
