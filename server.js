@@ -1547,8 +1547,17 @@ async function handler(req, res) {
         return json(res, 403, { error: "Você só pode moderar cargos abaixo do seu." });
 
       const input = await body(req);
-      if (input.textMuted === undefined && input.voiceMuted === undefined)
+      if (input.textMuted === undefined && input.voiceMuted === undefined && input.roleId === undefined)
         return json(res, 400, { error: "Informe uma ação de moderação." });
+      if (input.roleId !== undefined) {
+        const role = normalizedRoles(server.roles).find((item) => item.id === input.roleId);
+        if (!role || role.id === "owner")
+          return json(res, 400, { error: "Cargo inválido." });
+        if (user.id !== server.ownerId && role.position <= actorPosition)
+          return json(res, 403, { error: "Você só pode atribuir cargos abaixo do seu." });
+        target.roleId = role.id;
+        target.role = role.id === "member" ? "member" : "custom";
+      }
       if (input.textMuted !== undefined) target.textMuted = Boolean(input.textMuted);
       if (input.voiceMuted !== undefined) target.voiceMuted = Boolean(input.voiceMuted);
       await saveDatabase();

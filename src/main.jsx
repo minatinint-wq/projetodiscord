@@ -172,7 +172,7 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
     />
   );
 }
-function BadgeContextMenu({ menu, onAdd, onModerate, onAddFriend, onCopyHandle }) {
+function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onAddFriend, onCopyHandle }) {
   const isSelf = menu.user.id === menu.currentUserId;
   return (
     <div
@@ -193,6 +193,17 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAddFriend, onCopyHandle }
       </>}
       {(onModerate || onAdd) && <div className="context-sep" />}
       {onModerate && !isSelf && <>
+        {onAssignRole && menu.assignableRoles?.length > 0 && <label className="context-role-picker">
+          <span>Definir cargo</span>
+          <select
+            value={menu.user.roleId || "member"}
+            onChange={(event) => onAssignRole(event.target.value)}
+          >
+            {menu.assignableRoles.map((role) => (
+              <option key={role.id} value={role.id}>{role.name}</option>
+            ))}
+          </select>
+        </label>}
         <button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>
           {menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}
         </button>
@@ -3530,12 +3541,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       selectedServer &&
         (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
     );
+    const actorPosition = ownMember?.serverRole?.position ?? 999;
+    const assignableRoles = (selectedServer?.roles || []).filter((role) =>
+      role.id !== "owner" && (selectedServer.role === "owner" || role.position > actorPosition),
+    );
     setBadgeMenu({
       x: Math.min(event.clientX, window.innerWidth - 250),
       y: Math.min(event.clientY, window.innerHeight - 210),
       user,
       currentUserId: currentUser.id,
       canModerate,
+      assignableRoles,
       onProfile: () => {
         setProfileView({ userId: user.id });
         setBadgeMenu(null);
@@ -3700,9 +3716,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       setMembers((current) => current.map((member) =>
         member.id === result.member.id ? { ...member, ...result.member } : member,
       ));
-      setNotice(input.textMuted !== undefined
-        ? result.member.textMuted ? "Chat silenciado no servidor." : "Chat liberado."
-        : result.member.voiceMuted ? "Voz silenciada no servidor." : "Voz liberada.");
+      setNotice(input.roleId
+        ? `Cargo de ${result.member.displayName} atualizado.`
+        : input.textMuted !== undefined
+          ? result.member.textMuted ? "Chat silenciado no servidor." : "Chat liberado."
+          : result.member.voiceMuted ? "Voz silenciada no servidor." : "Voz liberada.");
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -4914,6 +4932,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           menu={badgeMenu}
           onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
+          onAssignRole={badgeMenu.canModerate ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
           onCopyHandle={() => copyMemberHandle(badgeMenu.user)}
           onAddFriend={() => addFriendFromMenu(badgeMenu.user)}
         />
