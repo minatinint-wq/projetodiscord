@@ -13,6 +13,7 @@ import {
   Headphones,
   HelpCircle,
   Lock,
+  LogOut,
   Maximize2,
   Megaphone,
   Menu,
@@ -664,7 +665,7 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItem
     </div>
   );
 }
-function VoiceSettingsPanel({ user, onClose, onAccount }) {
+function VoiceSettingsPanel({ user, onClose, onAccount, onLogout }) {
   const [micVolume, setMicVolume] = useState(80);
   const [outputVolume, setOutputVolume] = useState(80);
   const [sensitivity, setSensitivity] = useState(55);
@@ -814,6 +815,15 @@ function VoiceSettingsPanel({ user, onClose, onAccount }) {
           <button className="voice-settings-sub" onClick={() => setSection("transmission")}>Transmissão</button>
           <button className="voice-settings-sub" onClick={() => setSection("sounds")}>Sons</button>
           <button className="voice-settings-sub" onClick={() => setSection("advanced")}>Avançado</button>
+          <hr />
+          <button
+            className="voice-settings-logout"
+            onClick={() => {
+              if (window.confirm("Deseja sair da sua conta?")) onLogout();
+            }}
+          >
+            <LogOut size={15} /> Sair da conta
+          </button>
         </aside>
         <main className="voice-settings-content">
           <button className="voice-settings-close" onClick={onClose}>
@@ -4177,6 +4187,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           user={currentUser}
           onClose={() => setSettingsOpen(false)}
           onAccount={() => setSettingsTab("account")}
+          onLogout={onLogout}
         />
       )}
       {settingsOpen && settingsTab === "account" && accountForm && (

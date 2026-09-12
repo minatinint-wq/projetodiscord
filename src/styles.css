@@ -2726,6 +2726,13 @@ button {
   padding-left: 28px;
   font-size: 12px;
 }
+.voice-settings-nav .voice-settings-logout {
+  color: #ed8290;
+}
+.voice-settings-nav .voice-settings-logout:hover {
+  color: #fff;
+  background: #8f2630;
+}
 .voice-settings-content {
   position: relative;
   flex: 1;
