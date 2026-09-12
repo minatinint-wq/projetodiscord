@@ -2759,6 +2759,18 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       // Sesh owns the context menu across the app. Capture mode below keeps
       // the browser's native menu from winning this interaction.
       event.preventDefault();
+      const ownPanel = event.target.closest(".user-panel");
+      if (ownPanel) {
+        event.stopPropagation();
+        setBadgeMenu({
+          x: Math.min(event.clientX, window.innerWidth - 240),
+          y: Math.min(event.clientY, window.innerHeight - 110),
+          user: currentUser,
+          currentUserId: currentUser.id,
+          onProfile: () => setProfileView({ userId: currentUser.id }),
+        });
+        return;
+      }
       if (card && profileData?.user && currentUser.isMasterAdmin) {
         event.preventDefault();
         event.stopPropagation();
@@ -5309,6 +5321,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                       voiceChannel?.id !== channel.id
                     )
                       joinVoice(channel);
+                  }}
+                  onDoubleClick={() => {
+                    if (channel.type === "voice") {
+                      joinVoice(channel);
+                    }
                   }}
                   onContextMenu={(event) => {
                     event.preventDefault();
