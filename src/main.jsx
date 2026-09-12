@@ -2862,7 +2862,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           y: Math.min(event.clientY, window.innerHeight - 110),
           user: currentUser,
           currentUserId: currentUser.id,
-          onProfile: () => setProfileView({ userId: currentUser.id }),
+          onProfile: () => {
+            setProfileView({ userId: currentUser.id });
+            setBadgeMenu(null);
+          },
         });
         return;
       }
@@ -3097,7 +3100,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
               : member,
           ),
         );
-        onUserUpdate(event.user);
+        // User updates are broadcast to all connected people. Only the
+        // matching event may refresh this browser''s authenticated session.
+        if (event.user.id === currentUser.id) onUserUpdate(event.user);
       }
       if (event.type === "friends.updated")
         api
@@ -4301,6 +4306,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         />
                       ) : null;
                     })}
+                  </div>
+                  <div className="profile-created-at">
+                    Membro desde {profileData.user.createdAt ? new Date(profileData.user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "data não disponível"}
                   </div>
                   {profileData.user.bio && (
                     <div className="profile-bio">{profileData.user.bio}</div>
@@ -6335,6 +6343,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
                         />
                       ) : null;
                     })}
+                  </div>
+                  <div className="profile-created-at">
+                    Membro desde {profileData.user.createdAt ? new Date(profileData.user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "data não disponível"}
                   </div>
                   {profileData.user.bio && (
                     <div className="profile-bio">{profileData.user.bio}</div>

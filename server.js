@@ -471,6 +471,7 @@ function publicUser(user) {
     username: user.username,
     tag: userTag(user),
     displayName: user.displayName,
+    createdAt: user.createdAt || null,
     avatarColor: user.avatarColor,
     avatar: user.avatar || null,
     banner: user.banner || null,
