@@ -174,11 +174,10 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 /* Real animated WebP layers. Static artwork stays crisp below each motion file. */
 .premium-avatar-frame-scene{animation:none;filter:none}
 .premium-avatar-frame-scene .premium-avatar-frame-base{animation:none;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--profile-accent,#8fa9ff) 48%,transparent))}
-.premium-avatar-frame-scene .premium-avatar-frame-motion{z-index:5;width:112%;height:112%;opacity:.94;filter:none;image-rendering:auto}
+.premium-avatar-frame-scene .premium-avatar-frame-motion{z-index:5;width:100%;height:100%;opacity:.94;filter:none;image-rendering:auto}
 .premium-avatar-shell-small .premium-avatar-frame-motion{display:none}
 .premium-overlay-art-base{animation:none;filter:none}
 .premium-overlay-motion{z-index:4;opacity:.9;filter:none;image-rendering:auto}
 .identity-dialog>.premium-profile-overlay .premium-overlay-motion{display:block;width:100%;height:100%;opacity:.62;object-fit:fill}
 .premium-banner{animation:none;background-size:cover!important}
 .premium-banner-motion{position:absolute;z-index:3;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;image-rendering:auto;mix-blend-mode:screen}
-html[data-reduced-motion=true] .premium-avatar-frame-motion,html[data-reduced-motion=true] .premium-overlay-motion,html[data-reduced-motion=true] .premium-banner-motion{display:none!important}

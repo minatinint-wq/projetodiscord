@@ -33,6 +33,7 @@
     "wait-on": "latest"
   },
   "dependencies": {
+    "animejs": "^4.5.0",
     "lucide-react": "latest",
     "pg": "^8.23.0",
     "react": "latest",

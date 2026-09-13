@@ -1,5 +1,6 @@
 import React from "react"
 import { PREMIUM_OVERLAY_ART, PREMIUM_OVERLAY_MOTION } from "./premiumCosmetics"
+import AnimatedCosmetic from "./AnimatedCosmetic"
 
 export default function PremiumProfileOverlay({ effect }) {
   const src = PREMIUM_OVERLAY_ART[effect]
@@ -7,6 +8,6 @@ export default function PremiumProfileOverlay({ effect }) {
   if (!src) return null
   return <div className={"profile-overlay premium-profile-overlay premium-overlay-" + effect} aria-hidden="true">
     <img className="premium-overlay-art premium-overlay-art-base" src={src} alt="" />
-    <img className="premium-overlay-art premium-overlay-motion" src={motion} alt="" />
+    <AnimatedCosmetic src={motion} width={480} height={720} className="premium-overlay-art premium-overlay-motion" />
   </div>
 }

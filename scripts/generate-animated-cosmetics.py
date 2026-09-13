@@ -250,6 +250,14 @@ def main():
             images[0].save(destination, "WEBP", save_all=True, append_images=images[1:],
                            duration=50, loop=0, lossless=False, quality=84, method=2)
             print(f"{destination.relative_to(ROOT)} {destination.stat().st_size//1024} KiB")
+            columns, rows = 6, 4
+            width, height = config["size"]
+            sheet = Image.new("RGBA", (width*columns, height*rows))
+            for index, image in enumerate(images):
+                sheet.alpha_composite(image, ((index%columns)*width, (index//columns)*height))
+            sprite = folder/f"{key}.sprite.webp"
+            sheet.save(sprite, "WEBP", lossless=False, quality=88, method=2)
+            print(f"{sprite.relative_to(ROOT)} {sprite.stat().st_size//1024} KiB")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ export const PREMIUM_FRAME_ART = {
 }
 
 export const PREMIUM_FRAME_MOTION = Object.fromEntries(
-  Object.keys(PREMIUM_FRAME_ART).map(id => [id, "/cosmetics-animated/frames/" + id + ".webp"]),
+  Object.keys(PREMIUM_FRAME_ART).map(id => [id, "/cosmetics-animated/frames/" + id + ".sprite.webp?v=5"]),
 )
 
 export const PREMIUM_OVERLAY_ART = {
@@ -21,7 +21,7 @@ export const PREMIUM_OVERLAY_ART = {
 }
 
 export const PREMIUM_OVERLAY_MOTION = Object.fromEntries(
-  Object.keys(PREMIUM_OVERLAY_ART).map(id => [id, "/cosmetics-animated/overlays/" + id + ".webp"]),
+  Object.keys(PREMIUM_OVERLAY_ART).map(id => [id, "/cosmetics-animated/overlays/" + id + ".sprite.webp?v=5"]),
 )
 
 export const PREMIUM_BANNER_IDS = new Set([
@@ -30,7 +30,7 @@ export const PREMIUM_BANNER_IDS = new Set([
 ])
 
 export const PREMIUM_BANNER_MOTION = Object.fromEntries(
-  [...PREMIUM_BANNER_IDS].map(id => [id, "/cosmetics-animated/banners/" + id + ".webp"]),
+  [...PREMIUM_BANNER_IDS].map(id => [id, "/cosmetics-animated/banners/" + id + ".sprite.webp?v=5"]),
 )
 
 export function premiumCosmetic(field, value) {

@@ -1,5 +1,6 @@
 import React from "react"
 import { PREMIUM_FRAME_ART, PREMIUM_FRAME_MOTION } from "./premiumCosmetics"
+import AnimatedCosmetic from "./AnimatedCosmetic"
 
 export default function PremiumAvatarFrame({ frame }) {
   const src = PREMIUM_FRAME_ART[frame]
@@ -8,7 +9,7 @@ export default function PremiumAvatarFrame({ frame }) {
   return <>
     <span className={"premium-avatar-frame-scene premium-avatar-frame-scene-" + frame} aria-hidden="true">
       <img className={"premium-avatar-frame premium-avatar-frame-base premium-avatar-frame-" + frame} src={src} alt="" />
-      <img className="premium-avatar-frame premium-avatar-frame-motion" src={motion} alt="" />
+      <AnimatedCosmetic src={motion} width={384} height={384} className="premium-avatar-frame premium-avatar-frame-motion" />
     </span>
   </>
 }
