@@ -1,6 +1,9 @@
 const COMMAND_PATTERN = /^\/(image|imagem|imagensfw)\s+"([^"\r\n]{1,600})"\s*$/i;
 const COMMAND_PREFIX_PATTERN = /^\/(?:image|imagem|imagensfw)\b/i;
 const DEFAULT_HF_SPACE_URL = "https://black-forest-labs-flux-1-schnell.hf.space";
+const DEFAULT_CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+const DEFAULT_NVIDIA_IMAGE_MODEL = "black-forest-labs/flux.1-schnell";
+const DEFAULT_NVIDIA_IMAGE_API_BASE = "https://ai.api.nvidia.com/v1/genai";
 
 const normalizePrompt = (value) => String(value || "")
   .normalize("NFD")
@@ -63,15 +66,43 @@ function dataUrlFromBase64(base64, mime = "image/png") {
   if (!/^[a-z0-9+/]+={0,2}$/i.test(clean)) throw new Error("A API retornou uma imagem inválida.");
   const bytes = Buffer.from(clean, "base64");
   if (!bytes.length || bytes.length > 3 * 1024 * 1024) throw new Error("A imagem gerada excedeu 3 MB.");
-  return `data:${mime};base64,${bytes.toString("base64")}`;
+  const detectedMime = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    ? "image/jpeg"
+    : bytes[0] === 0x89 && bytes.subarray(1, 4).toString("ascii") === "PNG"
+      ? "image/png"
+      : bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP"
+        ? "image/webp"
+        : mime;
+  return `data:${detectedMime};base64,${bytes.toString("base64")}`;
+}
+
+function isImageSafetyRejection(value) {
+  const text = normalizePrompt(value);
+  return [
+    "content policy", "safety policy", "safety filter", "moderation", "unsafe content",
+    "violates policy", "prohibited content", "conteudo proibido", "politica de conteudo",
+  ].some((term) => text.includes(term));
+}
+
+function imageProviderError(message, { status = 0, detail = "", retryable = false } = {}) {
+  const error = new Error(message);
+  error.status = status || undefined;
+  error.retryable = retryable;
+  error.fallbackAllowed = !isImageSafetyRejection(detail || message);
+  return error;
 }
 
 async function responseToDataUrl(response, timeoutSignal) {
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 300);
-    const error = new Error(`Provedor de imagem respondeu ${response.status}${detail ? `: ${detail}` : ""}`);
-    error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
-    throw error;
+    throw imageProviderError(
+      `Provedor de imagem respondeu ${response.status}${detail ? `: ${detail}` : ""}`,
+      {
+        status: response.status,
+        detail,
+        retryable: response.status === 408 || response.status === 409 || response.status === 429 || response.status >= 500,
+      },
+    );
   }
   const contentType = String(response.headers.get("content-type") || "").split(";")[0].toLowerCase();
   if (contentType.startsWith("image/")) {
@@ -82,12 +113,18 @@ async function responseToDataUrl(response, timeoutSignal) {
   const inline = payload?.data?.[0]?.b64_json
     || payload?.images?.[0]?.b64_json
     || payload?.images?.[0]?.base64
+    || payload?.artifacts?.[0]?.base64
     || payload?.image
     || payload?.output?.[0]?.image
     || payload?.result?.image;
-  if (inline) return dataUrlFromBase64(inline, payload?.data?.[0]?.mime_type || "image/png");
+  if (inline) return dataUrlFromBase64(
+    inline,
+    payload?.data?.[0]?.mime_type || payload?.artifacts?.[0]?.mime_type || "image/png",
+  );
   const remoteUrl = payload?.data?.[0]?.url || payload?.images?.[0]?.url || payload?.output?.[0]?.url || payload?.url;
-  if (!remoteUrl || !/^https:\/\//i.test(remoteUrl)) throw new Error("A API não retornou uma imagem reconhecida.");
+  if (!remoteUrl || !/^https:\/\//i.test(remoteUrl)) {
+    throw imageProviderError("A API não retornou uma imagem reconhecida.");
+  }
   const imageResponse = await fetch(remoteUrl, { signal: timeoutSignal });
   return responseToDataUrl(imageResponse, timeoutSignal);
 }
@@ -163,14 +200,40 @@ async function callCloudflare({ prompt, env, signal }) {
   const accountId = envValue(env, "CLOUDFLARE_ACCOUNT_ID");
   const token = envValue(env, "CLOUDFLARE_API_TOKEN");
   if (!accountId || !token) return null;
-  const model = envValue(env, "CLOUDFLARE_IMAGE_MODEL") || "@cf/bytedance/stable-diffusion-xl-lightning";
+  const model = envValue(env, "CLOUDFLARE_IMAGE_MODEL") || DEFAULT_CLOUDFLARE_IMAGE_MODEL;
+  const steps = Math.max(1, Math.min(Number(envValue(env, "CLOUDFLARE_IMAGE_STEPS")) || 4, 8));
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, steps }),
     signal,
   });
-  return { dataUrl: await responseToDataUrl(response, signal), provider: "cloudflare" };
+  return { dataUrl: await responseToDataUrl(response, signal), provider: "cloudflare-flux" };
+}
+
+async function callNvidia({ prompt, env, signal }) {
+  const token = envValue(env, "NVIDIA_API_KEY") || envValue(env, "NVIDIA_IMAGE_API_TOKEN");
+  if (!token) return null;
+  const model = envValue(env, "NVIDIA_IMAGE_MODEL") || DEFAULT_NVIDIA_IMAGE_MODEL;
+  if (!/^[a-z0-9._/-]{1,160}$/i.test(model)) throw new Error("NVIDIA_IMAGE_MODEL inválido.");
+  const configuredUrl = envValue(env, "NVIDIA_IMAGE_API_URL");
+  const url = configuredUrl || `${DEFAULT_NVIDIA_IMAGE_API_BASE}/${model}`;
+  if (!/^https:\/\//i.test(url) && !/^http:\/\/127\.0\.0\.1(?::\d+)?\//i.test(url)) {
+    throw new Error("NVIDIA_IMAGE_API_URL precisa usar HTTPS.");
+  }
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      seed: Math.max(0, Number(envValue(env, "NVIDIA_IMAGE_SEED")) || 0),
+      steps: Math.max(1, Math.min(Number(envValue(env, "NVIDIA_IMAGE_STEPS")) || 4, 4)),
+      width: 1024,
+      height: 1024,
+    }),
+    signal,
+  });
+  return { dataUrl: await responseToDataUrl(response, signal), provider: "nvidia-flux" };
 }
 
 async function callGemini({ prompt, env, signal }) {
@@ -228,8 +291,8 @@ export async function generateImage({ prompt, nsfw = false, env = process.env })
     const attempts = [];
     const cloudflareReady = envValue(env, "CLOUDFLARE_ACCOUNT_ID") && envValue(env, "CLOUDFLARE_API_TOKEN");
     if (cloudflareReady) attempts.push(() => callCloudflare({ prompt, env, signal: controller.signal }));
-    const nvidia = customProvider("NVIDIA_IMAGE", env, "nvidia");
-    if (nvidia) attempts.push(() => callJsonImageProvider({ ...nvidia, prompt, signal: controller.signal }));
+    const nvidiaReady = envValue(env, "NVIDIA_API_KEY") || envValue(env, "NVIDIA_IMAGE_API_TOKEN");
+    if (nvidiaReady) attempts.push(() => callNvidia({ prompt, env, signal: controller.signal }));
     if (envValue(env, "GEMINI_API_KEY")) attempts.push(() => callGemini({ prompt, env, signal: controller.signal }));
     const normal = customProvider("NORMAL_IMAGE", env, "normal-custom");
     if (normal) attempts.push(() => callJsonImageProvider({ ...normal, prompt, signal: controller.signal }));
@@ -242,7 +305,8 @@ export async function generateImage({ prompt, nsfw = false, env = process.env })
         if (result) return result;
       } catch (error) {
         lastError = error;
-        if (!error.retryable) throw error;
+        if (error?.name === "AbortError") throw error;
+        if (!error.retryable && error.fallbackAllowed !== true && !(error instanceof TypeError)) throw error;
       }
     }
     throw lastError || new Error("Nenhum provedor de imagem respondeu.");

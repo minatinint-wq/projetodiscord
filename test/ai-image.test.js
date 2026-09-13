@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { classifyImagePrompt, parseImageCommand } from "../image-generation.js";
+import { classifyImagePrompt, generateImage, parseImageCommand } from "../image-generation.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appPort = 36000 + Math.floor(Math.random() * 1000);
@@ -45,8 +45,19 @@ async function request(pathname, options = {}) {
 
 before(async () => {
   tempDir = await mkdtemp(path.join(os.tmpdir(), "sesh-ai-test-"));
-  providerServer = http.createServer((_req, res) => {
+  providerServer = http.createServer(async (req, res) => {
     providerCalls += 1;
+    if (req.url === "/nvidia") {
+      for await (const _chunk of req) {}
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ artifacts: [{ base64: tinyPng }] }));
+      return;
+    }
+    if (req.url === "/quota") {
+      res.writeHead(429, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "quota exhausted" }));
+      return;
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ image: tinyPng }));
   });
@@ -88,7 +99,35 @@ test("parser exige o formato com aspas e classificador protege menores", () => {
   assert.equal(classifyImagePrompt("explicit sex").prohibited, true);
 });
 
+test("NVIDIA usa o endpoint NIM de imagem e entende artifacts base64", async () => {
+  const result = await generateImage({
+    prompt: "uma paisagem futurista",
+    env: {
+      NVIDIA_API_KEY: "test-key",
+      NVIDIA_IMAGE_API_URL: `${providerUrl.replace(/\/generate$/, "")}/nvidia`,
+      IMAGE_GENERATION_TIMEOUT_MS: "5000",
+    },
+  });
+  assert.equal(result.provider, "nvidia-flux");
+  assert.match(result.dataUrl, /^data:image\/png;base64,/);
+});
+
+test("falha de cota na NVIDIA cai automaticamente no próximo provedor", async () => {
+  const result = await generateImage({
+    prompt: "uma cidade solar",
+    env: {
+      NVIDIA_API_KEY: "test-key",
+      NVIDIA_IMAGE_API_URL: `${providerUrl.replace(/\/generate$/, "")}/quota`,
+      NORMAL_IMAGE_API_URL: providerUrl,
+      NORMAL_IMAGE_PROVIDER_NAME: "fallback-test",
+      IMAGE_GENERATION_TIMEOUT_MS: "5000",
+    },
+  });
+  assert.equal(result.provider, "fallback-test");
+});
+
 test("geração fica no servidor, exige administrador e não persiste para outros membros", async () => {
+  const providerCallsBeforeScenario = providerCalls;
   const ownerLogin = await request("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ username: "demo", password: "demo123" }),
@@ -147,5 +186,5 @@ test("geração fica no servidor, exige administrador e não persiste para outro
   assert.equal(visibleMessages.response.status, 200);
   assert.equal(visibleMessages.payload.messages.some((message) => message.id === ownerResult.payload.message.id), false);
   assert.equal(visibleMessages.payload.messages.some((message) => message.id === adminResult.payload.message.id), false);
-  assert.equal(providerCalls, 2);
+  assert.equal(providerCalls - providerCallsBeforeScenario, 2);
 });

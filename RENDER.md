@@ -13,6 +13,22 @@ pela rede privada do Render.
 5. Quando solicitado, informe **CREATOR_EMAIL** com o e-mail da conta criadora.
 6. Acompanhe o deploy até o health check **/api/health** ficar saudável.
 
+## Cotas de geração de imagem
+
+O comando `/image` tenta Cloudflare Workers AI, NVIDIA FLUX, Gemini, provedor
+personalizado e, por último, o Space público do Hugging Face. No Web Service
+`sesh-web`, configure pelo menos uma destas opções em **Environment**:
+
+- Cloudflare: `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_API_TOKEN` com permissão
+  **Workers AI - Read**. O modelo padrão é
+  `@cf/black-forest-labs/flux-1-schnell`.
+- NVIDIA: `NVIDIA_API_KEY`. O endpoint e o modelo
+  `black-forest-labs/flux.1-schnell` são preenchidos automaticamente.
+
+Não grave essas credenciais no Git. Depois de salvar as variáveis, faça um novo
+deploy do serviço. Erro de cota, indisponibilidade ou credencial de um provedor
+faz o servidor tentar o próximo; bloqueio explícito de segurança não é contornado.
+
 Não crie um **Static Site**: câmera, chamadas, perfis, convites e mensagens
 dependem do processo Node e do WebSocket.
 

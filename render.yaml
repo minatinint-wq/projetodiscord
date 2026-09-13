@@ -31,6 +31,16 @@ services:
         value: https://black-forest-labs-flux-1-schnell.hf.space
       - key: NSFW_HF_API_NAME
         value: infer
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_IMAGE_MODEL
+        value: "@cf/black-forest-labs/flux-1-schnell"
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_IMAGE_MODEL
+        value: black-forest-labs/flux.1-schnell
       - key: MASTER_ADMIN_EMAIL
         sync: false
       - key: MASTER_ADMIN_EMAILS
