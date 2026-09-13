@@ -81,6 +81,7 @@ test("parser exige o formato com aspas e classificador protege menores", () => {
   assert.deepEqual(parseImageCommand('/image "paisagem violeta"'), {
     command: "image", prompt: "paisagem violeta", nsfw: false,
   });
+  assert.equal(parseImageCommand('/imagem "cachorro sorrindo"').command, "image");
   assert.equal(parseImageCommand("/imagensfw sem aspas").invalid, true);
   assert.equal(classifyImagePrompt("adult nude editorial").adult, true);
   assert.equal(classifyImagePrompt("underage nude").prohibited, true);

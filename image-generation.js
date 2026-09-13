@@ -1,5 +1,5 @@
-const COMMAND_PATTERN = /^\/(image|imagensfw)\s+"([^"\r\n]{1,600})"\s*$/i;
-const COMMAND_PREFIX_PATTERN = /^\/(?:image|imagensfw)\b/i;
+const COMMAND_PATTERN = /^\/(image|imagem|imagensfw)\s+"([^"\r\n]{1,600})"\s*$/i;
+const COMMAND_PREFIX_PATTERN = /^\/(?:image|imagem|imagensfw)\b/i;
 const DEFAULT_HF_SPACE_URL = "https://black-forest-labs-flux-1-schnell.hf.space";
 
 const normalizePrompt = (value) => String(value || "")
@@ -32,7 +32,7 @@ export function parseImageCommand(content) {
   const value = String(content || "").trim();
   const match = value.match(COMMAND_PATTERN);
   if (match) return {
-    command: match[1].toLowerCase(),
+    command: match[1].toLowerCase() === "imagem" ? "image" : match[1].toLowerCase(),
     prompt: match[2].trim(),
     nsfw: match[1].toLowerCase() === "imagensfw",
   };
@@ -135,6 +135,11 @@ async function callHuggingFaceSpace({ prompt, env, signal, prefix = "NSFW", defa
   });
   if (!events.ok) return { dataUrl: await responseToDataUrl(events, signal), provider: "huggingface-zerogpu" };
   const stream = await events.text();
+  if (/event:\s*error/i.test(stream)) {
+    const error = new Error("O Hugging Face não concluiu a geração. A cota pública pode ter acabado; tente novamente mais tarde.");
+    error.retryable = true;
+    throw error;
+  }
   const values = stream.split(/\r?\n/)
     .filter((line) => line.startsWith("data:"))
     .map((line) => {
@@ -142,7 +147,11 @@ async function callHuggingFaceSpace({ prompt, env, signal, prefix = "NSFW", defa
     })
     .filter(Boolean);
   const file = values.findLast((value) => Array.isArray(value) && value[0]?.url)?.[0];
-  if (!file?.url) throw new Error("O Space terminou sem retornar uma imagem.");
+  if (!file?.url) {
+    const error = new Error("O Hugging Face terminou sem retornar uma imagem. Tente novamente mais tarde.");
+    error.retryable = true;
+    throw error;
+  }
   const imageUrl = new URL(file.url);
   if (imageUrl.protocol !== "https:" || !(imageUrl.hostname.endsWith(".hf.space") || imageUrl.hostname.endsWith("huggingface.co")))
     throw new Error("O Space retornou uma URL de imagem inesperada.");

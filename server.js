@@ -2092,7 +2092,7 @@ async function handler(req, res) {
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
       const imageCommand = parseImageCommand(content);
       if (imageCommand?.invalid)
-        return json(res, 400, { error: 'Use exatamente /image "prompt" ou /imagensfw "prompt".' });
+        return json(res, 400, { error: 'Use /image "prompt", /imagem "prompt" ou /imagensfw "prompt".' });
       if (imageCommand) {
         if (!hasServerPermission(user, server, "manageServer"))
           return json(res, 403, { error: "Somente administradores do servidor podem usar o gerador de imagens." });
@@ -2127,8 +2127,8 @@ async function handler(req, res) {
           authorId: AI_SESH_USER.id,
           author: AI_SESH_USER,
           content: imageCommand.nsfw
-            ? "Imagem NSFW gerada somente para você."
-            : "Imagem gerada somente para você.",
+            ? `Imagem NSFW gerada somente para você: “${imageCommand.prompt}”`
+            : `Imagem gerada somente para você: “${imageCommand.prompt}”`,
           attachment: generated.dataUrl,
           ai: { nsfw: imageCommand.nsfw, ephemeral: true },
           createdAt: now(),

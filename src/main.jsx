@@ -2863,7 +2863,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     event.preventDefault();
     if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current || readingAttachment) return;
     sendingMessageRef.current = true;
-    const imageCommand = /^\/(?:image|imagensfw)\s+"[^"\r\n]{1,600}"\s*$/i.test(draft.trim());
+    const imageCommand = /^\/(?:image|imagem|imagensfw)\s+"[^"\r\n]{1,600}"\s*$/i.test(draft.trim());
     const imageAuthorized = imageCommand && (selectedServer?.ownerId === currentUser.id || Boolean(selectedServer?.permissions?.manageServer));
     if (imageAuthorized) {
       setAiSessionServerId(selectedChannel.serverId);
