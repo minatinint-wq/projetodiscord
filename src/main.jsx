@@ -70,6 +70,16 @@ import "./styles.css";
 import "./refinement.css";
 import "./profile.css";
 
+const EmojiArtwork = React.lazy(() => import("./EmojiArtwork"));
+
+function LibraryEmoji({ emoji, size = 20 }) {
+  return (
+    <React.Suspense fallback={<span className="emoji-artwork-fallback" aria-hidden="true">{emoji}</span>}>
+      <EmojiArtwork emoji={emoji} size={size} />
+    </React.Suspense>
+  );
+}
+
 const colors = ["purple", "orange", "green", "blue"];
 const PROFILE_NAME_COLORS = [
   "#f1f3f5",
@@ -5270,7 +5280,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                                 onClick={() => reactToMessage(message, reaction.emoji)}
                                 aria-label={`${reaction.emoji}: ${reaction.count} reação${reaction.count === 1 ? "" : "ões"}`}
                               >
-                                <span>{reaction.emoji}</span> {reaction.count}
+                                <span className="sr-only">{reaction.emoji}</span><LibraryEmoji emoji={reaction.emoji} size={18} /> {reaction.count}
                               </button>
                             ))}
                           </div>
@@ -5386,7 +5396,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               <div className="message-quick-reactions" aria-label="Reações rápidas">
                 {quickReactions.map((emoji) => {
                   const selected = message.reactions?.some((reaction) => reaction.emoji === emoji && reaction.userIds?.includes(currentUser.id));
-                  return <button key={emoji} type="button" className={selected ? "selected" : ""} onClick={() => reactToMessage(message, emoji)}>{emoji}{selected && <Check size={9}/>}</button>;
+                  return <button key={emoji} type="button" aria-label={`Reagir com ${emoji}`} className={selected ? "selected" : ""} onClick={() => reactToMessage(message, emoji)}><LibraryEmoji emoji={emoji} size={23}/>{selected && <Check size={9}/>}</button>;
                 })}
               </div>
             )}
@@ -5394,7 +5404,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               <Smile size={17}/> Adicionar reação <span className="context-arrow">›</span>
             </button>}
             {messageMenu.reactionsOpen && <div className="message-reaction-grid">
-              {moreReactions.map((emoji) => <button key={emoji} type="button" onClick={() => reactToMessage(message, emoji)}>{emoji}</button>)}
+              {moreReactions.map((emoji) => <button key={emoji} type="button" aria-label={`Reagir com ${emoji}`} onClick={() => reactToMessage(message, emoji)}><LibraryEmoji emoji={emoji} size={21}/></button>)}
             </div>}
             {persistentMessage && <button className="context-item" type="button" onClick={() => replyToMessage(message)}><Reply size={17}/>Responder</button>}
             {persistentMessage && <button className="context-item" type="button" onClick={() => setMessageMenu((current) => ({ ...current, forwardOpen: !current.forwardOpen, reactionsOpen: false }))}>

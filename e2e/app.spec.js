@@ -64,9 +64,15 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  await page.screenshot({path:"test-results/roles.png",fullPage:true});
 });
 test("emoji picker insere e envia mensagem",async({page})=>{
- await page.getByTitle("Comunidade de teste",{exact:true}).click();
+ await page.request.post("/api/servers",{data:{name:"Comunidade emoji"}});
+ await page.reload();
+ await expect(page.getByTitle("Configurações",{exact:true})).toBeVisible();
+ await page.getByTitle("Comunidade emoji",{exact:true}).click();
  await page.getByRole("button",{name:"Escolher emoji"}).click();
- await page.getByRole("button",{name:"😀",exact:true}).click();
+ await expect(page.locator(".EmojiPickerReact")).toBeVisible();
+ await expect(page.locator(".EmojiPickerReact img").first()).toBeVisible();
+ await page.screenshot({path:"test-results/emoji-picker-modern.png",fullPage:true});
+ await page.getByRole("button",{name:"rosto risonho",exact:true}).click();
  await expect(page.locator(".composer input:not([type=file])")).toHaveValue("😀");
  await page.locator(".send-button").click();
  await expect(page.locator(".emoji-message").filter({hasText:"😀"})).toBeVisible();
