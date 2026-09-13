@@ -641,18 +641,6 @@ button {
   font-size: 9px;
   margin-top: 2px;
 }
-.member.role-style-glow .member-role {
-  color: var(--member-role-color);
-  text-shadow: 0 0 8px var(--member-role-color);
-}
-.member.role-style-pulse .member-role {
-  color: var(--member-role-color);
-  animation: role-pulse 1.8s ease-in-out infinite;
-}
-.member.role-style-blink .member-role {
-  color: var(--member-role-color);
-  animation: role-blink 1.1s steps(2, start) infinite;
-}
 @keyframes role-pulse {
   50% {
     filter: brightness(1.65);
@@ -3749,18 +3737,6 @@ body:not(.creator-account) .badge-note {
   width: 86px;
   height: 86px;
   margin-top: -44px;
-}
-.direct-profile::after {
-  content: "Jogando\A\A Brawlhalla\A\A  9:26  •  sequência ativa";
-  display: block;
-  margin-top: 20px;
-  padding: 13px 11px;
-  white-space: pre-wrap;
-  border-radius: 8px;
-  color: #dce1e8;
-  background: #1b1e23;
-  font-size: 11px;
-  line-height: 1.45;
 }
 @media (max-width: 700px) {
   .direct-conversation {

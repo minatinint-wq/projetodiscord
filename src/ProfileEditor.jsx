@@ -1,4 +1,4 @@
-import React,{useState,useRef} from "react";
+import React,{useState,useRef,useEffect} from "react";
 import {X,Camera,ImagePlus,Search,Sparkles,Gamepad2,UserRound,ShieldCheck,Check} from "lucide-react";
 import {PROFILE_EFFECTS,AVATAR_FRAMES,NAME_EFFECTS,PROFILE_OVERLAYS} from "../cosmetics";
 import {premiumCosmetic} from "./premiumCosmetics";
@@ -19,6 +19,7 @@ export default function ProfileEditor({user,onClose,onSave,Avatar,ProfileEffectL
  const avatarDrop=useFileDrop(files=>dropImage("avatar",files));
  const bannerDrop=useFileDrop(files=>dropImage("banner",files));
  const changed=JSON.stringify(form)!==initial.current;
+ useEffect(()=>{const close=event=>{if(event.key==="Escape")onClose();};window.addEventListener("keydown",close);return()=>window.removeEventListener("keydown",close);},[onClose]);
  const nitro=(user.badges||[]).includes("nitro_classic");
  const update=(key,value)=>setForm(current=>({...current,[key]:value}));
  async function save(){

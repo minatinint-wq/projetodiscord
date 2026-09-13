@@ -838,10 +838,14 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const canEditRole = role => canEditRoles && (server.role === "owner" || (role.id !== "member" && role.position > server.actorPosition));
   const [settingsSection, setSettingsSection] = useState(canEditOverview ? "overview" : "roles");
   useEffect(() => {
-    const handleEscape = (event) => { if (event.key === "Escape") onClose(); };
+    const handleEscape = (event) => {
+      if (event.key !== "Escape") return;
+      if (roleEditorId) setRoleEditorId(null);
+      else onClose();
+    };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+  }, [onClose, roleEditorId]);
   function addRole() {
     const roleId = `role_${crypto.randomUUID()}`;
     setRolesSaved(false); setSettingsSection("roles");
@@ -948,6 +952,26 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
 function ProfileGames({user}) {
   const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).filter(Boolean);
   return games.length ? <div className="profile-game-chips">{games.map(game=><a key={game.id} href={game.iconSource} target="_blank" rel="noopener noreferrer" title={"Fonte da imagem de "+game.name}><GameIcon game={game}/>{game.name}</a>)}</div> : <span>{user.favoriteGame}</span>;
+}
+function MemberProfilePopover({ data, currentUser, position, onClose, onRetry, onEdit, onMessage, onAddFriend, onFull, Avatar, ProfileEffectLayer, renderBadges, presence, isFriend }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const user = data?.user;
+  return <aside className="member-profile-popover" style={{ left: position.x, top: position.y }} role="dialog" aria-label={user ? "Resumo de " + user.displayName : "Resumo do perfil"} onClick={event => event.stopPropagation()}>
+    {!user ? <div className="member-profile-popover-loading">{data?.error ? <><p>{data.error}</p><button onClick={onRetry}>Tentar novamente</button></> : <p>Carregando perfil…</p>}</div> : <>
+      <ProfileCard user={user} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={renderBadges} presence={presence}/>
+      <div className="member-profile-popover-actions">
+        {user.id === currentUser.id
+          ? <button type="button" onClick={onEdit}>Editar perfil</button>
+          : <button type="button" onClick={() => onMessage(user)}>Mensagem</button>}
+        <button type="button" className="member-profile-more" aria-label="Mais ações do perfil" aria-controls="member-profile-more-menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><MoreVertical size={18}/></button>
+      </div>
+      {moreOpen && <div className="member-profile-more-menu" id="member-profile-more-menu">
+        <button type="button" onClick={onFull}>Ver perfil completo</button>
+        {user.id !== currentUser.id && !isFriend && <button type="button" onClick={() => onAddFriend(user)}>Adicionar amigo</button>}
+      </div>}
+      <button type="button" className="member-profile-full" onClick={onFull}>Ver perfil completo</button>
+    </>}
+  </aside>;
 }
 function FavoriteGameActivity({user}) {
   const game=GAME_CATALOG.find(game=>game.id===user.gameInterests?.[0]);
@@ -1595,6 +1619,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     window.addEventListener("keydown", onKey);
     return () => { active = false; window.removeEventListener("keydown", onKey); };
   }, [profileView?.userId]);
+  useEffect(() => {
+    if (profileView?.mode !== "popover") return;
+    const close = event => {
+      if (!event.target.closest?.(".member-profile-popover")) setProfileView(null);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [profileView?.mode, profileView?.userId]);
   useEffect(() => {
     document.documentElement.dataset.reducedMotion = localStorage.getItem("sesh_reduced_motion") || "false";
     document.body.classList.toggle(
@@ -2467,7 +2499,12 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       canAssignRole: mayModerateTarget || mayAssignSelf,
       assignableRoles,
       onProfile: () => {
-        setProfileView({ userId: user.id });
+        setProfileView({
+          mode: "popover",
+          userId: user.id,
+          x: Math.max(12, Math.min(event.clientX + 12, window.innerWidth - 332)),
+          y: Math.max(12, Math.min(event.clientY - 70, window.innerHeight - 522)),
+        });
         setBadgeMenu(null);
       },
     });
@@ -2544,9 +2581,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   }
   function openProfile(event, userId) {
     event.stopPropagation();
+    const width = 320;
+    const height = 510;
+    const right = event.clientX + 14;
+    const x = right + width <= window.innerWidth - 12
+      ? right
+      : Math.max(12, event.clientX - width - 14);
     setProfileView({
-      x: Math.min(event.clientX + 12, window.innerWidth - 352),
-      y: Math.min(event.clientY - 40, window.innerHeight - 500),
+      mode: "popover",
+      x,
+      y: Math.max(12, Math.min(event.clientY - 70, window.innerHeight - height - 12)),
       userId,
     });
   }
@@ -3091,7 +3135,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       {voiceConnected&&voiceChannel&&<div className="quick-voice"><strong>Em voz · {voiceChannel.name}</strong><button onClick={()=>{setStatusMenu(false);openVoiceFromProfile({channelId:voiceChannel.id,channelName:voiceChannel.name});}}>Abrir chamada de voz</button></div>}
       <div className="quick-profile-actions">
         <button onClick={()=>{setStatusMenu(false);openSettings("account");}}><Settings size={16}/>Editar perfil e banner</button>
-        <button onClick={()=>{setStatusMenu(false);setProfileView({userId:currentUser.id});}}><Eye size={16}/>Ver perfil completo</button>
+        <button onClick={()=>{setStatusMenu(false);setProfileView({mode:"full",userId:currentUser.id});}}><Eye size={16}/>Ver perfil completo</button>
         <button onClick={copyOwnHandle}>Copiar meu usuário</button>
       </div>
       <details><summary>Status · {({online:"Disponível",idle:"Ausente",dnd:"Não perturbar",invisible:"Invisível"})[currentUser.status||"online"]}</summary>
@@ -3102,8 +3146,32 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   const guideActive =
     guideServer === selectedServer?.id &&
     !localStorage.getItem(`sesh_guide_${selectedServer?.id}`);
+  const profileLayer = profileView?.mode === "full"
+    ? <ProfileDialog key={profileView.userId} data={profileData} currentUser={currentUser}
+        onClose={() => setProfileView(null)}
+        onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
+        onEdit={() => {setProfileView(null); openSettings("account");}}
+        onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
+        onAddFriend={addFriendFromMenu} onVoice={openVoiceFromProfile}
+        Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
+        presence={presenceFor(profileView.userId)}
+        isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
+        serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/>
+    : profileView
+      ? <MemberProfilePopover key={profileView.userId} data={profileData} currentUser={currentUser}
+          position={profileView} onClose={() => setProfileView(null)}
+          onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
+          onEdit={() => {setProfileView(null); openSettings("account");}}
+          onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
+          onAddFriend={addFriendFromMenu}
+          onFull={() => setProfileView(current => current ? {...current, mode:"full"} : current)}
+          Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
+          presence={presenceFor(profileView.userId)}
+          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}/>
+      : null;
   const overlays = (
     <>
+      {profileLayer}
       {serverSettingsOpen && selectedServer && (
         <ServerSettingsPanel
           server={selectedServer}
@@ -3161,16 +3229,6 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </section>
         </div>
       )}
-      {profileView && !selectedServer && (<ProfileDialog key={profileView.userId} data={profileData} currentUser={currentUser}
-          onClose={() => setProfileView(null)}
-          onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
-          onEdit={() => {setProfileView(null); openSettings("account");}}
-          onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
-          onAddFriend={addFriendFromMenu} onVoice={openVoiceFromProfile}
-          Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
-          presence={presenceFor(profileView.userId)}
-          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
-          serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/> )}
       {notice && !selectedServer && (
         <button className="notice" onClick={() => setNotice("")}>
           {notice}
@@ -4199,6 +4257,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                 homeTab.slice(3),
               )
             }
+            onOpenFullProfile={() => setProfileView({mode:"full",userId:homeTab.slice(3)})}
           />
         )}
       </div>
@@ -4782,17 +4841,25 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                   const list=event.currentTarget;
                   autoScrollMessagesRef.current=list.scrollHeight-list.scrollTop-list.clientHeight<90;
                 }}>
-                  {filteredMessages.map((message) => (
-                    <article className="message" key={message.id} data-member-id={message.author.id}>
-                      <Avatar
+                  {filteredMessages.map((message, index) => {
+                    const previous = filteredMessages[index - 1];
+                    const messageDate = new Date(message.createdAt);
+                    const previousDate = previous ? new Date(previous.createdAt) : null;
+                    const sameDay = previousDate?.toDateString() === messageDate.toDateString();
+                    const compact = Boolean(previous && sameDay && previous.author.id === message.author.id && messageDate - previousDate < 7 * 60 * 1000);
+                    const shortTime = messageDate.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+                    return <React.Fragment key={message.id}>
+                    {!sameDay && <div className="message-day-divider"><span>{messageDate.toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})}</span></div>}
+                    <article className={"message"+(compact?" message-compact":"")} data-member-id={message.author.id}>
+                      {compact ? <time className="message-hover-time" dateTime={message.createdAt}>{shortTime}</time> : <Avatar
                         user={message.author}
                         color={message.author.avatarColor || "purple"}
                         onClick={(event) =>
                           openProfile(event, message.author.id)
                         }
-                      />
+                      />}
                       <div className="message-body">
-                        <div className="message-meta">
+                        {!compact && <div className="message-meta">
                           <strong
                             onClick={(event) =>
                               openProfile(event, message.author.id)
@@ -4812,11 +4879,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                             </span>
                           )}
                           <time>
-                            {new Date(message.createdAt).toLocaleString(
-                              "pt-BR",
-                            )}
+                            {shortTime}
                           </time>
-                        </div>
+                        </div>}
                         {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
                         {message.attachment && <AttachmentView attachment={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`}/>}
                       </div>
@@ -4824,7 +4889,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         <MoreVertical size={17} />
                       </button>
                     </article>
-                  ))}
+                    </React.Fragment>;
+                  })}
                   {filteredMessages.length === 0 && (
                     <div className="empty-search">
                       Nenhuma mensagem encontrada.
@@ -4858,7 +4924,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               <div className="member-title">MEMBROS — {members.length}</div>
               {memberGroups.map((group) => (
                 <section className={"member-role-group" + (group.owner ? " member-owner-group" : "")} key={group.owner ? "server-owner" : group.role?.id || "members"}>
-                  {group.role && <div className={"member-role-group-title role-effect-text role-style-" + (group.role.style || "solid")} style={{ "--role-group-color": group.role.color, "--member-role-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
+                  {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div
                       className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
@@ -4877,7 +4943,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           <StyledName user={member}/>
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
-                        <span className="member-role role-effect-text">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
+                        <span className="member-role">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
                       </div>
                     </div>
                   ))}
@@ -5089,16 +5155,6 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </section>
         </div>
       )}
-      {profileView && (<ProfileDialog key={profileView.userId} data={profileData} currentUser={currentUser}
-          onClose={() => setProfileView(null)}
-          onRetry={() => { setProfileData("loading"); api.profile(profileView.userId).then(setProfileData).catch(err => setProfileData({error:err.message})); }}
-          onEdit={() => {setProfileView(null); openSettings("account");}}
-          onMessage={user => {setProfileView(null);setSelectedServer(null);setHomeTab("dm:"+user.id);}}
-          onAddFriend={addFriendFromMenu} onVoice={openVoiceFromProfile}
-          Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
-          presence={presenceFor(profileView.userId)}
-          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
-          serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/> )}
       {channelModal && (
         <div className="modal-backdrop" onClick={() => setChannelModal(null)}>
           <section
