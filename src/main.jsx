@@ -760,7 +760,7 @@ function CanvasChoiceModal({ title, kind, current, onClose, onApply, catalogItem
 function VoiceSettingsPanel(props) {
   return <SettingsHub {...props} Avatar={Avatar} />;
 }
-function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, saving, onClose }) {
+function RoleConfigPanel({ role, members, ownerId, canAssignOwner, onUpdate, onAssignMember, onSave, saving, onClose }) {
   const [tab, setTab] = useState("display");
   const [query, setQuery] = useState("");
   const [imageError, setImageError] = useState("");
@@ -817,7 +817,7 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, savi
           </section>
         )}
         {tab === "links" && <section className="role-empty-tab"><h3>Links do cargo</h3><p>Este cargo ainda não possui links vinculados.</p></section>}
-        {tab === "members" && <section className="role-member-manager"><div className="role-member-manager-head"><p>Escolha quem terá este cargo. Um membro usa um cargo por vez.</p><strong>{roleMembers.length} membro{roleMembers.length === 1 ? "" : "s"}</strong></div>{members.map((member) => <label key={member.id} className="role-member-row"><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><input type="checkbox" checked={member.roleId === role.id} onChange={(event) => onAssignMember(member.id, event.target.checked ? role.id : "member")} /></label>)}</section>}
+        {tab === "members" && <section className="role-member-manager"><div className="role-member-manager-head"><p>Escolha quem terá este cargo. O cargo exibido do dono pode mudar sem remover sua autoridade.</p><strong>{roleMembers.length} membro{roleMembers.length === 1 ? "" : "s"}</strong></div>{members.map((member) => <label key={member.id} className="role-member-row" data-member-id={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}{member.id === ownerId ? " • dono" : ""}</small></span><input type="checkbox" disabled={member.id === ownerId && !canAssignOwner} checked={member.roleId === role.id} onChange={(event) => onAssignMember(member.id, event.target.checked ? role.id : "member")} /></label>)}</section>}
         <footer className="role-config-actions"><button type="button" onClick={onClose}>Fechar</button><button type="button" className="prompt-confirm" disabled={saving} onClick={async () => { const saved = await onSave(); if (saved) onClose(); }}>{saving ? "Salvando..." : "Salvar cargo"}</button></footer>
       </section>
     </div>
@@ -827,7 +827,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [form, setForm] = useState({
     name: server.name || "", tag: server.tag || "", icon: server.icon || null,
     banner: server.banner || null, accentColor: server.accentColor || "#c93642", roles: server.roles || [],
-    memberRoles: Object.fromEntries(members.filter((member) => member.id !== server.ownerId).map((member) => [member.id, member.roleId || "member"])),
+    memberRoles: Object.fromEntries(members.map((member) => [member.id, member.roleId || "member"])),
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -891,7 +891,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   }
   const customRoles = form.roles.filter((role) => !["owner", "member"].includes(role.id));
   const defaultRole = form.roles.find((role) => role.id === "member");
-  const configurableMembers = members.filter((member) => member.id !== server.ownerId).map(member => ({ ...member, roleId: form.memberRoles[member.id] || member.roleId }));
+  const configurableMembers = members.map(member => ({ ...member, roleId: form.memberRoles[member.id] || member.roleId }));
   const [memberSearch, setMemberSearch] = useState("");
   return (
     <div className="modal-backdrop server-settings-backdrop" onClick={onClose}>
@@ -934,13 +934,13 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar cargos"}</button></div>
           </section>}
           {settingsSection === "members" && <section className="server-members-page">
-            <header><span>MEMBROS</span><h2>Gerenciar membros</h2><p>Defina um cargo para cada pessoa. O dono do servidor permanece no topo.</p></header>
-            <label className="settings-search members-search"><Search size={18}/><input placeholder="Buscar membro" value={memberSearch} onChange={event => setMemberSearch(event.target.value)}/></label><div className="members-table-header"><span>MEMBRO</span><span>CARGO</span></div><section className="settings-members-list">{configurableMembers.filter(member => `${member.displayName} ${member.username}`.toLowerCase().includes(memberSearch.toLowerCase())).map((member) => <label className="server-role-member" key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}</strong><small>@{member.username}</small></span><select disabled={server.role !== "owner" && member.serverRole?.position <= server.actorPosition} value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{form.roles.filter(role => role.id !== "owner").map((role) => <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
+            <header><span>MEMBROS</span><h2>Gerenciar membros</h2><p>Defina um cargo visual para cada pessoa. O dono permanece no topo e mantém todas as permissões.</p></header>
+            <label className="settings-search members-search"><Search size={18}/><input placeholder="Buscar membro" value={memberSearch} onChange={event => setMemberSearch(event.target.value)}/></label><div className="members-table-header"><span>MEMBRO</span><span>CARGO</span></div><section className="settings-members-list">{configurableMembers.filter(member => `${member.displayName} ${member.username}`.toLowerCase().includes(memberSearch.toLowerCase())).map((member) => <label className="server-role-member" data-member-id={member.id} key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}{member.id === server.ownerId && <em className="server-owner-label">DONO</em>}</strong><small>@{member.username}</small></span><select disabled={member.id === server.ownerId ? server.role !== "owner" : server.role !== "owner" && member.serverRole?.position <= server.actorPosition} value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{member.id === server.ownerId && <option value="owner">Dono (padrão)</option>}{form.roles.filter(role => role.id !== "owner").map((role) => <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
             {rolesSaved && <p className="role-save-feedback">Membros atualizados.</p>}{error && <div className="form-error">{error}</div>}
             <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar membros"}</button></div>
           </section>}
         </main>
-        {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} onUpdate={updateRole} onAssignMember={assignRoleMember} onSave={saveRoles} saving={busy} onClose={() => setRoleEditorId(null)} />}
+        {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} ownerId={server.ownerId} canAssignOwner={server.role === "owner"} onUpdate={updateRole} onAssignMember={assignRoleMember} onSave={saveRoles} saving={busy} onClose={() => setRoleEditorId(null)} />}
       </section>
     </div>
   );
@@ -2376,15 +2376,30 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   const memberGroups = useMemo(() => {
     const roles = [...(selectedServer?.roles || [])]
       .sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
+    const owner = members.find((member) => member.id === selectedServer?.ownerId);
+    const regularMembers = owner ? members.filter((member) => member.id !== owner.id) : members;
     const separated = roles.filter((role) => role.hoist);
     const groups = separated
-      .map((role) => ({ role, members: members.filter((member) => member.roleId === role.id) }))
+      .map((role) => ({ role, members: regularMembers.filter((member) => member.roleId === role.id) }))
       .filter((group) => group.members.length);
     const separatedIds = new Set(separated.map((role) => role.id));
-    const remaining = members.filter((member) => !separatedIds.has(member.roleId));
+    const remaining = regularMembers.filter((member) => !separatedIds.has(member.roleId));
     if (remaining.length) groups.push({ role: null, members: remaining });
+    if (owner) {
+      const visualRole = owner.serverRole || roles.find((role) => role.id === owner.roleId) || roles.find((role) => role.id === "owner");
+      groups.unshift({
+        owner: true,
+        role: {
+          ...visualRole,
+          id: "server-owner",
+          name: visualRole?.id === "owner" ? "Dono do servidor" : `${visualRole?.name || "Cargo"} • Dono`,
+          hoist: true,
+        },
+        members: [owner],
+      });
+    }
     return groups;
-  }, [members, selectedServer?.roles]);
+  }, [members, selectedServer?.ownerId, selectedServer?.roles]);
   const isOwner = selectedServer?.role === "owner";
   const canManageChannels = isOwner || selectedServer?.permissions?.manageChannels;
   const canManageSettings = isOwner || selectedServer?.permissions?.manageRoles || selectedServer?.permissions?.manageServer;
@@ -4842,7 +4857,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             <aside className="member-sidebar">
               <div className="member-title">MEMBROS — {members.length}</div>
               {memberGroups.map((group) => (
-                <section className="member-role-group" key={group.role?.id || "members"}>
+                <section className={"member-role-group" + (group.owner ? " member-owner-group" : "")} key={group.owner ? "server-owner" : group.role?.id || "members"}>
                   {group.role && <div className={"member-role-group-title role-effect-text role-style-" + (group.role.style || "solid")} style={{ "--role-group-color": group.role.color, "--member-role-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div

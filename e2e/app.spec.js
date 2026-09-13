@@ -50,8 +50,18 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  await page.getByTitle("Configurações do servidor",{exact:true}).click();
  await page.getByRole("button",{name:"Cargos",exact:true}).click();
  await expect(page.locator(".settings-role-item").filter({hasText:"Guardiões"})).toBeVisible();
+ await page.getByRole("button",{name:"Membros",exact:true}).click();
+ const ownerRow=page.locator('.server-role-member[data-member-id="'+result.server.ownerId+'"]');
+ await expect(ownerRow).toBeVisible();
+ await ownerRow.locator("select").selectOption({label:"Guardiões"});
+ await page.getByRole("button",{name:"Salvar membros",exact:true}).click();
+ await expect(page.getByText("Membros atualizados.",{exact:true})).toBeVisible();
+ await page.getByLabel("Fechar configurações",{exact:true}).click();
+ await expect(page.locator(".member-sidebar .member").first()).toHaveAttribute("data-member-id",result.server.ownerId);
+ await expect(page.locator(".member-owner-group .member-role-group-title")).toContainText("Guardiões");
  const server=await(await page.request.get("/api/servers/"+result.server.id)).json();
  expect(server.server.roles.some(role=>role.name==="Guardiões"&&role.style==="dark_wave")).toBeTruthy();
+ expect(server.members.find(member=>member.id===result.server.ownerId).roleId).toBe(server.server.roles.find(role=>role.name==="Guardiões").id);
  await page.screenshot({path:"test-results/roles.png",fullPage:true});
 });
 test("emoji picker insere e envia mensagem",async({page})=>{
