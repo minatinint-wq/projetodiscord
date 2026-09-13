@@ -88,6 +88,10 @@ const SHORT_USERNAME_EMAIL_HASHES = new Set([
   // Exact production exception stored as SHA-256 so the address is not published.
   "10207282f8a43d267b457523f7e1b3d2362a2ec574772540e1a073595a5ce2f0",
 ]);
+const SHORT_USERNAME_ASSIGNMENTS = new Map([
+  // Exact account exception stored as SHA-256 so the address is not published.
+  ["0f3d49993657c7eb8c61dc56f1a5d064f121e4247e8f2450a3d79a7b7febc190", "nt"],
+]);
 const ALLOWED_BADGES = [
   "criador",
   "fundador",
@@ -271,10 +275,14 @@ function allocatePublicId(user) {
   while (database?.users?.some((item) => item !== user && item.publicId === candidate));
   return candidate;
 }
-function minimumUsernameLengthFor(user) {
+function minimumUsernameLengthFor(user, requestedUsername = user?.username) {
   if (isPrimaryMasterAdmin(user) || user?.shortUsernameAllowed === true) return 1;
+  const currentUsername = String(user?.username || "").trim().toLowerCase();
+  const normalizedUsername = String(requestedUsername || "").trim().toLowerCase();
+  if (currentUsername.length >= 2 && currentUsername.length < 4 && normalizedUsername === currentUsername) return currentUsername.length;
   const email = String(user?.email || "").trim().toLowerCase();
   const emailHash = crypto.createHash("sha256").update(email).digest("hex");
+  if (SHORT_USERNAME_ASSIGNMENTS.get(emailHash) === normalizedUsername) return normalizedUsername.length;
   return SHORT_USERNAME_EMAILS.has(email) || SHORT_USERNAME_EMAIL_HASHES.has(emailHash) ? 3 : 4;
 }
 function canUseShortUsername(user) {
@@ -1151,7 +1159,7 @@ async function handler(req, res) {
           error:
             "Usuário e senha com pelo menos 6 caracteres são obrigatórios.",
         });
-      const minimumUsernameLength = minimumUsernameLengthFor({ email });
+      const minimumUsernameLength = minimumUsernameLengthFor({ email }, username);
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
@@ -1414,7 +1422,7 @@ async function handler(req, res) {
           : user.username;
       if (!displayName)
         return json(res, 400, { error: "Nome de exibição é obrigatório." });
-      const minimumUsernameLength = minimumUsernameLengthFor(user);
+      const minimumUsernameLength = minimumUsernameLengthFor(user, username);
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
