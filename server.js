@@ -126,7 +126,10 @@ const DEFAULT_MEMBER_PERMISSIONS = {
   shareScreen: true,
   useVoiceActivity: true,
 };
-const ROLE_STYLES = ["solid", "glow", "pulse", "blink"];
+const ROLE_STYLES = [
+  "solid", "glow", "pulse", "blink", "dark_wave",
+  "rgb", "gradient", "shimmer", "neon", "electric",
+];
 function defaultRoles() {
   return [
     {
@@ -1763,7 +1766,9 @@ async function handler(req, res) {
           const membership = database.memberships.find(
             (item) => item.serverId === server.id && item.userId === userId,
           );
-          if (!membership || userId === server.ownerId || membership.roleId === roleId) continue;
+          if (!membership || membership.roleId === roleId) continue;
+          if (userId === server.ownerId && !isOwner)
+            return json(res, 403, { error: "Somente o dono pode alterar o próprio cargo de exibição." });
           if (!isOwner && (roleForMembership(storedServer, membership)?.position <= actorRole.position || normalizedRoles(server.roles).find(role => role.id === roleId)?.position <= actorRole.position))
             return json(res, 403, { error: "Você só pode atribuir cargos inferiores a membros abaixo do seu cargo." });
           if (!validRoleIds.has(roleId) || roleId === "owner")
@@ -1774,7 +1779,7 @@ async function handler(req, res) {
       Object.assign(storedServer, server);
       for (const [membership, roleId] of membershipUpdates) {
         membership.roleId = roleId;
-        membership.role = roleId === "owner" ? "owner" : roleId === "member" ? "member" : "custom";
+        membership.role = membership.userId === server.ownerId ? "owner" : roleId === "member" ? "member" : "custom";
       }
       await saveDatabase();
       broadcastServer(server.id, {

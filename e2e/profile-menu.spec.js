@@ -19,7 +19,11 @@ test("clique direito de administrador não derruba a tela e identifica o membro"
   await profile.getByRole("button",{name:"Lista de desejos",exact:true}).click();
   await expect(profile.getByText("Esta pessoa ainda não compartilhou uma lista de desejos.")).toBeVisible();
   await page.screenshot({path:"test-results/member-profile.png"});
-  await profile.getByLabel("Fechar perfil",{exact:true}).click();await expect(row).toBeVisible();expect(errors).toEqual([]);
+ await profile.getByLabel("Fechar perfil",{exact:true}).click();await expect(row).toBeVisible();expect(errors).toEqual([]);
+ await page.locator(".user-panel").click({button:"right"});
+ const ownMenu=page.getByLabel("Ações do membro");await expect(ownMenu).toBeVisible();await expect(ownMenu.locator("select")).toBeVisible();
+ await ownMenu.locator("select").selectOption("member");
+ await expect(page.getByText("Você continua dono do servidor.",{exact:false})).toBeVisible();
  }finally{await peer.close();}
 });
 test("foto própria abre cartão rápido acima do painel",async({page})=>{

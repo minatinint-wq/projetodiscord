@@ -49,6 +49,7 @@ import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
 import PremiumAvatarFrame from "./PremiumAvatarFrame";
 import { PREMIUM_FRAME_ART } from "./premiumCosmetics";
+import { updateVoiceActivity } from "./voiceActivity";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -188,7 +189,7 @@ function Avatar({ user, color = "purple", small = false, onClick }) {
   );
   if (!PREMIUM_FRAME_ART[frame]) return React.cloneElement(core, { onClick });
   return <span className={`premium-avatar-shell ${small ? "premium-avatar-shell-small" : ""}`} onClick={onClick}>
-    {core}<PremiumAvatarFrame frame={frame}/>
+    {core}<PremiumAvatarFrame frame={frame} animated={!small&&!user?.cosmeticStatic}/>
   </span>;
 }
 
@@ -275,10 +276,10 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
       <button className="context-item" onClick={() => menu.onProfile?.()}>
         Perfil
       </button>
+      <button className="context-item" onClick={onCopyHandle}>
+        Copiar nome de usuário
+      </button>
       {!isSelf && <>
-        <button className="context-item" onClick={onCopyHandle}>
-          Copiar nome de usuário
-        </button>
         <button className="context-item" onClick={onAddFriend}>
           Adicionar amigo
         </button>
@@ -289,9 +290,8 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
           Gerenciar cargos do servidor
         </button>
       </>}
-      {(onModerate || onAdd) && <div className="context-sep" />}
-      {onModerate && !isSelf && <>
-        {onAssignRole && menu.assignableRoles?.length > 0 && <label className="context-role-picker">
+      {(onModerate || onAssignRole || onAdd) && <div className="context-sep" />}
+      {onAssignRole && menu.assignableRoles?.length > 0 && <label className="context-role-picker">
           <span>Definir cargo</span>
           <select
             value={menu.user.roleId || "member"}
@@ -302,6 +302,7 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
             ))}
           </select>
         </label>}
+      {onModerate && !isSelf && <>
         <button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>
           {menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}
         </button>
@@ -798,9 +799,13 @@ function RoleConfigPanel({ role, members, onUpdate, onAssignMember, onSave, savi
         </nav>
         {tab === "display" && (
           <section className="role-display-settings">
+            <div className={"role-style-sample role-style-" + (role.style || "solid")} style={{ "--member-role-color": role.color }}>
+              {role.icon ? <img src={role.icon} alt="" /> : <i />}
+              <span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>Prévia do efeito aplicado ao cargo</small></span>
+            </div>
             <label>Nome do cargo<input value={role.name} maxLength={40} onChange={(event) => onUpdate(role.id, { name: event.target.value })} /></label>
             <label>Cor do cargo<input type="color" value={role.color} onChange={(event) => onUpdate(role.id, { color: event.target.value })} /></label>
-            <label>Estilo<select value={role.style || "solid"} onChange={(event) => onUpdate(role.id, { style: event.target.value })}><option value="solid">Sólido</option><option value="glow">Brilho</option><option value="pulse">Pulso</option><option value="blink">Piscar</option></select></label>
+            <label>Estilo<select aria-label="Efeito do cargo" value={role.style || "solid"} onChange={(event) => onUpdate(role.id, { style: event.target.value })}><option value="solid">Sólido</option><option value="glow">Brilho suave</option><option value="pulse">Pulso de luz</option><option value="dark_wave">Pulso escuro</option><option value="rgb">Rainbow RGB</option><option value="gradient">Gradiente vivo</option><option value="shimmer">Reflexo metálico</option><option value="neon">Neon</option><option value="electric">Elétrico</option><option value="blink">Piscar</option></select></label>
             <div className="role-icon-upload"><div className="role-icon-preview" style={{ "--role-preview-color": role.color }}>{role.icon ? <img src={role.icon} alt="" /> : <i />}</div><div><strong>Ícone do cargo</strong><small>Envie uma imagem de até 250 KB para identificar este cargo.</small><div><label className="role-icon-button">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={chooseRoleIcon} /></label>{role.icon && <button type="button" onClick={() => onUpdate(role.id, { icon: null })}>Remover</button>}</div>{imageError && <em>{imageError}</em>}</div></div>
             <label className="role-hoist-setting"><span><strong>Separar membros deste cargo</strong><small>Mostra este cargo como uma seção própria na lateral, seguindo a ordem da lista.</small></span><input type="checkbox" checked={Boolean(role.hoist)} onChange={(event) => onUpdate(role.id, { hoist: event.target.checked })} /></label>
           </section>
@@ -922,7 +927,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <p className="server-role-hint">A lista define a prioridade: cargos mais acima aparecem primeiro. Use “Separar membros” dentro de cada cargo para criar uma seção na lateral.</p>
             <section className="settings-roles-list">
               {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>Permissões de quem ainda não tem cargo personalizado</small></span></div><button type="button" className="role-edit" disabled={server.role !== "owner"} onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
-              {customRoles.map((role, index) => <article key={role.id} className="settings-role-item" style={{ "--role-preview-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong>{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {customRoles.map((role, index) => <article key={role.id} className={"settings-role-item role-style-" + (role.style || "solid")} style={{ "--role-preview-color": role.color, "--member-role-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
               {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
             </section>
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
@@ -1408,7 +1413,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const audioCtxRef = useRef(null);
   const analysersRef = useRef(new Map());
   const speakingRef = useRef({});
-  const speakingUntilRef = useRef(new Map());
   const localVideoStream = useMemo(() => {
     const track = screenOn
       ? screenTrackRef.current
@@ -1475,6 +1479,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const guideIconRef = useRef(null);
   const composerInputRef = useRef(null);
   const attachmentInputRef = useRef(null);
+  const messagesListRef = useRef(null);
+  const autoScrollMessagesRef = useRef(true);
+  const messageChannelRef = useRef(null);
   const socketRef = useRef(null);
   const selectedServerRef = useRef(selectedServer);
   const peersRef = useRef(new Map());
@@ -1660,17 +1667,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       }
       const ownPanel = event.target.closest(".user-panel");
       if (ownPanel) {
-        event.stopPropagation();
-        setBadgeMenu({
-          x: Math.min(event.clientX, window.innerWidth - 240),
-          y: Math.min(event.clientY, window.innerHeight - 110),
-          user: currentUser,
-          currentUserId: currentUser.id,
-          onProfile: () => {
-            setProfileView({ userId: currentUser.id });
-            setBadgeMenu(null);
-          },
-        });
+        openMemberMenu(event, ownMember ? {...currentUser,...ownMember} : currentUser);
         return;
       }
       if (card && profileData?.user && currentUser.isMasterAdmin) {
@@ -2292,12 +2289,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       audioCtxRef.current.resume?.();
       const source = audioCtxRef.current.createMediaStreamSource(stream);
       const analyser = audioCtxRef.current.createAnalyser();
-      analyser.fftSize = 512;
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = .72;
       source.connect(analyser);
       analysersRef.current.set(userId, {
         source,
         analyser,
-        data: new Uint8Array(analyser.frequencyBinCount),
+        data: new Uint8Array(analyser.fftSize),
+        vad: {},
       });
     } catch {
       /* sem áudio analisável */
@@ -2312,7 +2311,6 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       }
     });
     analysersRef.current.clear();
-    speakingUntilRef.current.clear();
     speakingRef.current = {};
     setSpeaking({});
   }
@@ -2322,11 +2320,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       const next = {};
       const now = performance.now();
       analysersRef.current.forEach((item, userId) => {
-        item.analyser.getByteFrequencyData(item.data);
-        let sum = 0;
-        for (let i = 0; i < item.data.length; i++) sum += item.data[i];
-        if (sum / item.data.length > 5) speakingUntilRef.current.set(userId, now + 320);
-        if ((speakingUntilRef.current.get(userId) || 0) > now) next[userId] = true;
+        item.analyser.getByteTimeDomainData(item.data);
+        item.vad = updateVoiceActivity(item.vad, item.data, now);
+        if (item.vad.speaking) next[userId] = true;
       });
       const prev = speakingRef.current;
       const changed =
@@ -2336,10 +2332,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         speakingRef.current = next;
         setSpeaking(next);
       }
-      setTimeout(tick, 80);
+      setTimeout(tick, 50);
     };
     tick();
   }
+  const memberRoleById = useMemo(
+    () => new Map(members.map((member) => [member.id, member.serverRole])),
+    [members],
+  );
   const filteredMessages = useMemo(() => {
     if (!search.trim()) return messages;
     return messages.filter(
@@ -2348,6 +2348,23 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         message.author.displayName.toLowerCase().includes(search.toLowerCase()),
     );
   }, [messages, search]);
+  useEffect(() => {
+    const list = messagesListRef.current;
+    const channelId = selectedChannel?.id || null;
+    if (!list) {
+      messageChannelRef.current = channelId;
+      return;
+    }
+    const channelChanged = messageChannelRef.current !== channelId;
+    const newest = messages[messages.length - 1];
+    if (channelChanged || autoScrollMessagesRef.current || newest?.author?.id === currentUser.id) {
+      requestAnimationFrame(() => {
+        list.scrollTo({ top: list.scrollHeight, behavior: channelChanged ? "auto" : "smooth" });
+        autoScrollMessagesRef.current = true;
+      });
+    }
+    messageChannelRef.current = channelId;
+  }, [messages.length, selectedChannel?.id, currentUser.id]);
   const orderedChannels = useMemo(() => {
     if (!selectedServer) return [];
     return [...selectedServer.channels].sort(
@@ -2419,8 +2436,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     );
     const actorPosition = ownMember?.serverRole?.position ?? 999;
     const targetPosition = user.serverRole?.position ?? members.find(member => member.id === user.id)?.serverRole?.position ?? 999;
+    const isSelf = user.id === currentUser.id;
     const mayModerateTarget = canModerate && user.id !== currentUser.id &&
       user.roleId !== "owner" && (selectedServer.role === "owner" || actorPosition < targetPosition);
+    const mayAssignSelf = Boolean(isSelf && selectedServer?.role === "owner");
     const assignableRoles = (selectedServer?.roles || []).filter((role) =>
       role.id !== "owner" && (selectedServer.role === "owner" || role.position > actorPosition),
     );
@@ -2430,6 +2449,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       user,
       currentUserId: currentUser.id,
       canModerate: mayModerateTarget,
+      canAssignRole: mayModerateTarget || mayAssignSelf,
       assignableRoles,
       onProfile: () => {
         setProfileView({ userId: user.id });
@@ -2592,6 +2612,15 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   async function moderateMember(target, input) {
     if (!selectedServer || !target) return;
     try {
+      if (target.id === currentUser.id && input.roleId) {
+        const updated = await api.updateServer(selectedServer.id, { memberRoles: { [target.id]: input.roleId } });
+        setServers((current) => current.map((server) => server.id === updated.server.id ? { ...server, ...updated.server } : server));
+        setSelectedServer((current) => current?.id === updated.server.id ? { ...current, ...updated.server } : current);
+        const details = await api.server(selectedServer.id);
+        setMembers(details.members || []);
+        setNotice("Seu cargo de exibição foi atualizado. Você continua dono do servidor.");
+        return;
+      }
       const result = await api.moderateMember(selectedServer.id, target.id, input);
       setMembers((current) => current.map((member) =>
         member.id === result.member.id ? { ...member, ...result.member } : member,
@@ -3724,7 +3753,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           menu={badgeMenu}
           onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
-          onAssignRole={badgeMenu.canModerate ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
+          onAssignRole={badgeMenu.canAssignRole ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
           onManageRoles={badgeMenu.user.id === currentUser.id && canManageSettings ? () => {
             setBadgeMenu(null);
             setServerSettingsOpen(true);
@@ -4344,7 +4373,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                             />
                           </span>
                           <span className="voice-member-name-row">
-                            <span>{participant.displayName}</span>
+                            <StyledName user={{ ...participant, serverRole: memberRoleById.get(participant.id) || participant.serverRole }}/>
                             <VoiceMediaIndicators
                               camera={cameraActiveFor(participant)}
                               screen={screenActiveFor(participant)}
@@ -4734,7 +4763,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     com a comunidade.
                   </p>
                 </div>
-                <div className="messages-list">
+                <div className="messages-list" ref={messagesListRef} onScroll={(event) => {
+                  const list=event.currentTarget;
+                  autoScrollMessagesRef.current=list.scrollHeight-list.scrollTop-list.clientHeight<90;
+                }}>
                   {filteredMessages.map((message) => (
                     <article className="message" key={message.id} data-member-id={message.author.id}>
                       <Avatar
@@ -4751,7 +4783,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                               openProfile(event, message.author.id)
                             }
                           >
-                            <StyledName user={message.author}/>
+                            <StyledName user={{ ...message.author, serverRole: memberRoleById.get(message.author.id) }}/>
                           </strong>
                           {selectedServer.tag && (
                             <span
@@ -4811,7 +4843,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               <div className="member-title">MEMBROS — {members.length}</div>
               {memberGroups.map((group) => (
                 <section className="member-role-group" key={group.role?.id || "members"}>
-                  {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
+                  {group.role && <div className={"member-role-group-title role-effect-text role-style-" + (group.role.style || "solid")} style={{ "--role-group-color": group.role.color, "--member-role-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div
                       className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}
@@ -4830,7 +4862,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           <StyledName user={member}/>
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
-                        <span className="member-role">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
+                        <span className="member-role role-effect-text">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
                       </div>
                     </div>
                   ))}

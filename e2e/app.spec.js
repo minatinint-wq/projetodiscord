@@ -42,6 +42,8 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  await page.getByRole("button",{name:"Cargos",exact:true}).click();
  await page.getByRole("button",{name:"Criar cargo",exact:true}).click();
  await page.getByLabel("Nome do cargo",{exact:true}).fill("Guardiões");
+ await page.getByLabel("Efeito do cargo",{exact:true}).selectOption("dark_wave");
+ await expect(page.locator(".role-style-sample")).toHaveClass(/role-style-dark_wave/);
  await page.getByRole("button",{name:"Salvar cargo",exact:true}).click();
  await expect(page.locator(".settings-role-item").filter({hasText:"Guardiões"})).toBeVisible();
  await page.getByLabel("Fechar configurações",{exact:true}).click();
@@ -49,7 +51,7 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  await page.getByRole("button",{name:"Cargos",exact:true}).click();
  await expect(page.locator(".settings-role-item").filter({hasText:"Guardiões"})).toBeVisible();
  const server=await(await page.request.get("/api/servers/"+result.server.id)).json();
- expect(server.server.roles.some(role=>role.name==="Guardiões")).toBeTruthy();
+ expect(server.server.roles.some(role=>role.name==="Guardiões"&&role.style==="dark_wave")).toBeTruthy();
  await page.screenshot({path:"test-results/roles.png",fullPage:true});
 });
 test("emoji picker insere e envia mensagem",async({page})=>{

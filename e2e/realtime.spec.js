@@ -14,6 +14,8 @@ test("dois clientes recebem mensagens em tempo real",async({page,browser})=>{
   await expect(peer.getByText("Conversa ao vivo 🎮",{exact:true})).toBeVisible();
   await peer.locator(".composer input:not([type=file])").fill("Recebi! 🥳");await peer.locator(".send-button").click();
   await expect(page.getByText("Recebi! 🥳",{exact:true})).toBeVisible();
+  const list=page.locator(".messages-list");
+  await expect.poll(()=>list.evaluate(element=>Math.abs(element.scrollHeight-element.clientHeight-element.scrollTop))).toBeLessThan(5);
   await page.screenshot({path:"test-results/chat-live.png",fullPage:true});
  }finally{await context.close();}
 });

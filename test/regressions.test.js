@@ -61,14 +61,18 @@ test("e-mail não permite assumir privilégio administrativo",async()=>{
  const result=await req("/api/auth/me","PATCH",{email:"test-admin@sesh.local"},guest.token);assert.equal(result.status,403);
 });
 test("cargos e permissões padrão persistem; anexos são validados",async()=>{
- const roles=[...server.roles.map(role=>role.id==="member"?{...role,permissions:{...role.permissions,attachFiles:false}}:role),{id:"moderator",name:"Guardiões",color:"#ab88ff",permissions:{sendMessages:true,connectVoice:true},hoist:true}];
+ const roles=[...server.roles.map(role=>role.id==="member"?{...role,permissions:{...role.permissions,attachFiles:false}}:role),{id:"moderator",name:"Guardiões",color:"#ab88ff",style:"dark_wave",permissions:{sendMessages:true,connectVoice:true},hoist:true}];
  const changed=await req("/api/servers/"+server.id,"PATCH",{roles},owner.token);assert.equal(changed.status,200);
  const reloaded=await req("/api/servers/"+server.id,"GET",undefined,owner.token);
- assert.ok(reloaded.server.roles.some(role=>role.id==="moderator"));assert.equal(reloaded.server.roles.find(role=>role.id==="member").permissions.attachFiles,false);
+ assert.ok(reloaded.server.roles.some(role=>role.id==="moderator"));assert.equal(reloaded.server.roles.find(role=>role.id==="moderator").style,"dark_wave");assert.equal(reloaded.server.roles.find(role=>role.id==="member").permissions.attachFiles,false);
  assert.equal((await req("/api/channels/"+server.channels[0].id+"/messages","POST",{attachment:png},guest.token)).status,403);
  const invalid=await req("/api/servers/"+server.id,"PATCH",{name:"nao deve salvar",memberRoles:{[guest.user.id]:"missing"}},owner.token);assert.equal(invalid.status,400);
  assert.equal((await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server.name,"Regressions");
  assert.equal((await req("/api/servers/"+server.id,"PATCH",{icon:"RG",memberRoles:{[guest.user.id]:"moderator"}},owner.token)).status,200);
+ const ownRole=await req("/api/servers/"+server.id,"PATCH",{memberRoles:{[owner.user.id]:"moderator"}},owner.token);
+ assert.equal(ownRole.status,200);assert.equal(ownRole.server.role,"owner");
+ const ownerView=await req("/api/servers/"+server.id,"GET",undefined,owner.token);
+ assert.equal(ownerView.members.find(member=>member.id===owner.user.id).roleId,"moderator");
 });
 test("DM persiste texto e imagem e respeita preferências",async()=>{
  assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"oi"},guest.token)).status,403);

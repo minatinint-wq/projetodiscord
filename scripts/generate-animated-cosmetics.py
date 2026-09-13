@@ -66,13 +66,72 @@ def star(draw, x, y, radius, color):
 
 
 def rotated_petal(layer, x, y, size, angle, color):
-    tile_size = max(14, int(size * 4))
+    scale = 4
+    target_size = max(5, int(round(size * 1.55)))
+    tile_size = target_size * scale
     tile = Image.new("RGBA", (tile_size, tile_size))
     d = ImageDraw.Draw(tile)
-    box = (tile_size*.18, tile_size*.32, tile_size*.82, tile_size*.68)
-    d.ellipse(box, fill=color)
+    d.ellipse((tile_size*.17, tile_size*.1, tile_size*.83, tile_size*.7), fill=color)
+    d.polygon(((tile_size*.18, tile_size*.43), (tile_size*.5, tile_size*.92),
+               (tile_size*.82, tile_size*.43)), fill=color)
+    d.ellipse((tile_size*.42, tile_size*.04, tile_size*.58, tile_size*.25), fill=(0, 0, 0, 0))
+    d.line((tile_size*.5, tile_size*.34, tile_size*.5, tile_size*.73),
+           fill=(255, 246, 250, min(180, color[3])), width=scale)
     tile = tile.rotate(math.degrees(angle), resample=Image.Resampling.BICUBIC, expand=True)
+    tile = tile.resize((max(1, tile.width//scale), max(1, tile.height//scale)), Image.Resampling.LANCZOS)
     layer.alpha_composite(tile, (int(x-tile.width/2), int(y-tile.height/2)))
+
+
+def tiny_crescent(layer, x, y, size, angle, color):
+    scale = 4
+    target_size = max(6, int(round(size*1.45)))
+    tile_size = target_size*scale
+    tile = Image.new("RGBA", (tile_size, tile_size))
+    d = ImageDraw.Draw(tile)
+    pad = tile_size*.2
+    d.ellipse((pad, pad, tile_size-pad, tile_size-pad), fill=color)
+    d.ellipse((tile_size*.42, tile_size*.13, tile_size*.9, tile_size*.7), fill=(0, 0, 0, 0))
+    tile = tile.rotate(math.degrees(angle), resample=Image.Resampling.BICUBIC, expand=True)
+    tile = tile.resize((max(1, tile.width//scale), max(1, tile.height//scale)), Image.Resampling.LANCZOS)
+    layer.alpha_composite(tile, (int(x-tile.width/2), int(y-tile.height/2)))
+
+
+def tiny_flame(draw, x, y, size, color, sway=0):
+    points = ((x-size*.7, y+size), (x-size*.35+sway, y),
+              (x+sway, y-size*1.35), (x+size*.28+sway, y-.05*size),
+              (x+size*.72, y+size))
+    draw.polygon(points, fill=color)
+    draw.ellipse((x-size*.2, y+size*.15, x+size*.24, y+size*.78),
+                 fill=(255, 226, 128, min(235, color[3]+25)))
+
+
+def tiny_bat(draw, x, y, size, color, wing):
+    body = max(1, size*.22)
+    draw.ellipse((x-body, y-size*.42, x+body, y+size*.48), fill=color)
+    draw.polygon(((x-body, y), (x-size, y-size*.38*wing),
+                  (x-size*.72, y+size*.48), (x-size*.3, y+size*.2)), fill=color)
+    draw.polygon(((x+body, y), (x+size, y-size*.38*wing),
+                  (x+size*.72, y+size*.48), (x+size*.3, y+size*.2)), fill=color)
+
+
+def tiny_chip(draw, x, y, size, color, pulse):
+    half = size*.55
+    bright = (*color, int(145+90*pulse))
+    draw.rounded_rectangle((x-half, y-half, x+half, y+half), radius=max(1, int(size*.18)),
+                           outline=bright, width=max(1, int(size*.16)))
+    draw.rectangle((x-size*.16, y-size*.16, x+size*.16, y+size*.16), fill=(240, 252, 255, 220))
+    for side in (-1, 1):
+        draw.line((x+side*half, y, x+side*size, y), fill=bright, width=1)
+        draw.line((x, y+side*half, x, y+side*size), fill=bright, width=1)
+
+
+def tiny_shard(draw, x, y, size, angle, color):
+    ux, uy = math.cos(angle), math.sin(angle)
+    vx, vy = -uy, ux
+    points = ((x+ux*size, y+uy*size), (x+vx*size*.42, y+vy*size*.42),
+              (x-ux*size*.76, y-uy*size*.76), (x-vx*size*.25, y-vy*size*.25))
+    draw.polygon(points, fill=color)
+    draw.line((points[0], points[2]), fill=(242, 249, 255, min(235, color[3]+35)), width=1)
 
 
 def bolt(draw, points, color, width):
@@ -105,8 +164,12 @@ def draw_lunar(layer, crisp, mode, phase, particles):
         y = py*h if mode != "frames" else h*.5 + math.sin(offset+phase*speed)*(w*.39)
         if mode == "frames":
             x = w*.5 + math.cos(offset+phase*speed)*(w*.39)
-        alpha = int(215*pulse)
-        star(d, x, y, 1.8+depth*2.1, (*COLORS["lunar"][index%2], alpha))
+        alpha = int(205*pulse)
+        color = (*COLORS["lunar"][index%2], alpha)
+        if index % 5 == 0:
+            tiny_crescent(crisp, x, y, 3.2+depth*1.8, phase*.12+offset, color)
+        else:
+            star(d, x, y, .65+depth*.75, color)
 
 
 def draw_sakura(layer, crisp, mode, progress, particles):
@@ -115,7 +178,7 @@ def draw_sakura(layer, crisp, mode, progress, particles):
         travel = (py + progress*speed*1.25) % 1.18 - .08
         x = (px*w + math.sin(progress*TAU*.72+offset)*w*.07 + travel*w*.1) % w
         y = travel*h
-        size = (5+depth*7)*(1 if mode != "frames" else 1.25)
+        size = (2.2+depth*2.8)*(1 if mode != "frames" else 1.15)
         color = (255, 225, 238, 225) if index%3 == 0 else (255, 135, 187, 205)
         rotated_petal(crisp, x, y, size, progress*TAU*(.6+speed)+offset, color)
 
@@ -140,10 +203,19 @@ def draw_embers(layer, crisp, mode, progress, particles, gothic=False):
         travel = (py-progress*speed*1.35+2) % 1.12
         x = px*w + math.sin(progress*TAU*1.3+offset)*w*.018
         y = travel*h
-        radius = max(2, int(depth*3.4))
         color = primary[index%2]
-        glow.ellipse((x-radius*4, y-radius*4, x+radius*4, y+radius*4), fill=(*color, 32))
-        d.ellipse((x-radius, y-radius*1.7, x+radius, y+radius*1.7), fill=(*color, 215))
+        size = 2.1+depth*2.4
+        if gothic:
+            if index%5 == 0:
+                tiny_bat(d, x, y, size*1.12, (*color, 205), .55+math.sin(progress*TAU*2+offset)*.45)
+            else:
+                rotated_petal(crisp, x, y, size, progress*TAU*.45+offset, (*color, 190))
+        elif index%4 == 0:
+            tiny_flame(d, x, y, size, (*color, 220), math.sin(progress*TAU+offset)*size*.18)
+        else:
+            radius=max(1, int(size*.38))
+            glow.ellipse((x-size*2.2, y-size*2.2, x+size*2.2, y+size*2.2), fill=(*color, 22))
+            d.ellipse((x-radius, y-radius*1.55, x+radius, y+radius*1.55), fill=(*color, 210))
     if gothic:
         smoke = Image.new("RGBA", layer.size)
         sd = ImageDraw.Draw(smoke)
@@ -179,39 +251,40 @@ def draw_cyber(layer, crisp, mode, progress, particles):
     for index, (px, py, depth, speed, offset) in enumerate(particles[:12]):
         x = ((px+progress*.38*speed)%1)*w
         y = py*h
-        d.rounded_rectangle((x-4*depth, y-2, x+4*depth, y+2), radius=2,
-                            fill=(*(cyan if index%2 else violet), 205))
+        tiny_chip(d, x, y, 3.1+depth*2.2, cyan if index%2 else violet,
+                  math.sin(progress*TAU+offset)*.5+.5)
 
 
 def draw_steel(layer, crisp, mode, progress, particles, key):
     w, h = layer.size
     d = ImageDraw.Draw(crisp)
-    rng = random.Random(f"{key}-{int(progress*FRAMES)}")
     width = max(1, int(w/420))
     if mode == "frames":
         center = (w/2, h/2)
         for side in (-1, 1):
             points = []
+            rng = random.Random(f"{key}-{side}")
             for step in range(9):
                 angle = (-1.7+step*.42) if side < 0 else (1.45-step*.42)
-                radius = w*(.38+rng.random()*.055)
+                radius = w*(.405+math.sin(progress*TAU*.55+step*.8+rng.random()*TAU)*.012)
                 points.append((center[0]+math.cos(angle)*radius, center[1]+math.sin(angle)*radius))
             bolt(d, points, COLORS["steel"][0], width)
     else:
         for side in (0, 1):
             x = w*.035 if side == 0 else w*.965
             direction = 1 if side == 0 else -1
-            y0 = ((progress*1.5+side*.43)%1.35-.18)*h
+            y0 = ((progress*.62+side*.43)%1.35-.18)*h
             points = [(x, y0)]
             for step in range(1, 9):
-                points.append((x+direction*(rng.random()*w*.045+step*w*.005), y0+step*h*.055))
+                bend=(.018+step*.004+abs(math.sin(progress*TAU*.5+step+side))*.02)*w
+                points.append((x+direction*bend, y0+step*h*.055))
             bolt(d, points, COLORS["steel"][side], width)
     for index, (px, py, depth, speed, offset) in enumerate(particles[:14]):
         travel = (py-progress*speed+2)%1.1
         x = px*w+math.sin(progress*TAU+offset)*w*.012
         y = travel*h
-        d.line((x-depth*5, y+depth*3, x+depth*5, y-depth*3),
-               fill=(*COLORS["steel"][index%2], 170), width=max(1, width))
+        tiny_shard(d, x, y, 2.2+depth*3.2, progress*TAU*.42+offset,
+                   (*COLORS["steel"][index%2], 185))
 
 
 def render(kind, key, theme, size, frame_index, particles):
@@ -243,12 +316,12 @@ def main():
         folder = OUT/kind
         folder.mkdir(parents=True, exist_ok=True)
         for key, theme in config["themes"].items():
-            particle_count = 18 if kind == "frames" else 30
+            particle_count = 12 if kind == "frames" else 18
             particles = seed_particles(key, particle_count)
             images = [render(kind, key, theme, config["size"], index, particles) for index in range(FRAMES)]
             destination = folder/f"{key}.webp"
             images[0].save(destination, "WEBP", save_all=True, append_images=images[1:],
-                           duration=50, loop=0, lossless=False, quality=84, method=2)
+                           duration=100, loop=0, lossless=True, quality=100, method=4, exact=True)
             print(f"{destination.relative_to(ROOT)} {destination.stat().st_size//1024} KiB")
             columns, rows = 6, 4
             width, height = config["size"]
@@ -256,7 +329,7 @@ def main():
             for index, image in enumerate(images):
                 sheet.alpha_composite(image, ((index%columns)*width, (index//columns)*height))
             sprite = folder/f"{key}.sprite.webp"
-            sheet.save(sprite, "WEBP", lossless=False, quality=88, method=2)
+            sheet.save(sprite, "WEBP", lossless=True, quality=100, method=4, exact=True)
             print(f"{sprite.relative_to(ROOT)} {sprite.stat().st_size//1024} KiB")
 
 
