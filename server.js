@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
-import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS } from "./cosmetics.js";
+import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS } from "./cosmetics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -35,6 +35,7 @@ const COLLECTIONS = [
   "friendships",
   "emailVerifications",
   "directMessages",
+  "sessions",
 ];
 const sessions = new Map();
 const wsTickets = new Map();
@@ -269,9 +270,17 @@ const normalizeDatabase = (input) => {
     roleId:
       membership.roleId ||
       (membership.role === "owner" ? "owner" : "member"),
-    textMuted: Boolean(membership.textMuted),
-    voiceMuted: Boolean(membership.voiceMuted),
+    // Old builds could toggle these flags from a broken context menu without audit metadata.
+    textMuted: Boolean(membership.textMuted && membership.textMutedAt),
+    voiceMuted: Boolean(membership.voiceMuted && membership.voiceMutedAt),
+    textMutedAt: membership.textMuted && membership.textMutedAt ? membership.textMutedAt : null,
+    textMutedBy: membership.textMuted && membership.textMutedAt ? membership.textMutedBy || null : null,
+    voiceMutedAt: membership.voiceMuted && membership.voiceMutedAt ? membership.voiceMutedAt : null,
+    voiceMutedBy: membership.voiceMuted && membership.voiceMutedAt ? membership.voiceMutedBy || null : null,
   }));
+  normalized.sessions = normalized.sessions
+    .filter((record) => record?.tokenHash && record?.userId && Number(record.expiresAt) > Date.now())
+    .slice(-5000);
   return normalized;
 };
 
@@ -740,9 +749,32 @@ function recordLoginFailure(req, identifier) {
       : Date.now() + 15 * 60_000,
   });
 }
+const sessionHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
+async function createSession(userId) {
+  const token = id();
+  const tokenHash = sessionHash(token);
+  const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  sessions.set(token, userId);
+  database.sessions = database.sessions.filter((record) => Number(record.expiresAt) > Date.now()).slice(-4999);
+  database.sessions.push({ tokenHash, userId, expiresAt, createdAt: now() });
+  await saveDatabase();
+  return token;
+}
+async function revokeSession(token) {
+  sessions.delete(token);
+  const tokenHash = sessionHash(token);
+  database.sessions = database.sessions.filter((record) => record.tokenHash !== tokenHash);
+  await saveDatabase();
+}
 function getUser(req) {
   const token = sessionToken(req);
-  const userId = sessions.get(token);
+  if (!token) return undefined;
+  let userId = sessions.get(token);
+  if (!userId) {
+    const record = database.sessions.find((item) => item.tokenHash === sessionHash(token) && Number(item.expiresAt) > Date.now());
+    userId = record?.userId;
+    if (userId) sessions.set(token, userId);
+  }
   return database.users.find((user) => user.id === userId);
 }
 function safeImageDataUrl(value, maxLength = 4_250_000) {
@@ -1064,9 +1096,7 @@ async function handler(req, res) {
         createdAt: now(),
       };
       database.users.push(user);
-      await saveDatabase();
-      const token = id();
-      sessions.set(token, user.id);
+      const token = await createSession(user.id);
       setSessionCookie(res, token);
       // Registration must never wait for an external email provider.
       return json(res, 201, { token, user: sessionUser(user), verificationRequired: false, verificationEmailSent: false });
@@ -1091,8 +1121,7 @@ async function handler(req, res) {
         return json(res, 401, { error: "Usuário ou senha incorretos. Entre com seu nome de usuário, @usuário#tag ou e-mail de cadastro (não o nome de exibição)." });
       }
       loginAttempts.delete(loginLimitKey(req, identifier));
-      const token = id();
-      sessions.set(token, user.id);
+      const token = await createSession(user.id);
       setSessionCookie(res, token);
       return json(res, 200, { token, user: sessionUser(user) });
     }
@@ -1146,7 +1175,7 @@ async function handler(req, res) {
     let user = getUser(req);
     if (!user) return json(res, 401, { error: "Autenticação necessária." });
     if (url.pathname === "/api/auth/logout" && req.method === "POST") {
-      sessions.delete(sessionToken(req));
+      await revokeSession(sessionToken(req));
       clearSessionCookie(res);
       return json(res, 200, { ok: true });
     }
@@ -1272,7 +1301,9 @@ async function handler(req, res) {
       const input = await body(req);
       const storedUser = user;
       user = { ...user };
-      if (!badgesForUser(user).includes("nitro_classic") &&
+      const proposedBadges = input.badges !== undefined && isMasterAdmin(user) ? sanitizeBadges(user, input.badges) : user.badges;
+      const hasNitroForRequest = badgesForUser({ ...user, badges: proposedBadges }).includes("nitro_classic");
+      if (!hasNitroForRequest &&
           [input.avatar, input.banner].some(value => typeof value === "string" && /^data:image\/gif;/i.test(value)))
         return json(res, 403, { error: "GIF no avatar ou banner é exclusivo de contas com a insígnia Nitro Classic." });
       // Never allow changing a profile email to claim an administrator identity.
@@ -1409,12 +1440,14 @@ async function handler(req, res) {
         user[field] = input[field];
       }
       for (const [field, allowed] of Object.entries({
-        bannerPreset: ["aurora","midnight","sunset","ocean","forest","candy","ember","silver"],
+        bannerPreset: ["aurora","midnight","sunset","ocean","forest","candy","ember","silver", ...PREMIUM_BANNER_PRESETS],
         effectIntensity: ["subtle","balanced","vivid"], effectSpeed: ["slow","normal","fast"],
         profileOverlay: PROFILE_OVERLAYS.map(([id])=>id)
       })) {
         if (input[field] === undefined) continue;
         if (!allowed.includes(input[field])) return json(res, 400, {error: "Personalização de perfil inválida."});
+        if (!hasNitroForRequest && ((field === "bannerPreset" && PREMIUM_BANNER_PRESETS.includes(input[field])) || (field === "profileOverlay" && PREMIUM_PROFILE_OVERLAYS.includes(input[field]))))
+          return json(res, 403, {error: "Esta personalização animada requer a insígnia Nitro Classic."});
         user[field] = input[field];
       }
       if (input.profileTheme !== undefined)
@@ -1444,6 +1477,8 @@ async function handler(req, res) {
         )
           ? input.profileEffect
           : "none";
+      if (input.avatarFrame !== undefined && !hasNitroForRequest && PREMIUM_AVATAR_FRAMES.includes(input.avatarFrame))
+        return json(res, 403, {error: "Esta moldura animada requer a insígnia Nitro Classic."});
       if (input.avatarFrame !== undefined)
         user.avatarFrame = AVATAR_FRAMES.map(([value]) => value).includes(
           input.avatarFrame,
@@ -1476,7 +1511,7 @@ async function handler(req, res) {
           return json(res, 403, {
             error: "Somente o admin master pode gerenciar insígnias.",
           });
-        user.badges = sanitizeBadges(user, input.badges);
+        user.badges = proposedBadges;
       }
       if (input.status !== undefined) {
         const allowedStatus = ["online", "idle", "dnd", "invisible"];
@@ -1784,8 +1819,16 @@ async function handler(req, res) {
         target.roleId = role.id;
         target.role = role.id === "member" ? "member" : "custom";
       }
-      if (input.textMuted !== undefined) target.textMuted = Boolean(input.textMuted);
-      if (input.voiceMuted !== undefined) target.voiceMuted = Boolean(input.voiceMuted);
+      if (input.textMuted !== undefined) {
+        target.textMuted = Boolean(input.textMuted);
+        target.textMutedAt = target.textMuted ? now() : null;
+        target.textMutedBy = target.textMuted ? user.id : null;
+      }
+      if (input.voiceMuted !== undefined) {
+        target.voiceMuted = Boolean(input.voiceMuted);
+        target.voiceMutedAt = target.voiceMuted ? now() : null;
+        target.voiceMutedBy = target.voiceMuted ? user.id : null;
+      }
       await saveDatabase();
       if (target.voiceMuted) {
         for (const channel of database.channels.filter(channel => channel.serverId === server.id && channel.type === "voice")) {

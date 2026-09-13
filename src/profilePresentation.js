@@ -7,6 +7,12 @@ export const BANNER_PRESETS = [
  ["candy","Algodão-doce","linear-gradient(120deg,#aa84d7,#eaa9c6,#a8cfe8)"],
  ["ember","Brasas","radial-gradient(ellipse at 75% 20%,#e4854d,transparent 65%),linear-gradient(120deg,#341a2d,#b84951)"],
  ["silver","Prata","linear-gradient(120deg,#424657,#a3a8c0,#575e76)"],
+ ["celestial-tide","Maré celestial","url(/cosmetics-optimized/banners/celestial-tide.png)"],
+ ["crimson-eclipse","Eclipse carmesim","url(/cosmetics-optimized/banners/crimson-eclipse.png)"],
+ ["sakura-dawn","Amanhecer sakura","url(/cosmetics-optimized/banners/sakura-dawn.png)"],
+ ["neon-pulse","Pulso neon","url(/cosmetics-optimized/banners/neon-pulse.png)"],
+ ["steel-wolf","Lobo de aço","url(/cosmetics-optimized/banners/steel-wolf.png)"],
+ ["infernal-dragon","Dragão infernal","url(/cosmetics-optimized/banners/infernal-dragon.png)"],
 ];
 export const PROFILE_THEMES=[["default","Original","#9485fa"],["purple","Violeta","#b097ff"],["pink","Rosa","#f5a5ce"],["blue","Azul","#88b6fa"],["green","Jade","#80d1b0"],["red","Rubi","#eb8c9b"],["midnight","Noturno","#9baac9"],["sunset","Solar","#eeb681"],["ocean","Marinho","#81d9dc"],["aurora","Aurora","#b7b1f5"]];
 export function bannerPresentation(user){

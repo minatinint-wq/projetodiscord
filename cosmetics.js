@@ -11,11 +11,18 @@ export const AVATAR_FRAMES = [
  ["ocean","Oceano"],["cyber","Cyber"],["aurora","Aurora"],["sunset","Pôr do sol"],
  ["jade","Jade"],["royal","Realeza"],["rose","Quartzo rosa"],["electric","Elétrica"],
  ["halo","Halo"],["blossom","Florescer"],["thorn","Espinhos"],
+ ["lunar-halo","Halo lunar"],["ember-crown","Coroa de brasas"],["sakura-halo","Halo sakura"],
+ ["cyber-pulse","Pulso cyber"],["steel-wolf","Lobo de aço"],["infernal-dragon","Dragão infernal"],
 ];
 export const PROFILE_OVERLAYS = [
  ["none","Sem sobreposição"],["orbital","Anéis orbitais"],["runes","Portal rúnico"],
  ["crystal","Cristais"],["nebula","Nebulosa"],["petals","Jardim lunar"],["circuit","Circuito holográfico"],
+ ["lunar-orbit","Órbita lunar"],["gothic-bloom","Jardim gótico"],["holo-circuit","Circuito premium"],
+ ["sakura-shrine","Santuário sakura"],["steel-wolf","Lobo de aço"],["infernal-dragon","Dragão infernal"],
 ];
+export const PREMIUM_AVATAR_FRAMES = ["lunar-halo","ember-crown","sakura-halo","cyber-pulse","steel-wolf","infernal-dragon"];
+export const PREMIUM_PROFILE_OVERLAYS = ["lunar-orbit","gothic-bloom","holo-circuit","sakura-shrine","steel-wolf","infernal-dragon"];
+export const PREMIUM_BANNER_PRESETS = ["celestial-tide","crimson-eclipse","sakura-dawn","neon-pulse","steel-wolf","infernal-dragon"];
 export const NAME_EFFECTS = [
  ["solid","Sólido"],["gradient","Degradê"],["neon","Neon"],["rgb","RGB"],["rainbow","Arco-íris"],
  ["pink_pulse","Rosa pulsante"],["blue_gradient","Azul degradê"],["aurora","Aurora"],

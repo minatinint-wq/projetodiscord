@@ -1,6 +1,8 @@
 import React from "react";
+import PremiumProfileOverlay from "./PremiumProfileOverlay";
 export default function ProfileOverlay({effect}){
  if(!effect||effect==="none")return null;
+ if(["lunar-orbit","gothic-bloom","holo-circuit","sakura-shrine","steel-wolf","infernal-dragon"].includes(effect))return <PremiumProfileOverlay effect={effect}/>;
  return <div className={"profile-overlay overlay-"+effect} aria-hidden="true">
   <svg className="overlay-art" viewBox="0 0 400 600" preserveAspectRatio="none">
    {effect==="orbital"&&<g fill="none"><ellipse cx="205" cy="112" rx="188" ry="90"/><ellipse cx="205" cy="112" rx="176" ry="81"/><path d="M30 145 Q140 -40 360 50"/><circle cx="350" cy="152" r="5" fill="currentColor"/><path d="M12 510 Q210 670 390 490"/></g>}

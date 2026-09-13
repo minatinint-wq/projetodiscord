@@ -47,6 +47,8 @@ import ProfileCard from "./ProfileCard";
 import AttachmentView from "./AttachmentView";
 import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
+import PremiumAvatarFrame from "./PremiumAvatarFrame";
+import { PREMIUM_FRAME_ART } from "./premiumCosmetics";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -178,21 +180,16 @@ function initials(name = "") {
 }
 function Avatar({ user, color = "purple", small = false, onClick }) {
   const value = initials(user?.displayName || user?.username || "?");
-  return user?.avatar ? (
-    <img
-      className={`avatar avatar-img avatar-frame-${user?.avatarFrame || "none"} ${small ? "avatar-small" : ""}`}
-      src={user.avatar}
-      alt=""
-      onClick={onClick}
-    />
+  const frame = user?.avatarFrame || "none";
+  const core = user?.avatar ? (
+    <img className={`avatar avatar-img avatar-frame-${frame} ${small ? "avatar-small" : ""}`} src={user.avatar} alt="" />
   ) : (
-    <div
-      className={`avatar avatar-${color} avatar-frame-${user?.avatarFrame || "none"} ${small ? "avatar-small" : ""}`}
-      onClick={onClick}
-    >
-      {value}
-    </div>
+    <div className={`avatar avatar-${color} avatar-frame-${frame} ${small ? "avatar-small" : ""}`}>{value}</div>
   );
+  if (!PREMIUM_FRAME_ART[frame]) return React.cloneElement(core, { onClick });
+  return <span className={`premium-avatar-shell ${small ? "premium-avatar-shell-small" : ""}`} onClick={onClick}>
+    {core}<PremiumAvatarFrame frame={frame}/>
+  </span>;
 }
 
 function MessageContent({ content, members, onProfile }) {
