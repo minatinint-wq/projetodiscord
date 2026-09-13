@@ -1,21 +1,34 @@
 const API_URL = import.meta.env.VITE_API_URL || "";
+function requestSignal(externalSignal) {
+  if (externalSignal) return { signal: externalSignal, cancel() {} };
+  if (typeof globalThis.AbortSignal?.timeout === "function") return { signal: globalThis.AbortSignal.timeout(60000), cancel() {} };
+  if (typeof globalThis.AbortController !== "function") return { signal: undefined, cancel() {} };
+  const controller = new globalThis.AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), 60000);
+  return { signal: controller.signal, cancel: () => globalThis.clearTimeout(timeoutId) };
+}
 
 async function request(path, options = {}) {
   const legacyToken = localStorage.getItem("orbit_token");
+  const timeout = requestSignal(options.signal);
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
       credentials: "include",
-      signal: options.signal || AbortSignal.timeout(60_000),
+      signal: timeout.signal,
       headers: {
         "Content-Type": "application/json",
         ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
         ...(options.headers || {}),
       },
     });
-  } catch {
+  } catch (error) {
+    if (["AbortError", "TimeoutError"].includes(error?.name))
+      throw new Error("O servidor demorou para responder. Aguarde alguns segundos e tente novamente.");
     throw new Error("Não foi possível conectar ao Sesh. Verifique sua conexão e tente novamente.");
+  } finally {
+    timeout.cancel();
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok)

@@ -2375,6 +2375,13 @@ button {
   align-items: center;
   color: #ff6975;
 }
+.voice-media-muted,
+.voice-media-deafened {
+  display: inline-flex;
+  align-items: center;
+  color: #f06b79;
+  filter: drop-shadow(0 0 5px #f06b7940);
+}
 .voice-media-live {
   display: inline-flex;
   align-items: center;

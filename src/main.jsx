@@ -39,6 +39,7 @@ import {
   Video,
   VideoOff,
   Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { api, connectSocket } from "./api";
@@ -157,10 +158,20 @@ function ProfileEffectLayer({ effect }) {
     </span>
   );
 }
-function VoiceMediaIndicators({ camera, screen }) {
-  if (!camera && !screen) return null;
+function VoiceMediaIndicators({ camera, screen, muted, deafened }) {
+  if (!camera && !screen && !muted && !deafened) return null;
   return (
     <span className="voice-media-indicators">
+      {muted && (
+        <span className="voice-media-muted" title="Microfone silenciado" aria-label="Microfone silenciado">
+          <MicOff size={12} />
+        </span>
+      )}
+      {deafened && (
+        <span className="voice-media-deafened" title="Áudio desativado" aria-label="Áudio desativado">
+          <VolumeX size={12} />
+        </span>
+      )}
       {camera && (
         <span className="voice-media-camera" title="Câmera ligada">
           <Camera size={12} />
@@ -1238,6 +1249,10 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
   async function submit(event) {
     event.preventDefault();
     setError("");
+    if (register && form.username.includes("@")) {
+      setError("Escolha um nome de usuário sem @. Digite o e-mail apenas no campo E-mail.");
+      return;
+    }
     setLoading(true);
     try {
       const result = register
@@ -1322,13 +1337,16 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
             )}
             {!lockedEmail ? (
             <label className="auth-field">
-              <span>Usuário ou e-mail</span>
+              <span>{register ? "Nome de usuário" : "Usuário ou e-mail"}</span>
               <input
                 required
                 autoFocus
                 autoComplete="username"
-                minLength={register ? 4 : undefined}
-                placeholder="Digite seu usuário"
+                minLength={register ? 3 : undefined}
+                maxLength={register ? 20 : undefined}
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder={register ? "Escolha um nome sem @" : "Digite seu usuário ou e-mail"}
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
               />
@@ -1644,10 +1662,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     socketRef.current.send({
       type: "voice.media",
       channelId: voiceChannel.id,
+      muted,
+      deafened,
       camera: camOn,
       screen: screenOn,
     });
-  }, [voiceConnected, voiceChannel?.id, camOn, screenOn]);
+  }, [voiceConnected, voiceChannel?.id, muted, deafened, camOn, screenOn]);
   useEffect(() => {
     const syncFullscreen = () =>
       setVideoFullscreen(Boolean(document.fullscreenElement));
@@ -4572,6 +4592,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           <span className="voice-member-name-row">
                             <StyledName user={{ ...participant, serverRole: memberRoleById.get(participant.id) || participant.serverRole }}/>
                             <VoiceMediaIndicators
+                              muted={participant.id === currentUser.id ? muted : participant.muted}
+                              deafened={participant.id === currentUser.id ? deafened : participant.deafened}
                               camera={cameraActiveFor(participant)}
                               screen={screenActiveFor(participant)}
                             />
@@ -4718,6 +4740,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                               <div className="voice-focus-name-row">
                                 <strong>{participant.displayName}</strong>
                                 <VoiceMediaIndicators
+                                  muted={participant.id === currentUser.id ? muted : participant.muted}
+                                  deafened={participant.id === currentUser.id ? deafened : participant.deafened}
                                   camera={cameraActiveFor(participant)}
                                   screen={screenActiveFor(participant)}
                                 />
@@ -4788,6 +4812,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                               <div className="voice-tile-name-row">
                                 <strong>{participant.displayName}</strong>
                                 <VoiceMediaIndicators
+                                  muted={participant.id === currentUser.id ? muted : participant.muted}
+                                  deafened={participant.id === currentUser.id ? deafened : participant.deafened}
                                   camera={cameraActiveFor(participant)}
                                   screen={screenActiveFor(participant)}
                                 />

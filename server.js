@@ -78,6 +78,16 @@ const CREATOR_EMAILS = new Set(
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean),
 );
+const SHORT_USERNAME_EMAILS = new Set(
+  String(process.env.SHORT_USERNAME_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+const SHORT_USERNAME_EMAIL_HASHES = new Set([
+  // Exact production exception stored as SHA-256 so the address is not published.
+  "10207282f8a43d267b457523f7e1b3d2362a2ec574772540e1a073595a5ce2f0",
+]);
 const ALLOWED_BADGES = [
   "criador",
   "fundador",
@@ -261,8 +271,14 @@ function allocatePublicId(user) {
   while (database?.users?.some((item) => item !== user && item.publicId === candidate));
   return candidate;
 }
+function minimumUsernameLengthFor(user) {
+  if (isPrimaryMasterAdmin(user) || user?.shortUsernameAllowed === true) return 1;
+  const email = String(user?.email || "").trim().toLowerCase();
+  const emailHash = crypto.createHash("sha256").update(email).digest("hex");
+  return SHORT_USERNAME_EMAILS.has(email) || SHORT_USERNAME_EMAIL_HASHES.has(emailHash) ? 3 : 4;
+}
 function canUseShortUsername(user) {
-  return isPrimaryMasterAdmin(user) || user?.shortUsernameAllowed === true;
+  return minimumUsernameLengthFor(user) < 4;
 }
 const blankDatabase = () =>
   Object.fromEntries(COLLECTIONS.map((key) => [key, []]));
@@ -691,6 +707,7 @@ function sessionUser(user) {
     isCreator: isCreator(user),
     isMasterAdmin: isMasterAdmin(user),
     canUseShortUsername: canUseShortUsername(user),
+    minimumUsernameLength: minimumUsernameLengthFor(user),
     preferences: user.preferences || {},
   };
 }
@@ -1055,6 +1072,8 @@ function voiceParticipants(channelId) {
       return user
         ? {
             ...user,
+            muted: Boolean(media?.muted),
+            deafened: Boolean(media?.deafened),
             camera: Boolean(media?.camera),
             screen: Boolean(media?.screen),
           }
@@ -1132,7 +1151,7 @@ async function handler(req, res) {
           error:
             "Usuário e senha com pelo menos 6 caracteres são obrigatórios.",
         });
-      const minimumUsernameLength = email === MASTER_ADMIN_EMAIL ? 1 : 4;
+      const minimumUsernameLength = minimumUsernameLengthFor({ email });
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
@@ -1395,7 +1414,7 @@ async function handler(req, res) {
           : user.username;
       if (!displayName)
         return json(res, 400, { error: "Nome de exibição é obrigatório." });
-      const minimumUsernameLength = canUseShortUsername(user) ? 1 : 4;
+      const minimumUsernameLength = minimumUsernameLengthFor(user);
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
@@ -2381,7 +2400,7 @@ wss.on("connection", (socket, req) => {
         const wasPresent = room.has(userId);
         const changing = event.type === "voice.join" ? !wasPresent : wasPresent;
         if (event.type === "voice.join")
-          room.set(userId, { camera: false, screen: false });
+          room.set(userId, { muted: false, deafened: false, camera: false, screen: false });
         else room.delete(userId);
         if (changing) {
           broadcastVoice(channel.id, {
@@ -2408,6 +2427,8 @@ wss.on("connection", (socket, req) => {
         if (event.screen && !hasServerPermission(caller, voiceServer, "shareScreen"))
           return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode compartilhar tela neste servidor." }));
         room.set(userId, {
+          muted: Boolean(event.muted),
+          deafened: Boolean(event.deafened),
           camera: Boolean(event.camera),
           screen: Boolean(event.screen),
         });

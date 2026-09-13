@@ -39,6 +39,8 @@ services:
         sync: false
       - key: CREATOR_EMAIL
         sync: false
+      - key: SHORT_USERNAME_EMAILS
+        sync: false
       - key: SESH_PUBLIC_URL
         sync: false
       - key: RESEND_API_KEY
