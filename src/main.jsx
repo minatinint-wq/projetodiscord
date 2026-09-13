@@ -6,6 +6,7 @@ import {
   Bell,
   Camera,
   Crown,
+  GripVertical,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -836,6 +837,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const [error, setError] = useState("");
   const [rolesSaved, setRolesSaved] = useState(false);
   const [roleEditorId, setRoleEditorId] = useState(null);
+  const [roleDrag, setRoleDrag] = useState({ roleId: "", overId: "", side: "" });
   const canEditOverview = server.role === "owner" || server.permissions?.manageServer;
   const canEditRoles = server.role === "owner" || server.permissions?.manageRoles;
   const canEditRole = role => canEditRoles && (server.role === "owner" || (role.id !== "member" && role.position > server.actorPosition));
@@ -861,16 +863,52 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   function assignRoleMember(userId, roleId) {
     setForm((current) => ({ ...current, memberRoles: { ...current.memberRoles, [userId]: roleId } }));
   }
-  function moveRole(roleId, direction) {
+  function reorderRole(draggedId, targetId, side = "before") {
     setForm((current) => {
-      const custom = current.roles.map((role, index) => ({ role, index })).filter(({ role }) => !["owner", "member"].includes(role.id));
-      const from = custom.findIndex(({ role }) => role.id === roleId);
-      const to = from + direction;
-      if (from < 0 || to < 0 || to >= custom.length) return current;
-      const roles = [...current.roles];
-      [roles[custom[from].index], roles[custom[to].index]] = [roles[custom[to].index], roles[custom[from].index]];
-      return { ...current, roles };
+      const custom = current.roles.filter((role) => !["owner", "member"].includes(role.id));
+      const from = custom.findIndex((role) => role.id === draggedId);
+      const target = custom.findIndex((role) => role.id === targetId);
+      if (from < 0 || target < 0 || draggedId === targetId) return current;
+      const [moved] = custom.splice(from, 1);
+      const targetAfterRemoval = custom.findIndex((role) => role.id === targetId);
+      custom.splice(targetAfterRemoval + (side === "after" ? 1 : 0), 0, moved);
+      const ordered = [...custom];
+      return {
+        ...current,
+        roles: current.roles.map((role) => ["owner", "member"].includes(role.id) ? role : ordered.shift()),
+      };
     });
+    setRolesSaved(false);
+  }
+  function moveRole(roleId, direction) {
+    const custom = form.roles.filter((role) => !["owner", "member"].includes(role.id));
+    const from = custom.findIndex((role) => role.id === roleId);
+    const target = custom[from + direction];
+    if (target) reorderRole(roleId, target.id, direction < 0 ? "before" : "after");
+  }
+  function beginRoleDrag(event, role) {
+    if (!canEditRole(role)) return event.preventDefault();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", role.id);
+    setRoleDrag({ roleId: role.id, overId: "", side: "" });
+  }
+  function hoverRole(event, role) {
+    const draggedId = roleDrag.roleId || event.dataTransfer.getData("text/plain");
+    if (!draggedId || draggedId === role.id || !canEditRole(role)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const side = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    if (roleDrag.overId !== role.id || roleDrag.side !== side)
+      setRoleDrag((current) => ({ ...current, overId: role.id, side }));
+  }
+  function dropRole(event, role) {
+    const draggedId = roleDrag.roleId || event.dataTransfer.getData("text/plain");
+    if (!draggedId || draggedId === role.id || !canEditRole(role)) return setRoleDrag({ roleId: "", overId: "", side: "" });
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    reorderRole(draggedId, role.id, event.clientY < bounds.top + bounds.height / 2 ? "before" : "after");
+    setRoleDrag({ roleId: "", overId: "", side: "" });
   }
   function chooseImage(key, event) {
     const file = event.target.files?.[0];
@@ -931,10 +969,10 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
           {settingsSection === "roles" && <section className="server-roles-page">
             <header><span>CARGOS</span><h2>Cargos e permissões</h2><p>Organize os membros e defina o que cada grupo pode fazer no servidor.</p></header>
             <div className="server-roles-toolbar"><span>{customRoles.length} cargo{customRoles.length === 1 ? "" : "s"} criado{customRoles.length === 1 ? "" : "s"}</span><button type="button" className="role-create" onClick={addRole}>Criar cargo</button></div>
-            <p className="server-role-hint">A lista define a prioridade: cargos mais acima aparecem primeiro. Use “Separar membros” dentro de cada cargo para criar uma seção na lateral.</p>
+            <p className="server-role-hint">Arraste os cargos pela alça para definir a prioridade. Os mais acima aparecem primeiro na lateral quando “Separar membros” está ativo.</p>
             <section className="settings-roles-list">
               {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>Permissões de quem ainda não tem cargo personalizado</small></span></div><button type="button" className="role-edit" disabled={server.role !== "owner"} onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
-              {customRoles.map((role, index) => <article key={role.id} className={"settings-role-item role-style-" + (role.style || "solid")} style={{ "--role-preview-color": role.color, "--member-role-color": role.color }}><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {customRoles.map((role, index) => <article key={role.id} data-role-id={role.id} className={"settings-role-item role-style-" + (role.style || "solid") + (roleDrag.roleId === role.id ? " is-dragging" : "") + (roleDrag.overId === role.id ? " drag-over-" + roleDrag.side : "")} style={{ "--role-preview-color": role.color, "--member-role-color": role.color }} onDragOver={(event) => hoverRole(event, role)} onDrop={(event) => dropRole(event, role)}><button type="button" className="role-drag-handle" draggable={canEditRole(role)} disabled={!canEditRole(role)} aria-label={"Arrastar cargo " + (role.name || "Novo cargo")} aria-grabbed={roleDrag.roleId === role.id} onDragStart={(event) => beginRoleDrag(event, role)} onDragEnd={() => setRoleDrag({ roleId: "", overId: "", side: "" })}><GripVertical size={18}/></button><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
               {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
             </section>
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
@@ -2441,16 +2479,18 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     const roles = [...(selectedServer?.roles || [])]
       .sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
     const ownerId = selectedServer?.ownerId;
+    const ownerRoleId = members.find((member) => member.id === ownerId)?.roleId;
     const ownerFirst = (items) => [...items].sort(
       (a, b) => Number(b.id === ownerId) - Number(a.id === ownerId),
     );
-    const separated = roles.filter((role) => role.hoist);
+    const separated = roles.filter((role) => role.hoist || role.id === ownerRoleId);
     const groups = separated
       .map((role) => ({ role, members: ownerFirst(members.filter((member) => member.roleId === role.id)) }))
       .filter((group) => group.members.length);
     const separatedIds = new Set(separated.map((role) => role.id));
     const remaining = ownerFirst(members.filter((member) => !separatedIds.has(member.roleId)));
     if (remaining.length) groups.push({ role: null, members: remaining });
+    groups.sort((a, b) => Number(b.members.some((member) => member.id === ownerId)) - Number(a.members.some((member) => member.id === ownerId)));
     return groups;
   }, [members, selectedServer?.ownerId, selectedServer?.roles]);
   const isOwner = selectedServer?.role === "owner";
@@ -4988,7 +5028,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                 </div>
               </section>}
               {memberGroups.map((group) => (
-                <section className="member-role-group" key={group.role?.id || "members"}>
+                <section className={"member-role-group" + (group.members.some((member) => member.id === selectedServer.ownerId) ? " member-owner-group" : "")} data-role-id={group.role?.id || "members"} key={group.role?.id || "members"}>
                   {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div

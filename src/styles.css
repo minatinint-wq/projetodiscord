@@ -6737,6 +6737,14 @@ body[data-profile-plate="neon"] .profile-card {
 .settings-role-item .role-list-actions { margin-left: auto; }
 .settings-role-item .role-list-actions button, .settings-role-item > .role-edit { padding: 7px 9px; border-radius: 6px; }
 .settings-role-item .role-order { right: 8px; bottom: 8px; }
+.role-drag-handle { display: grid; width: 30px; height: 34px; flex: 0 0 30px; margin-left: -3px; place-items: center; border: 0; border-radius: 6px; color: #949ba4; background: transparent; cursor: grab; }
+.role-drag-handle:hover { color: #fff; background: #2b2d31; }
+.role-drag-handle:active { cursor: grabbing; }
+.role-drag-handle:disabled { opacity: .35; cursor: not-allowed; }
+.settings-role-item.is-dragging { opacity: .42; }
+.settings-role-item.drag-over-before::before, .settings-role-item.drag-over-after::after { content: ""; position: absolute; z-index: 2; right: 4px; left: 4px; height: 3px; border-radius: 999px; background: #5865f2; box-shadow: 0 0 12px #5865f299; pointer-events: none; }
+.settings-role-item.drag-over-before::before { top: -2px; }
+.settings-role-item.drag-over-after::after { bottom: -2px; }
 .role-empty-state { display: grid; justify-items: start; gap: 5px; padding: 26px 4px; color: #b5bac1; }
 .role-empty-state strong { color: #f2f3f5; font-size: 14px; }
 .role-empty-state span { font-size: 12px; }
