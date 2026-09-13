@@ -6831,3 +6831,17 @@ html[data-reduced-motion=true] .voice-tile,html[data-reduced-motion=true] .voice
 *::-webkit-scrollbar-thumb:hover{background:#5b6070;background-clip:padding-box}
 *::-webkit-scrollbar-corner{background:transparent}
 *::-webkit-scrollbar-button{display:none;width:0;height:0}
+
+/* Private IA SESH image results. */
+.nsfw-attachment{position:relative;width:min(460px,100%);max-height:480px;margin-top:8px;overflow:hidden;border:1px solid #303238;border-radius:8px;background:#0d0e10}
+.nsfw-attachment .message-attachment{width:100%;max-height:480px;margin:0;border:0;border-radius:0}
+.nsfw-image{filter:blur(26px) brightness(.62);transform:scale(1.08);transition:filter .2s ease,transform .2s ease}
+.nsfw-image.revealed{filter:none;transform:none}
+.nsfw-toggle{position:absolute;z-index:2;top:10px;right:10px;display:grid;width:34px;height:34px;place-items:center;border:1px solid #ffffff24;border-radius:9px;color:#fff;background:#0d0e10d9;box-shadow:0 4px 16px #0008;cursor:pointer}
+.nsfw-toggle:hover{background:#252830}
+.nsfw-label{position:absolute;z-index:1;left:50%;top:50%;padding:7px 10px;border-radius:8px;color:#fff;font-size:12px;font-weight:800;letter-spacing:.03em;background:#0d0e10d9;transform:translate(-50%,-50%);transition:opacity .16s ease}
+.nsfw-attachment.is-revealed .nsfw-label{opacity:0;pointer-events:none}
+.ai-app-tag{display:inline-flex;margin-left:5px;padding:1px 4px;border-radius:4px;color:#fff;font-size:9px;font-weight:900;line-height:14px;vertical-align:middle;background:#7656e8}
+.ai-ghost-section{margin-top:4px;padding-top:5px;border-top:1px solid #ffffff0b}
+.ai-ghost-member{cursor:default;background:linear-gradient(90deg,#7656e812,transparent)}
+.ai-ghost-avatar{object-fit:cover;background:#20163a;box-shadow:0 0 18px #845cff66}

@@ -1395,6 +1395,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [selectedServer, setSelectedServer] = useState(null);
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [aiSessionServerId, setAiSessionServerId] = useState(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [catalogItems, setCatalogItems] = useState([]);
   const [members, setMembers] = useState([]);
   const [draft, setDraft] = useState("");
@@ -2861,6 +2863,12 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     event.preventDefault();
     if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current || readingAttachment) return;
     sendingMessageRef.current = true;
+    const imageCommand = /^\/(?:image|imagensfw)\s+"[^"\r\n]{1,600}"\s*$/i.test(draft.trim());
+    const imageAuthorized = imageCommand && (selectedServer?.ownerId === currentUser.id || Boolean(selectedServer?.permissions?.manageServer));
+    if (imageAuthorized) {
+      setAiSessionServerId(selectedChannel.serverId);
+      setAiGenerating(true);
+    }
     const sentChannelId = selectedChannel.id;
     try {
       const result = await api.sendMessage(selectedChannel.id, {
@@ -2878,7 +2886,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       if (guideServer === selectedChannel.serverId) dismissGuide();
     } catch (err) {
       setNotice(err.message);
-    } finally { sendingMessageRef.current = false; }
+    } finally {
+      if (imageAuthorized) setAiGenerating(false);
+      sendingMessageRef.current = false;
+    }
   }
   async function attachFiles(files) {
     if (!files.length) return;
@@ -4909,6 +4920,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           >
                             <StyledName user={{ ...message.author, serverRole: memberRoleById.get(message.author.id) }}/>
                           </strong>
+                          {message.ai && <span className="ai-app-tag">APP</span>}
                           {selectedServer.tag && (
                             <span
                               className="server-tag"
@@ -4925,7 +4937,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           </time>
                         </div>}
                         {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
-                        {message.attachment && <AttachmentView attachment={message.attachment} alt={`Imagem enviada por ${message.author.displayName}`}/>}
+                        {message.attachment && <AttachmentView attachment={message.attachment} nsfw={Boolean(message.ai?.nsfw)} alt={`Imagem enviada por ${message.author.displayName}`}/>}
                       </div>
                       <button className="message-more">
                         <MoreVertical size={17} />
@@ -4963,7 +4975,17 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </div>
           {memberListOpen && (
             <aside className="member-sidebar">
-              <div className="member-title">MEMBROS — {members.length}</div>
+              <div className="member-title">MEMBROS — {members.length + (aiSessionServerId === selectedServer.id ? 1 : 0)}</div>
+              {aiSessionServerId === selectedServer.id && <section className="member-role-group ai-ghost-section">
+                <div className="member-role-group-title">APPS — 1</div>
+                <div className="member ai-ghost-member">
+                  <span className="avatar-dot-wrap">
+                    <img className="avatar avatar-img avatar-small ai-ghost-avatar" src="/ai-sesh-avatar.png" alt=""/>
+                    <span className="presence-dot presence-online"/>
+                  </span>
+                  <div><strong>IA SESH <span className="ai-app-tag">APP</span></strong><span className="member-role">{aiGenerating ? "Gerando sua imagem…" : "Visível só para você"}</span></div>
+                </div>
+              </section>}
               {memberGroups.map((group) => (
                 <section className="member-role-group" key={group.role?.id || "members"}>
                   {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}

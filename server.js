@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
 import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS } from "./cosmetics.js";
+import { classifyImagePrompt, generateImage, parseImageCommand } from "./image-generation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -42,6 +43,25 @@ const wsTickets = new Map();
 const loginAttempts = new Map();
 const sockets = new Map();
 const voiceRooms = new Map();
+const imageGenerationUsage = new Map();
+const AI_IMAGE_DAILY_LIMIT = Math.max(1, Math.min(Number(process.env.AI_IMAGE_DAILY_LIMIT) || 5, 50));
+const AI_SESH_USER = Object.freeze({
+  id: "ai-sesh",
+  publicId: "S-IASESH0000",
+  username: "ia_sesh",
+  tag: "0000",
+  displayName: "IA SESH",
+  createdAt: null,
+  avatarColor: "purple",
+  avatar: "/ai-sesh-avatar.png",
+  banner: null,
+  badges: ["verificado"],
+  status: "online",
+  nameStyle: "default",
+  nameColor: "#a99cff",
+  nameEffect: "glow",
+  avatarFrame: "none",
+});
 const MASTER_ADMIN_EMAIL = String(process.env.MASTER_ADMIN_EMAIL || "")
   .trim()
   .toLowerCase();
@@ -926,6 +946,27 @@ function memberView(server, membership) {
     joinedAt: membership.joinedAt,
     textMuted: Boolean(membership.textMuted),
     voiceMuted: Boolean(membership.voiceMuted),
+  };
+}
+function reserveImageGeneration(userId) {
+  const day = new Date().toISOString().slice(0, 10);
+  for (const key of imageGenerationUsage.keys())
+    if (!key.startsWith(day + ":")) imageGenerationUsage.delete(key);
+  const key = `${day}:${userId}`;
+  const used = imageGenerationUsage.get(key) || 0;
+  if (used >= AI_IMAGE_DAILY_LIMIT) {
+    const error = new Error(`Você atingiu o limite diário de ${AI_IMAGE_DAILY_LIMIT} imagens.`);
+    error.status = 429;
+    throw error;
+  }
+  imageGenerationUsage.set(key, used + 1);
+  let reserved = true;
+  return () => {
+    if (!reserved) return;
+    reserved = false;
+    const current = imageGenerationUsage.get(key) || 1;
+    if (current <= 1) imageGenerationUsage.delete(key);
+    else imageGenerationUsage.set(key, current - 1);
   };
 }
 function decorateMessage(message) {
@@ -2049,6 +2090,52 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
       if (membership.textMuted)
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
+      const imageCommand = parseImageCommand(content);
+      if (imageCommand?.invalid)
+        return json(res, 400, { error: 'Use exatamente /image "prompt" ou /imagensfw "prompt".' });
+      if (imageCommand) {
+        if (!hasServerPermission(user, server, "manageServer"))
+          return json(res, 403, { error: "Somente administradores do servidor podem usar o gerador de imagens." });
+        if (attachment)
+          return json(res, 400, { error: "Não envie anexos junto do comando de imagem." });
+        const safety = classifyImagePrompt(imageCommand.prompt);
+        if (safety.prohibited)
+          return json(res, 400, { error: "Esse pedido não pode ser processado." });
+        if (!imageCommand.nsfw && safety.adult)
+          return json(res, 400, { error: 'Conteúdo adulto deve usar /imagensfw "prompt".' });
+        const releaseQuota = reserveImageGeneration(user.id);
+        let generated;
+        try {
+          generated = await generateImage({
+            prompt: imageCommand.nsfw
+              ? `Adults age 25+ only. No explicit sexual activity. ${imageCommand.prompt}`
+              : imageCommand.prompt,
+            nsfw: imageCommand.nsfw,
+          });
+        } catch (error) {
+          releaseQuota();
+          if (!error.status) error.status = error.retryable ? 503 : 502;
+          throw error;
+        }
+        if (!safeImageDataUrl(generated.dataUrl)) {
+          releaseQuota();
+          return json(res, 502, { error: "O provedor retornou uma imagem inválida ou muito grande." });
+        }
+        const aiMessage = {
+          id: id(),
+          channelId: channel.id,
+          authorId: AI_SESH_USER.id,
+          author: AI_SESH_USER,
+          content: imageCommand.nsfw
+            ? "Imagem NSFW gerada somente para você."
+            : "Imagem gerada somente para você.",
+          attachment: generated.dataUrl,
+          ai: { nsfw: imageCommand.nsfw, ephemeral: true },
+          createdAt: now(),
+          editedAt: null,
+        };
+        return json(res, 201, { message: aiMessage, ephemeral: true });
+      }
       if (attachment && !hasServerPermission(user, server, "attachFiles"))
         return json(res, 403, { error: "Seu cargo não pode enviar anexos." });
       const mentions = mentionInfoFor(server, content, user.id);

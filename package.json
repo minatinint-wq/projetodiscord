@@ -50,6 +50,7 @@
     "files": [
       "dist/**/*",
       "server.js",
+      "image-generation.js",
       "game-catalog.js",
       "game-artwork.js",
       "cosmetics.js",
