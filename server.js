@@ -30,6 +30,7 @@ const COLLECTIONS = [
   "servers",
   "channels",
   "messages",
+  "messageReports",
   "memberships",
   "adminCatalog",
   "subscriptions",
@@ -996,7 +997,37 @@ function reserveImageGeneration(userId) {
 }
 function decorateMessage(message) {
   const user = database.users.find((item) => item.id === message.authorId);
-  return { ...message, author: publicUser(user) };
+  const reply = message.replyToId
+    ? database.messages.find((item) => item.id === message.replyToId && item.channelId === message.channelId)
+    : null;
+  const forwardedAuthor = message.forwardedFrom?.authorId
+    ? database.users.find((item) => item.id === message.forwardedFrom.authorId)
+    : null;
+  return {
+    ...message,
+    author: publicUser(user),
+    reactions: (Array.isArray(message.reactions) ? message.reactions : [])
+      .filter((reaction) => reaction?.emoji && Array.isArray(reaction.userIds) && reaction.userIds.length)
+      .map((reaction) => ({
+        emoji: reaction.emoji,
+        userIds: [...new Set(reaction.userIds)],
+        count: new Set(reaction.userIds).size,
+      })),
+    replyTo: reply
+      ? {
+          id: reply.id,
+          content: String(reply.content || "").slice(0, 180),
+          hasAttachment: Boolean(reply.attachment),
+          author: publicUser(database.users.find((item) => item.id === reply.authorId)),
+        }
+      : null,
+    forwardedFrom: message.forwardedFrom
+      ? {
+          ...message.forwardedFrom,
+          author: publicUser(forwardedAuthor),
+        }
+      : null,
+  };
 }
 function decorateServer(server, user) {
   const memberCount = database.memberships.filter(
@@ -1896,6 +1927,15 @@ async function handler(req, res) {
     const channelMatch = url.pathname.match(
       /^\/api\/channels\/([^/]+)\/messages$/,
     );
+    const messageMatch = url.pathname.match(
+      /^\/api\/channels\/([^/]+)\/messages\/([^/]+)$/,
+    );
+    const messageReactionMatch = url.pathname.match(
+      /^\/api\/channels\/([^/]+)\/messages\/([^/]+)\/reactions$/,
+    );
+    const messageReportMatch = url.pathname.match(
+      /^\/api\/channels\/([^/]+)\/messages\/([^/]+)\/report$/,
+    );
     const channelRootMatch = url.pathname.match(/^\/api\/channels\/([^/]+)$/);
     if (memberModerationMatch && req.method === "PATCH") {
       const server = serverForUser(user, memberModerationMatch[1]);
@@ -2054,6 +2094,115 @@ async function handler(req, res) {
       });
       return json(res, 200, { channel });
     }
+    if (messageReactionMatch && req.method === "POST") {
+      const channel = channelForUser(user, messageReactionMatch[1]);
+      const message = channel && database.messages.find(
+        (item) => item.id === messageReactionMatch[2] && item.channelId === channel.id,
+      );
+      const server = channel && database.servers.find((item) => item.id === channel.serverId);
+      if (!channel || !message || !server)
+        return json(res, 404, { error: "Mensagem não encontrada." });
+      if (!hasServerPermission(user, server, "addReactions"))
+        return json(res, 403, { error: "Seu cargo não pode adicionar reações." });
+      const input = await body(req);
+      const emoji = String(input.emoji || "").trim();
+      if (!emoji || [...emoji].length > 12 || emoji.length > 32)
+        return json(res, 400, { error: "Escolha uma reação válida." });
+      if (!Array.isArray(message.reactions)) message.reactions = [];
+      let reaction = message.reactions.find((item) => item.emoji === emoji);
+      if (!reaction) {
+        reaction = { emoji, userIds: [] };
+        message.reactions.push(reaction);
+      }
+      if (!Array.isArray(reaction.userIds)) reaction.userIds = [];
+      reaction.userIds = reaction.userIds.includes(user.id)
+        ? reaction.userIds.filter((userId) => userId !== user.id)
+        : [...reaction.userIds, user.id];
+      message.reactions = message.reactions.filter((item) => item.userIds?.length);
+      await saveDatabase();
+      const output = decorateMessage(message);
+      broadcast(channel.id, { type: "message.updated", message: output });
+      return json(res, 200, { message: output });
+    }
+    if (messageReportMatch && req.method === "POST") {
+      const channel = channelForUser(user, messageReportMatch[1]);
+      const message = channel && database.messages.find(
+        (item) => item.id === messageReportMatch[2] && item.channelId === channel.id,
+      );
+      if (!channel || !message)
+        return json(res, 404, { error: "Mensagem não encontrada." });
+      if (message.authorId === user.id)
+        return json(res, 400, { error: "Você não pode denunciar a própria mensagem." });
+      const input = await body(req);
+      const reason = String(input.reason || "Conteúdo inadequado").trim().slice(0, 500);
+      const previous = database.messageReports.find(
+        (item) => item.messageId === message.id && item.reporterId === user.id,
+      );
+      if (previous) {
+        previous.reason = reason || previous.reason;
+        previous.updatedAt = now();
+        await saveDatabase();
+        return json(res, 200, { ok: true, reportId: previous.id });
+      }
+      const report = {
+        id: id(),
+        serverId: channel.serverId,
+        channelId: channel.id,
+        messageId: message.id,
+        reporterId: user.id,
+        reason: reason || "Conteúdo inadequado",
+        createdAt: now(),
+      };
+      database.messageReports.push(report);
+      await saveDatabase();
+      return json(res, 201, { ok: true, reportId: report.id });
+    }
+    if (messageMatch && req.method === "PATCH") {
+      const channel = channelForUser(user, messageMatch[1]);
+      const message = channel && database.messages.find(
+        (item) => item.id === messageMatch[2] && item.channelId === channel.id,
+      );
+      const server = channel && database.servers.find((item) => item.id === channel.serverId);
+      if (!channel || !message || !server)
+        return json(res, 404, { error: "Mensagem não encontrada." });
+      const input = await body(req);
+      if (input.content === undefined && input.pinned === undefined)
+        return json(res, 400, { error: "Informe uma alteração válida." });
+      if (input.content !== undefined && message.authorId !== user.id)
+        return json(res, 403, { error: "Você só pode editar suas mensagens." });
+      if (input.pinned !== undefined && !hasServerPermission(user, server, "pinMessages"))
+        return json(res, 403, { error: "Seu cargo não pode fixar mensagens." });
+      if (input.content !== undefined) {
+        const content = String(input.content || "").trim();
+        if ((!content && !message.attachment) || content.length > 4000)
+          return json(res, 400, { error: "Mensagem inválida." });
+        message.content = content;
+        message.editedAt = now();
+      }
+      if (input.pinned !== undefined) {
+        message.pinnedAt = input.pinned ? now() : null;
+        message.pinnedBy = input.pinned ? user.id : null;
+      }
+      await saveDatabase();
+      const output = decorateMessage(message);
+      broadcast(channel.id, { type: "message.updated", message: output });
+      return json(res, 200, { message: output });
+    }
+    if (messageMatch && req.method === "DELETE") {
+      const channel = channelForUser(user, messageMatch[1]);
+      const message = channel && database.messages.find(
+        (item) => item.id === messageMatch[2] && item.channelId === channel.id,
+      );
+      const server = channel && database.servers.find((item) => item.id === channel.serverId);
+      if (!channel || !message || !server)
+        return json(res, 404, { error: "Mensagem não encontrada." });
+      if (message.authorId !== user.id && !hasServerPermission(user, server, "manageMessages"))
+        return json(res, 403, { error: "Seu cargo não pode excluir esta mensagem." });
+      database.messages = database.messages.filter((item) => item.id !== message.id);
+      await saveDatabase();
+      broadcast(channel.id, { type: "message.deleted", channelId: channel.id, messageId: message.id });
+      return json(res, 200, { ok: true, messageId: message.id });
+    }
     const serverJoinMatch = url.pathname.match(
       /^\/api\/servers\/([^/]+)\/join$/,
     );
@@ -2105,8 +2254,19 @@ async function handler(req, res) {
     if (channelMatch && req.method === "POST") {
       const channel = channelForUser(user, channelMatch[1]);
       const input = await body(req);
-      const content = String(input.content || "").trim();
-      const attachment = input.attachment || null;
+      let content = String(input.content || "").trim();
+      let attachment = input.attachment || null;
+      let forwardedSource = null;
+      if (input.forwardedMessageId) {
+        forwardedSource = database.messages.find(
+          (item) => item.id === String(input.forwardedMessageId),
+        );
+        const sourceChannel = forwardedSource && channelForUser(user, forwardedSource.channelId);
+        if (!sourceChannel)
+          return json(res, 404, { error: "Mensagem original não encontrada." });
+        content = String(forwardedSource.content || "");
+        attachment = forwardedSource.attachment || null;
+      }
       if (input.attachment !== undefined && attachment && !safeAttachment(attachment))
         return json(res, 400, { error: "Imagem inválida: envie PNG, JPEG, GIF ou WebP de até 3 MB." });
       if (!channel || (!content && !attachment) || content.length > 4000)
@@ -2117,7 +2277,7 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
       if (membership.textMuted)
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
-      const imageCommand = parseImageCommand(content);
+      const imageCommand = forwardedSource ? null : parseImageCommand(content);
       if (imageCommand?.invalid)
         return json(res, 400, { error: 'Use /image "prompt", /imagem "prompt" ou /imagensfw "prompt".' });
       if (imageCommand) {
@@ -2165,7 +2325,16 @@ async function handler(req, res) {
       }
       if (attachment && !hasServerPermission(user, server, "attachFiles"))
         return json(res, 403, { error: "Seu cargo não pode enviar anexos." });
-      const mentions = mentionInfoFor(server, content, user.id);
+      const replyTo = input.replyToId
+        ? database.messages.find(
+            (item) => item.id === String(input.replyToId) && item.channelId === channel.id,
+          )
+        : null;
+      if (input.replyToId && !replyTo)
+        return json(res, 400, { error: "A mensagem respondida não existe mais neste canal." });
+      const mentions = forwardedSource
+        ? { targetIds: new Set(), requiresMentionPermission: false }
+        : mentionInfoFor(server, content, user.id);
       if (mentions.requiresMentionPermission && !hasServerPermission(user, server, "mentionEveryone"))
         return json(res, 403, { error: "Seu cargo não pode mencionar @everyone, @here ou cargos." });
       const message = {
@@ -2174,6 +2343,17 @@ async function handler(req, res) {
         authorId: user.id,
         content,
         attachment,
+        replyToId: replyTo?.id || null,
+        forwardedFrom: forwardedSource
+          ? {
+              messageId: forwardedSource.id,
+              channelId: forwardedSource.channelId,
+              authorId: forwardedSource.authorId,
+            }
+          : null,
+        reactions: [],
+        pinnedAt: null,
+        pinnedBy: null,
         createdAt: now(),
         editedAt: null,
       };

@@ -5,16 +5,21 @@ import { createRoot } from "react-dom/client";
 import {
   Bell,
   Camera,
+  Check,
+  Copy,
   Crown,
   GripVertical,
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
+  Flag,
+  Forward,
   Hash,
   Headphones,
   HelpCircle,
   Lock,
+  Link,
   LogOut,
   Maximize2,
   Megaphone,
@@ -26,14 +31,17 @@ import {
   MonitorUp,
   MoreVertical,
   Paperclip,
+  Pencil,
   PhoneOff,
   Pin,
   Plus,
   Radio,
+  Reply,
   Search,
   Send,
   Settings,
   Smile,
+  Trash2,
   UserPlus,
   Users,
   Video,
@@ -1594,9 +1602,19 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const audioRefs = useRef(new Map());
   const pendingIceCandidatesRef = useRef(new Map());
   const [contextMenu, setContextMenu] = useState(null);
+  const [messageMenu, setMessageMenu] = useState(null);
   const [serverContextMenu, setServerContextMenu] = useState(null);
   const [badgeMenu, setBadgeMenu] = useState(null);
   const [badgeEditor, setBadgeEditor] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [unreadMarkers, setUnreadMarkers] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sesh_unread_messages") || "{}");
+    } catch {
+      return {};
+    }
+  });
   const [pinnedChannels, setPinnedChannels] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("sesh_pinned") || "[]");
@@ -1781,6 +1799,14 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           return;
         }
       }
+      const messageRow = event.target.closest(".message[data-message-id]");
+      if (messageRow) {
+        const message = messages.find((item) => item.id === messageRow.dataset.messageId);
+        if (message) {
+          openMessageMenu(event, message);
+          return;
+        }
+      }
       const voiceMember = event.target.closest(".voice-member[data-member-id]");
       if (voiceMember) {
         const voiceUserId = voiceMember.dataset.memberId;
@@ -1839,6 +1865,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .servers()
       .then((result) => {
         setServers(result.servers);
+        const linkedServerId = new URLSearchParams(window.location.search).get("server");
+        const linkedServer = result.servers.find((server) => server.id === linkedServerId);
+        if (linkedServer) setSelectedServer(linkedServer);
         if (
           result.servers.length === 0 &&
           !localStorage.getItem("sesh_onboarded")
@@ -1865,8 +1894,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   useEffect(() => {
     if (!selectedServer) { setSelectedChannel(null); setMembers([]); return; }
     let active = true;
-    const channel = selectedServer.channels.find(item => item.type === "text") || selectedServer.channels[0];
+    const linkedChannelId = new URLSearchParams(window.location.search).get("channel");
+    const channel = selectedServer.channels.find((item) => item.id === linkedChannelId)
+      || selectedServer.channels.find(item => item.type === "text")
+      || selectedServer.channels[0];
     setSelectedChannel(channel || null);
+    if (linkedChannelId && channel?.id === linkedChannelId) {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("server");
+      cleanUrl.searchParams.delete("channel");
+      window.history.replaceState({}, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    }
     api.server(selectedServer.id).then(result => {
       if (!active) return;
       setMembers(result.members || []);
@@ -1877,8 +1915,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   useEffect(() => {
     let active = true;
     attachmentRead.current++;setReadingAttachment(false);
-    setMessages([]); setDraft(""); setAttachment(null);
-    if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => { if(active) setMessages(result.messages); })
+    setMessages([]); setDraft(""); setAttachment(null); setReplyingTo(null); setMessageMenu(null);
+    if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
+      if (!active) return;
+      setMessages(result.messages);
+      const messageId = window.location.hash.match(/^#message-(.+)$/)?.[1];
+      if (messageId) requestAnimationFrame(() => document.getElementById(`message-${messageId}`)?.scrollIntoView({ block: "center" }));
+    })
       .catch(error => { if(active) setNotice(error.message); });
     return () => { active=false; };
   }, [selectedChannel?.id]);
@@ -1904,6 +1947,19 @@ function App({ currentUser, onLogout, onUserUpdate }) {
             ? [...current, event.message]
             : current,
         );
+      if (event.type === "message.updated" && event.message.channelId === selectedChannel?.id) {
+        setMessages((current) => current.map((message) =>
+          message.id === event.message.id ? event.message : message,
+        ));
+        setMessageMenu((current) => current?.message.id === event.message.id
+          ? { ...current, message: event.message }
+          : current);
+      }
+      if (event.type === "message.deleted" && event.channelId === selectedChannel?.id) {
+        setMessages((current) => current.filter((message) => message.id !== event.messageId));
+        setMessageMenu((current) => current?.message.id === event.messageId ? null : current);
+        setReplyingTo((current) => current?.id === event.messageId ? null : current);
+      }
       if (event.type === "mention.created" && event.message.author.id !== currentUser.id) {
         if (localStorage.getItem("orbit_notifications") !== "false") playUiSound("mention");
         setNotice(`${event.message.author.displayName} mencionou você em #${event.channelName}.`);
@@ -2112,9 +2168,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return () => { connection.close(); socketRef.current = null; };
   }, []);
   useEffect(() => {
-    if (!contextMenu && !serverContextMenu && !badgeMenu) return;
+    if (!contextMenu && !messageMenu && !serverContextMenu && !badgeMenu) return;
     const close = () => {
       setContextMenu(null);
+      setMessageMenu(null);
       setServerContextMenu(null);
       setBadgeMenu(null);
     };
@@ -2129,7 +2186,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       window.removeEventListener("resize", close);
       window.removeEventListener("keydown", onKey);
     };
-  }, [contextMenu, serverContextMenu, badgeMenu]);
+  }, [contextMenu, messageMenu, serverContextMenu, badgeMenu]);
   async function flushPendingIceCandidates(peerId, peer) {
     const candidates = pendingIceCandidatesRef.current.get(peerId) || [];
     pendingIceCandidatesRef.current.delete(peerId);
@@ -2480,13 +2537,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     [members],
   );
   const filteredMessages = useMemo(() => {
-    if (!search.trim()) return messages;
-    return messages.filter(
+    const visible = pinnedOnly ? messages.filter((message) => message.pinnedAt) : messages;
+    if (!search.trim()) return visible;
+    return visible.filter(
       (message) =>
-        message.content.toLowerCase().includes(search.toLowerCase()) ||
-        message.author.displayName.toLowerCase().includes(search.toLowerCase()),
+        String(message.content || "").toLowerCase().includes(search.toLowerCase()) ||
+        String(message.author?.displayName || "").toLowerCase().includes(search.toLowerCase()),
     );
-  }, [messages, search]);
+  }, [messages, search, pinnedOnly]);
   useEffect(() => {
     const list = messagesListRef.current;
     const channelId = selectedChannel?.id || null;
@@ -2533,6 +2591,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   const isOwner = selectedServer?.role === "owner";
   const canManageChannels = isOwner || selectedServer?.permissions?.manageChannels;
   const canManageSettings = isOwner || selectedServer?.permissions?.manageRoles || selectedServer?.permissions?.manageServer;
+  const canManageMessages = isOwner || selectedServer?.permissions?.manageMessages;
+  const canPinMessages = isOwner || selectedServer?.permissions?.pinMessages;
   function saveList(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   }
@@ -2548,6 +2608,145 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       ?.writeText(text)
       .then(() => setNotice(successMessage))
       .catch(() => setNotice("Não foi possível copiar."));
+  }
+  function openMessageMenu(event, message) {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget?.getBoundingClientRect?.();
+    const x = event.clientX || rect?.right || window.innerWidth / 2;
+    const y = event.clientY || rect?.bottom || window.innerHeight / 2;
+    setContextMenu(null);
+    setBadgeMenu(null);
+    setMessageMenu({
+      x: Math.max(8, Math.min(x, window.innerWidth - 288)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 540)),
+      message,
+      reactionsOpen: false,
+      forwardOpen: false,
+    });
+  }
+  function replaceMessage(updated) {
+    setMessages((current) => current.map((message) => message.id === updated.id ? updated : message));
+    setMessageMenu((current) => current?.message.id === updated.id ? { ...current, message: updated } : current);
+  }
+  async function reactToMessage(message, emoji) {
+    try {
+      const result = await api.reactToMessage(message.channelId, message.id, emoji);
+      replaceMessage(result.message);
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+  function replyToMessage(message) {
+    setReplyingTo(message);
+    setMessageMenu(null);
+    requestAnimationFrame(() => composerInputRef.current?.focus());
+  }
+  async function editMessage(message, content) {
+    try {
+      const result = await api.updateMessage(message.channelId, message.id, { content });
+      replaceMessage(result.message);
+      setNotice("Mensagem editada.");
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+  async function togglePinnedMessage(message) {
+    const pinning = !message.pinnedAt;
+    const optimistic = {
+      ...message,
+      pinnedAt: pinning ? new Date().toISOString() : null,
+      pinnedBy: pinning ? currentUser.id : null,
+    };
+    replaceMessage(optimistic);
+    setMessageMenu(null);
+    try {
+      const result = await api.updateMessage(message.channelId, message.id, { pinned: pinning });
+      replaceMessage(result.message);
+      setNotice(pinning ? "Mensagem fixada." : "Mensagem desafixada.");
+    } catch (error) {
+      replaceMessage(message);
+      setNotice(error.message);
+    }
+  }
+  function markMessageUnread(message) {
+    setUnreadMarkers((current) => {
+      const next = { ...current, [message.channelId]: message.id };
+      localStorage.setItem("sesh_unread_messages", JSON.stringify(next));
+      return next;
+    });
+    setMessageMenu(null);
+    setNotice("Mensagem marcada como não lida.");
+  }
+  function clearChannelUnread(channelId) {
+    setUnreadMarkers((current) => {
+      if (!current[channelId]) return current;
+      const next = { ...current };
+      delete next[channelId];
+      localStorage.setItem("sesh_unread_messages", JSON.stringify(next));
+      return next;
+    });
+  }
+  function copyMessageLink(message) {
+    const link = new URL("/app", location.origin);
+    if (selectedServer?.id) link.searchParams.set("server", selectedServer.id);
+    link.searchParams.set("channel", message.channelId);
+    link.hash = `message-${message.id}`;
+    copyText(link.toString(), "Link da mensagem copiado.");
+    setMessageMenu(null);
+  }
+  function speakMessage(message) {
+    setMessageMenu(null);
+    if (!("speechSynthesis" in window)) return setNotice("Leitura em voz alta não está disponível neste aparelho.");
+    window.speechSynthesis.cancel();
+    const speech = new SpeechSynthesisUtterance(
+      message.content || `Imagem enviada por ${message.author?.displayName || "um membro"}`,
+    );
+    speech.lang = "pt-BR";
+    window.speechSynthesis.speak(speech);
+  }
+  async function removeMessage(message) {
+    if (!window.confirm("Excluir esta mensagem? Esta ação não pode ser desfeita.")) return;
+    try {
+      await api.deleteMessage(message.channelId, message.id);
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+      setMessageMenu(null);
+      setReplyingTo((current) => current?.id === message.id ? null : current);
+      setNotice("Mensagem excluída.");
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+  async function reportMessage(message) {
+    const reason = window.prompt("Por que você está denunciando esta mensagem?", "Conteúdo inadequado");
+    if (reason === null) return;
+    try {
+      await api.reportMessage(message.channelId, message.id, reason);
+      setMessageMenu(null);
+      setNotice("Denúncia enviada para a moderação.");
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+  async function forwardMessage(message, channel) {
+    try {
+      const result = await api.forwardMessage(channel.id, message.id);
+      if (selectedChannelRef.current?.id === channel.id)
+        setMessages((current) => current.some((item) => item.id === result.message.id) ? current : [...current, result.message]);
+      setMessageMenu(null);
+      setNotice(`Mensagem encaminhada para #${channel.name}.`);
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+  function jumpToMessage(messageId) {
+    setPinnedOnly(false);
+    requestAnimationFrame(() => {
+      const target = document.getElementById(`message-${messageId}`);
+      target?.scrollIntoView({ block: "center", behavior: "smooth" });
+      target?.classList.add("message-highlight");
+      setTimeout(() => target?.classList.remove("message-highlight"), 1400);
+    });
   }
   function copyOwnHandle() {
     const publicId = currentUser.publicId || currentUser.id;
@@ -2952,6 +3151,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       const result = await api.sendMessage(selectedChannel.id, {
         content: draft.trim(),
         attachment,
+        replyToId: replyingTo?.id || null,
       });
       if (selectedChannelRef.current?.id !== sentChannelId) return;
       setMessages((current) =>
@@ -2961,6 +3161,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       );
       setDraft("");
       setAttachment(null);
+      setReplyingTo(null);
       if (guideServer === selectedChannel.serverId) dismissGuide();
     } catch (err) {
       setNotice(err.message);
@@ -4511,9 +4712,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             {orderedChannels.map((channel) => (
               <React.Fragment key={channel.id}>
                 <button
-                  className={`channel-row ${selectedChannel.id === channel.id ? "selected" : ""} ${mutedChannels.includes(channel.id) ? "muted-row" : ""}`}
+                  className={`channel-row ${selectedChannel.id === channel.id ? "selected" : ""} ${mutedChannels.includes(channel.id) ? "muted-row" : ""} ${unreadMarkers[channel.id] ? "unread-channel" : ""}`}
                   data-channel-id={channel.id}
                   onClick={() => {
+                    clearChannelUnread(channel.id);
                     setSelectedChannel(channel);
                     setMobileNav(false);
                     if (channel.type === "text")
@@ -4683,7 +4885,12 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             <button className="header-action">
               <Bell size={19} />
             </button>
-            <button className="header-action">
+            <button
+              className={`header-action ${pinnedOnly ? "selected-action" : ""}`}
+              title={pinnedOnly ? "Mostrar todas as mensagens" : "Mostrar mensagens fixadas"}
+              aria-pressed={pinnedOnly}
+              onClick={() => setPinnedOnly((current) => !current)}
+            >
               <Pin size={19} />
             </button>
             <button
@@ -4995,11 +5202,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     const messageDate = new Date(message.createdAt);
                     const previousDate = previous ? new Date(previous.createdAt) : null;
                     const sameDay = previousDate?.toDateString() === messageDate.toDateString();
-                    const compact = Boolean(previous && sameDay && previous.author.id === message.author.id && messageDate - previousDate < 7 * 60 * 1000);
+                    const compact = Boolean(previous && sameDay && previous.author.id === message.author.id && messageDate - previousDate < 7 * 60 * 1000 && !message.replyTo && !message.forwardedFrom);
                     const shortTime = messageDate.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
                     return <React.Fragment key={message.id}>
                     {!sameDay && <div className="message-day-divider"><span>{messageDate.toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})}</span></div>}
-                    <article className={"message"+(compact?" message-compact":"")} data-member-id={message.author.id}>
+                    <article
+                      id={`message-${message.id}`}
+                      className={"message"+(compact?" message-compact":"")+(unreadMarkers[message.channelId]===message.id?" message-unread-start":"")}
+                      data-member-id={message.author.id}
+                      data-message-id={message.id}
+                    >
                       {compact ? <time className="message-hover-time" dateTime={message.createdAt}>{shortTime}</time> : <Avatar
                         user={message.author}
                         color={message.author.avatarColor || "purple"}
@@ -5031,11 +5243,45 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           <time>
                             {shortTime}
                           </time>
+                          {message.editedAt && <span className="message-edited">(editada)</span>}
                         </div>}
+                        {message.pinnedAt && <span className="message-pinned" aria-label="Mensagem fixada"><Pin size={11}/> Fixada</span>}
+                        {message.replyTo && (
+                          <button className="message-reference" type="button" onClick={() => jumpToMessage(message.replyTo.id)}>
+                            <Reply size={13}/>
+                            <strong>{message.replyTo.author?.displayName || "Mensagem"}</strong>
+                            <span>{message.replyTo.content || (message.replyTo.hasAttachment ? "Imagem" : "Conteúdo removido")}</span>
+                          </button>
+                        )}
+                        {message.forwardedFrom && (
+                          <div className="message-forwarded-label">
+                            <Forward size={12}/> Encaminhada de {message.forwardedFrom.author?.displayName || "outro membro"}
+                          </div>
+                        )}
                         {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
                         {message.attachment && <AttachmentView attachment={message.attachment} nsfw={Boolean(message.ai?.nsfw)} alt={`Imagem enviada por ${message.author.displayName}`}/>}
+                        {message.reactions?.length > 0 && (
+                          <div className="reactions">
+                            {message.reactions.map((reaction) => (
+                              <button
+                                type="button"
+                                key={reaction.emoji}
+                                className={reaction.userIds?.includes(currentUser.id) ? "reaction-own" : ""}
+                                onClick={() => reactToMessage(message, reaction.emoji)}
+                                aria-label={`${reaction.emoji}: ${reaction.count} reação${reaction.count === 1 ? "" : "ões"}`}
+                              >
+                                <span>{reaction.emoji}</span> {reaction.count}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <button className="message-more">
+                      <button
+                        type="button"
+                        className="message-more"
+                        aria-label="Opções da mensagem"
+                        onClick={(event) => openMessageMenu(event, message)}
+                      >
                         <MoreVertical size={17} />
                       </button>
                     </article>
@@ -5047,7 +5293,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     </div>
                   )}
                 </div>
-                <form className="composer" onSubmit={sendMessage}>
+                {replyingTo && (
+                  <div className="reply-composer-bar">
+                    <Reply size={14}/>
+                    <span>Respondendo a <strong>{replyingTo.author?.displayName}</strong></span>
+                    <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancelar resposta"><X size={15}/></button>
+                  </div>
+                )}
+                <form className={`composer ${replyingTo ? "composer-replying" : ""}`} onSubmit={sendMessage}>
                   <input ref={attachmentInputRef} type="file" hidden onChange={onAttachmentFile} />
                   <button type="button" className={attachment ? "attachment-ready" : ""} title="Enviar arquivo" onClick={() => attachmentInputRef.current?.click()}>
                     <Paperclip size={20} />
@@ -5114,6 +5367,61 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         </div>
       </main>
       {overlays}
+      {messageMenu && (() => {
+        const message = messageMenu.message;
+        const ownMessage = message.author?.id === currentUser.id;
+        const persistentMessage = !message.ai?.ephemeral;
+        const quickReactions = ["❤️", "😂", "😮", "😢", "👍"];
+        const moreReactions = ["🔥", "🎉", "👏", "🤔", "👀", "💯", "✅", "❌", "🚀", "🤝"];
+        const textChannels = (selectedServer?.channels || []).filter((channel) => channel.type === "text");
+        return (
+          <div
+            className="context-menu message-context-menu"
+            style={{ left: messageMenu.x, top: messageMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+            role="menu"
+            aria-label="Opções da mensagem"
+          >
+            {persistentMessage && (
+              <div className="message-quick-reactions" aria-label="Reações rápidas">
+                {quickReactions.map((emoji) => {
+                  const selected = message.reactions?.some((reaction) => reaction.emoji === emoji && reaction.userIds?.includes(currentUser.id));
+                  return <button key={emoji} type="button" className={selected ? "selected" : ""} onClick={() => reactToMessage(message, emoji)}>{emoji}{selected && <Check size={9}/>}</button>;
+                })}
+              </div>
+            )}
+            {persistentMessage && <button className="context-item" type="button" onClick={() => setMessageMenu((current) => ({ ...current, reactionsOpen: !current.reactionsOpen, forwardOpen: false }))}>
+              <Smile size={17}/> Adicionar reação <span className="context-arrow">›</span>
+            </button>}
+            {messageMenu.reactionsOpen && <div className="message-reaction-grid">
+              {moreReactions.map((emoji) => <button key={emoji} type="button" onClick={() => reactToMessage(message, emoji)}>{emoji}</button>)}
+            </div>}
+            {persistentMessage && <button className="context-item" type="button" onClick={() => replyToMessage(message)}><Reply size={17}/>Responder</button>}
+            {persistentMessage && <button className="context-item" type="button" onClick={() => setMessageMenu((current) => ({ ...current, forwardOpen: !current.forwardOpen, reactionsOpen: false }))}>
+              <Forward size={17}/>Encaminhar <span className="context-arrow">›</span>
+            </button>}
+            {messageMenu.forwardOpen && <div className="message-forward-list">
+              <span>ENCAMINHAR PARA</span>
+              {textChannels.map((channel) => <button key={channel.id} type="button" onClick={() => forwardMessage(message, channel)}><Hash size={13}/>#{channel.name}</button>)}
+            </div>}
+            <div className="context-sep"/>
+            {message.content && <button className="context-item" type="button" onClick={() => { copyText(message.content, "Texto da mensagem copiado."); setMessageMenu(null); }}><Copy size={17}/>Copiar texto</button>}
+            {persistentMessage && canPinMessages && <button className="context-item" type="button" onClick={() => togglePinnedMessage(message)}><Pin size={17}/>{message.pinnedAt ? "Desafixar mensagem" : "Fixar mensagem"}</button>}
+            <button className="context-item" type="button" onClick={() => markMessageUnread(message)}><Check size={17}/>Marcar como não lida</button>
+            {persistentMessage && <button className="context-item" type="button" onClick={() => copyMessageLink(message)}><Link size={17}/>Copiar link da mensagem</button>}
+            <button className="context-item" type="button" onClick={() => speakMessage(message)}><Volume2 size={17}/>Falar mensagem</button>
+            {persistentMessage && ownMessage && <button className="context-item" type="button" onClick={() => {
+              setMessageMenu(null);
+              askText("Editar mensagem", "Conteúdo da mensagem", message.content || "", (content) => editMessage(message, content));
+            }}><Pencil size={17}/>Editar mensagem</button>}
+            {(persistentMessage && (ownMessage || canManageMessages)) && <>
+              <div className="context-sep"/>
+              <button className="context-item context-danger" type="button" onClick={() => removeMessage(message)}><Trash2 size={17}/>Excluir mensagem</button>
+            </>}
+            {persistentMessage && !ownMessage && <button className="context-item context-danger" type="button" onClick={() => reportMessage(message)}><Flag size={17}/>Denunciar mensagem</button>}
+          </div>
+        );
+      })()}
       {contextMenu && (
         <div
           className="context-menu"

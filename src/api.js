@@ -127,6 +127,30 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateMessage: (channelId, messageId, input) =>
+    request(`/api/channels/${channelId}/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteMessage: (channelId, messageId) =>
+    request(`/api/channels/${channelId}/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+  reactToMessage: (channelId, messageId, emoji) =>
+    request(`/api/channels/${channelId}/messages/${messageId}/reactions`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    }),
+  reportMessage: (channelId, messageId, reason) =>
+    request(`/api/channels/${channelId}/messages/${messageId}/report`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  forwardMessage: (channelId, messageId) =>
+    request(`/api/channels/${channelId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ forwardedMessageId: messageId }),
+    }),
 };
 
 export function connectSocket(onEvent) {

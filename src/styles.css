@@ -7134,3 +7134,43 @@ html[data-reduced-motion=true] .voice-tile,html[data-reduced-motion=true] .voice
 .attachment-lightbox-close{position:fixed;top:18px;right:22px;z-index:1;display:grid;width:42px;height:42px;place-items:center;border:1px solid #ffffff28;border-radius:50%;color:#fff;background:#17181cdd;cursor:pointer}
 .attachment-lightbox-close:hover{background:#2b2e36}
 .attachment-lightbox>span{position:fixed;bottom:16px;left:50%;padding:6px 10px;border-radius:7px;color:#d9dce4;font-size:12px;background:#111319d9;transform:translateX(-50%);pointer-events:none}
+
+/* Message actions, replies, forwards and unread markers. */
+.message-context-menu{z-index:1300;width:280px;max-height:min(620px,calc(100dvh - 16px));overflow-y:auto;padding:8px}
+.message-context-menu .context-item svg{flex:0 0 auto;color:#aeb4c2}
+.message-quick-reactions{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:7px;padding-bottom:8px;border-bottom:1px solid #2c2e34}
+.message-quick-reactions button{position:relative;display:grid;height:38px;place-items:center;border-radius:7px;background:#25262c;font-size:20px;cursor:pointer}
+.message-quick-reactions button:hover,.message-quick-reactions button.selected{background:#393b43;transform:translateY(-1px)}
+.message-quick-reactions button svg{position:absolute;right:2px;bottom:2px;padding:1px;border-radius:50%;color:#fff;background:#5865f2}
+.message-reaction-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:2px 2px 8px;padding:7px;border:1px solid #30323a;border-radius:7px;background:#1a1b20}
+.message-reaction-grid button{height:34px;border-radius:5px;background:transparent;font-size:19px;cursor:pointer}
+.message-reaction-grid button:hover{background:#353740}
+.message-forward-list{display:grid;gap:2px;max-height:180px;margin:2px 2px 8px;padding:7px;overflow-y:auto;border:1px solid #30323a;border-radius:7px;background:#1a1b20}
+.message-forward-list>span{padding:3px 6px;color:#8d93a1;font-size:9px;font-weight:800;letter-spacing:.08em}
+.message-forward-list button{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:5px;color:#c9ccd4;background:transparent;text-align:left;cursor:pointer}
+.message-forward-list button:hover{color:#fff;background:#353740}
+.message-reference{display:flex;max-width:min(620px,100%);align-items:center;gap:6px;margin:0 0 4px;padding:3px 7px;border-left:2px solid #777f91;border-radius:0 5px 5px 0;color:#9da4b2;background:#ffffff05;text-align:left;cursor:pointer}
+.message-reference strong{flex:0 0 auto;max-width:150px;overflow:hidden;color:#cdd2dc;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.message-reference span{min-width:0;overflow:hidden;color:#8e95a4;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.message-forwarded-label{display:flex;align-items:center;gap:5px;margin:0 0 3px;color:#8d94a3;font-size:10px;font-weight:650}
+.message-edited{color:#777e8d;font-size:9px}
+.message-pinned{display:inline-flex;align-items:center;gap:3px;margin:0 0 2px;color:#d7a64b;font-size:9px;font-weight:750}
+.reactions button.reaction-own{border-color:#6675ff;color:#f1f3ff;background:#5865f233}
+.reply-composer-bar{display:flex;min-height:38px;align-items:center;gap:8px;margin:auto 27px 0;padding:7px 12px;border:1px solid #343742;border-bottom:0;border-radius:7px 7px 0 0;color:#aeb4c1;background:#1c1e25;font-size:12px}
+.reply-composer-bar strong{color:#fff}
+.reply-composer-bar button{display:grid;margin-left:auto;padding:3px;place-items:center;border-radius:50%;color:#aeb4c1;background:transparent;cursor:pointer}
+.reply-composer-bar button:hover{color:#fff;background:#343742}
+.composer.composer-replying{margin-top:0;border-radius:0 0 7px 7px}
+.message-unread-start::before{content:"NÃO LIDA";position:absolute;z-index:1;right:16px;top:-10px;padding:0 5px;color:#fff;font-size:8px;font-weight:900;background:#f23f43}
+.message-unread-start::after{content:"";position:absolute;right:0;left:0;top:-6px;height:1px;background:#f23f43}
+.channel-row.unread-channel span:first-of-type{color:#fff;font-weight:800}
+.channel-row.unread-channel::after{content:"";width:7px;height:7px;margin-left:auto;border-radius:50%;background:#fff}
+.message-highlight{animation:message-highlight 1.4s ease-out}
+@keyframes message-highlight{0%,40%{background:#5865f238}100%{background:transparent}}
+
+@media (pointer:coarse),(max-width:900px){
+  .message-more{display:grid;position:static;grid-column:3;align-self:start;opacity:.72}
+  .message:hover .message-more{display:grid}
+  .message-context-menu{left:8px!important;right:8px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;width:auto;max-width:none;max-height:min(74dvh,620px);border-radius:12px}
+  .reply-composer-bar{margin-right:14px;margin-left:14px}
+}
