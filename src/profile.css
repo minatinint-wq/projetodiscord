@@ -161,7 +161,7 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 /* avatar motion is deliberately reserved for the large profile presentation */
 .premium-motion-avatar{display:none;z-index:6;inset:-9%;width:118%;height:118%;opacity:.92;overflow:visible}
 .identity-avatar .premium-motion-avatar{display:block}
-.identity-avatar>.premium-avatar-shell .premium-avatar-frame-scene{width:143%;height:143%}
+.identity-avatar>.premium-avatar-shell .premium-avatar-frame-scene{width:124%;height:124%}
 .identity-avatar>.premium-avatar-shell .premium-avatar-frame-scene .premium-avatar-frame{width:100%;height:100%}
 .premium-avatar-shell-small .premium-avatar-frame-scene{width:122%;height:122%}
 .identity-avatar .premium-avatar-frame-aura{opacity:.28}
@@ -170,3 +170,15 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .identity-avatar .premium-avatar-frame-scene-steel-wolf .premium-avatar-frame-scan{animation-duration:2.2s}
 .identity-avatar .premium-avatar-frame-scene-cyber-pulse .premium-avatar-frame-scan{animation-duration:1.9s}
 @keyframes premium-avatar-flame-core{0%,100%{filter:brightness(.86) saturate(1.02)}24%{filter:brightness(1.15) saturate(1.22)}43%{filter:brightness(.98) saturate(1.08)}67%{filter:brightness(1.2) saturate(1.28)}}
+
+/* Real animated WebP layers. Static artwork stays crisp below each motion file. */
+.premium-avatar-frame-scene{animation:none;filter:none}
+.premium-avatar-frame-scene .premium-avatar-frame-base{animation:none;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--profile-accent,#8fa9ff) 48%,transparent))}
+.premium-avatar-frame-scene .premium-avatar-frame-motion{z-index:5;width:112%;height:112%;opacity:.94;filter:none;image-rendering:auto}
+.premium-avatar-shell-small .premium-avatar-frame-motion{display:none}
+.premium-overlay-art-base{animation:none;filter:none}
+.premium-overlay-motion{z-index:4;opacity:.9;filter:none;image-rendering:auto}
+.identity-dialog>.premium-profile-overlay .premium-overlay-motion{display:block;width:100%;height:100%;opacity:.62;object-fit:fill}
+.premium-banner{animation:none;background-size:cover!important}
+.premium-banner-motion{position:absolute;z-index:3;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;image-rendering:auto;mix-blend-mode:screen}
+html[data-reduced-motion=true] .premium-avatar-frame-motion,html[data-reduced-motion=true] .premium-overlay-motion,html[data-reduced-motion=true] .premium-banner-motion{display:none!important}

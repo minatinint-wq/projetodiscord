@@ -7,6 +7,10 @@ export const PREMIUM_FRAME_ART = {
   "infernal-dragon": "/cosmetics-optimized/frames/infernal-dragon.png",
 }
 
+export const PREMIUM_FRAME_MOTION = Object.fromEntries(
+  Object.keys(PREMIUM_FRAME_ART).map(id => [id, "/cosmetics-animated/frames/" + id + ".webp"]),
+)
+
 export const PREMIUM_OVERLAY_ART = {
   "lunar-orbit": "/cosmetics-optimized/overlays/lunar-orbit.png",
   "gothic-bloom": "/cosmetics-optimized/overlays/gothic-bloom.png",
@@ -16,10 +20,18 @@ export const PREMIUM_OVERLAY_ART = {
   "infernal-dragon": "/cosmetics-optimized/overlays/infernal-dragon.png",
 }
 
+export const PREMIUM_OVERLAY_MOTION = Object.fromEntries(
+  Object.keys(PREMIUM_OVERLAY_ART).map(id => [id, "/cosmetics-animated/overlays/" + id + ".webp"]),
+)
+
 export const PREMIUM_BANNER_IDS = new Set([
   "celestial-tide", "crimson-eclipse", "sakura-dawn",
   "neon-pulse", "steel-wolf", "infernal-dragon",
 ])
+
+export const PREMIUM_BANNER_MOTION = Object.fromEntries(
+  [...PREMIUM_BANNER_IDS].map(id => [id, "/cosmetics-animated/banners/" + id + ".webp"]),
+)
 
 export function premiumCosmetic(field, value) {
   if (field === "avatarFrame") return Boolean(PREMIUM_FRAME_ART[value])

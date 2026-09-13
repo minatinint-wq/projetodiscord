@@ -6818,3 +6818,30 @@ body[data-profile-plate="neon"] .profile-card {
 .profile-settings-topbar > button { padding: 9px 13px; border-radius: 6px; color: #fff; background: #5865f2; font-size: 12px; font-weight: 800; }
 .profile-privacy { grid-column: 1 / -1; max-width: 620px; margin: 74px auto 30px; width: 100%; }
 @media (max-width: 760px) { .profile-settings-section-nav { display: flex; overflow-x: auto; margin: 0 0 10px; } .profile-settings-section-nav button { width: auto; white-space: nowrap; } .profile-avatar-menu { top: calc(100% + 8px); left: 0; transform: none; } .profile-settings-topbar { top: 52px; right: 54px; left: 16px; } .profile-settings-main { padding-top: 42px; } }
+
+/* Voice room v2  restrained, reactive and closer to a modern call surface. */
+.voice-stage{background:radial-gradient(circle at 50% -15%,color-mix(in srgb,var(--accent,#665cf6) 13%,transparent),transparent 42%),linear-gradient(180deg,#111217,#0b0c10)}
+.voice-stage .voice-participant-grid{gap:14px}
+.voice-tile{border:1px solid #ffffff0e;border-radius:16px;background:radial-gradient(circle at 50% 44%,#292c35 0,#1d1f26 34%,#17181e 70%);box-shadow:inset 0 1px 0 #ffffff08,0 12px 34px #0004;transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease,background .2s ease}
+.voice-tile:hover{transform:translateY(-1px);border-color:#ffffff1d}
+.voice-tile.speaking{border-color:#39c978;box-shadow:inset 0 0 0 1px #39c9788f,0 0 0 3px #39c97812,0 16px 38px #0005;animation:voice-tile-breathe 1.8s ease-in-out infinite}
+.voice-avatar-stage{position:relative;display:grid;place-items:center;width:84px;height:84px;isolation:isolate}
+.voice-avatar-stage>.avatar,.voice-avatar-stage>.premium-avatar-shell{position:relative;z-index:2}
+.voice-speaking-rings{position:absolute;inset:-7px;z-index:1;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .18s ease}
+.voice-avatar-stage>.voice-speaking-rings{inset:-15px}
+.voice-speaking-rings i{position:absolute;inset:0;border:1.5px solid #3ddc84;border-radius:50%;box-shadow:0 0 18px #35c87838;animation:voice-ring 1.8s cubic-bezier(.22,.61,.36,1) infinite}
+.voice-speaking-rings i+i{animation-delay:.62s}
+.voice-tile.speaking .voice-speaking-rings,.voice-member.speaking .voice-speaking-rings{opacity:1}
+.voice-speaking-wave{position:absolute;right:14px;bottom:14px;display:flex;align-items:center;gap:3px;height:18px;padding:4px 7px;border:1px solid #3ddc8447;border-radius:999px;background:#101712d9;opacity:0;transform:translateY(4px);transition:opacity .18s ease,transform .18s ease}
+.voice-tile.speaking .voice-speaking-wave{opacity:1;transform:none}
+.voice-speaking-wave i{display:block;width:2px;height:4px;border-radius:3px;background:#52e28f;animation:voice-meter .72s ease-in-out infinite alternate}
+.voice-speaking-wave i:nth-child(2){animation-delay:-.31s}.voice-speaking-wave i:nth-child(3){animation-delay:-.52s}.voice-speaking-wave i:nth-child(4){animation-delay:-.18s}
+.voice-members{gap:3px;padding:3px 9px 8px 22px}
+.voice-member{position:relative;min-height:36px;padding:5px 8px;border-radius:9px;transition:background .18s ease,color .18s ease,transform .18s ease}
+.voice-member.speaking{color:#eefcf4;background:linear-gradient(90deg,#2dbf6a18,transparent);transform:translateX(2px)}
+.voice-member.speaking .voice-member-name-row>span:first-child{color:#f3fff7;font-weight:650}
+.voice-member .avatar-dot-wrap{position:relative;isolation:isolate}.voice-member .avatar-dot-wrap>.avatar,.voice-member .avatar-dot-wrap>.premium-avatar-shell{position:relative;z-index:2}
+.voice-tile-label{left:12px;bottom:12px;padding:6px 9px;border:1px solid #ffffff0e;border-radius:8px;background:#0d0f13c7;backdrop-filter:blur(12px);box-shadow:0 4px 18px #0003}
+.voice-controls{border:1px solid #ffffff12;border-radius:16px;background:#17191ee8;backdrop-filter:blur(18px);box-shadow:0 14px 38px #0006,inset 0 1px 0 #ffffff0b}
+@keyframes voice-ring{0%{opacity:.72;transform:scale(.84)}72%,100%{opacity:0;transform:scale(1.22)}}@keyframes voice-meter{from{height:4px}to{height:15px}}@keyframes voice-tile-breathe{0%,100%{background-color:#17181e}50%{background-color:#19231d}}
+html[data-reduced-motion=true] .voice-tile,html[data-reduced-motion=true] .voice-speaking-rings i,html[data-reduced-motion=true] .voice-speaking-wave i{animation:none!important}

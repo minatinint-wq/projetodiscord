@@ -3,13 +3,12 @@ import {StyledName,GameIcon} from "./ProfileIdentity";
 import {GAME_CATALOG} from "../game-catalog";
 import {bannerPresentation,profilePresentation} from "./profilePresentation";
 import ProfileOverlay from "./ProfileOverlay";
-import PremiumMotionCanvas from "./PremiumMotionCanvas";
-import {PREMIUM_BANNER_IDS} from "./premiumCosmetics";
+import {PREMIUM_BANNER_IDS,PREMIUM_BANNER_MOTION} from "./premiumCosmetics";
 export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges,presence="offline"}){
  const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(g=>g.id===id)).filter(Boolean);
  const bannerStyle=bannerPresentation(user),premiumBanner=PREMIUM_BANNER_IDS.has(user.bannerPreset);
  return <section className={"identity-card identity-plate-"+(user.profilePlate||"default")} style={profilePresentation(user)} data-effect={user.profileEffect||"none"}>
-  <div className={"identity-banner "+(premiumBanner?"premium-banner premium-banner-"+user.bannerPreset:"")} style={bannerStyle}>{premiumBanner&&<><span className="premium-banner-parallax" style={bannerStyle}/><span className="premium-banner-flow"><b/><b/><b/></span><PremiumMotionCanvas theme={user.bannerPreset} mode="banner"/><span className="premium-banner-atmosphere">{Array.from({length:8},(_,index)=><i key={index} style={{"--particle":index,"--particle-x":((index*29)%96)+"%","--particle-y":((index*47)%90)+"%","--particle-duration":(3.8+(index%6)*.72)+"s","--particle-delay":(-index*.47)+"s"}}/>)}</span></>}</div>
+  <div className={"identity-banner "+(premiumBanner?"premium-banner premium-banner-"+user.bannerPreset:"")} style={bannerStyle}>{premiumBanner&&<img className="premium-banner-motion" src={PREMIUM_BANNER_MOTION[user.bannerPreset]} alt="" aria-hidden="true"/>}</div>
   <ProfileEffectLayer effect={user.profileEffect}/>
   <ProfileOverlay effect={user.profileOverlay}/>
   <div className="identity-card-body">

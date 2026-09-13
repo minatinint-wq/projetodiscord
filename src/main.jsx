@@ -1408,6 +1408,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const audioCtxRef = useRef(null);
   const analysersRef = useRef(new Map());
   const speakingRef = useRef({});
+  const speakingUntilRef = useRef(new Map());
   const localVideoStream = useMemo(() => {
     const track = screenOn
       ? screenTrackRef.current
@@ -2311,6 +2312,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       }
     });
     analysersRef.current.clear();
+    speakingUntilRef.current.clear();
     speakingRef.current = {};
     setSpeaking({});
   }
@@ -2318,11 +2320,13 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     const tick = () => {
       if (!voiceActiveRef.current) return;
       const next = {};
+      const now = performance.now();
       analysersRef.current.forEach((item, userId) => {
         item.analyser.getByteFrequencyData(item.data);
         let sum = 0;
         for (let i = 0; i < item.data.length; i++) sum += item.data[i];
-        if (sum / item.data.length > 6) next[userId] = true;
+        if (sum / item.data.length > 5) speakingUntilRef.current.set(userId, now + 320);
+        if ((speakingUntilRef.current.get(userId) || 0) > now) next[userId] = true;
       });
       const prev = speakingRef.current;
       const changed =
@@ -2332,7 +2336,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         speakingRef.current = next;
         setSpeaking(next);
       }
-      setTimeout(tick, 180);
+      setTimeout(tick, 80);
     };
     tick();
   }
@@ -4318,7 +4322,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     <div className="voice-members">
                       {(voiceStates[channel.id] || []).map((participant) => (
                         <div
-                          className="voice-member profile-click"
+                          className={`voice-member profile-click ${speaking[participant.id] ? "speaking" : ""}`}
                           data-member-id={participant.id}
                           key={participant.id}
                           onClick={(event) =>
@@ -4329,6 +4333,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           }
                         >
                           <span className="avatar-dot-wrap">
+                            <span className="voice-speaking-rings" aria-hidden="true"><i/><i/></span>
                             <Avatar
                               user={participant}
                               color={participant.avatarColor || "purple"}
@@ -4545,10 +4550,13 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                                 muted={participant.id === currentUser.id}
                               />
                             ) : (
-                              <Avatar
-                                user={participant}
-                                color={participant.avatarColor || "purple"}
-                              />
+                              <span className="voice-avatar-stage">
+                                <span className="voice-speaking-rings" aria-hidden="true"><i/><i/></span>
+                                <Avatar
+                                  user={participant}
+                                  color={participant.avatarColor || "purple"}
+                                />
+                              </span>
                             )}
                             <div className="voice-tile-label">
                               <div className="voice-tile-name-row">
@@ -4568,6 +4576,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                                     : "Conectado"}
                               </span>
                             </div>
+                            <span className="voice-speaking-wave" aria-hidden="true"><i/><i/><i/><i/></span>
                           </button>
                         );
                       })}
