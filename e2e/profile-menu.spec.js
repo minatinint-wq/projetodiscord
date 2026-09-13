@@ -43,3 +43,18 @@ test("foto própria abre cartão rápido acima do painel",async({page})=>{
  await page.screenshot({path:"test-results/own-profile.png"});await page.keyboard.press("Escape");
  await expect(page.locator(".identity-dialog")).toHaveCount(0);
 });
+test("clique direito na call abre menu específico de voz",async({page})=>{
+ await page.request.post("/api/auth/login",{data:{username:"demo",password:"demo123"}});
+ const result=await(await page.request.post("/api/servers",{data:{name:"Menu de voz"}})).json();
+ const voice=result.server.channels.find(channel=>channel.type==="voice");
+ await page.goto("/app");await page.getByTitle("Menu de voz",{exact:true}).click();
+ await page.locator('.channel-row[data-channel-id="'+voice.id+'"]').click();
+ await page.getByRole("button",{name:"Entrar na chamada",exact:true}).click();
+ const member=page.locator('.voice-member[data-member-id="'+result.server.ownerId+'"]');
+ await expect(member).toBeVisible();await member.click({button:"right"});
+ const menu=page.getByLabel("Ações do membro");
+ await expect(menu).toHaveClass(/voice-context-menu/);
+ for(const label of ["Perfil","Silenciar","Desativar áudio","Editar perfil por servidor","Apps","Cargos","Mover para","Copiar ID do usuário"]){
+  await expect(menu).toContainText(label);
+ }
+});

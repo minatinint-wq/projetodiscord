@@ -258,7 +258,7 @@ function MediaStreamVideo({ stream, muted = false, className = "" }) {
     />
   );
 }
-function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles, onAddFriend, onCopyHandle }) {
+function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles, onAddFriend, onCopyHandle, onMention, onToggleMute, onToggleDeafen, onEditServerProfile, onModerator }) {
   const isSelf = menu.user.id === menu.currentUserId;
   const element = useRef(null);
   const [position, setPosition] = useState({left: menu.x, top: menu.y});
@@ -272,52 +272,50 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
   }, [menu]);
   return (
     <div
-      className="context-menu badge-context-menu"
+      className={"context-menu badge-context-menu " + (menu.voiceContext ? "voice-context-menu" : "")}
       ref={element}
       aria-label="Ações do membro"
       style={position}
       onClick={(event) => event.stopPropagation()}
     >
-      <button className="context-item" onClick={() => menu.onProfile?.()}>
-        Perfil
-      </button>
-      <button className="context-item" onClick={onCopyHandle}>
-        Copiar ID do usuário
-      </button>
-      {!isSelf && <>
-        <button className="context-item" onClick={onAddFriend}>
-          Adicionar amigo
-        </button>
-      </>}
-      {isSelf && onManageRoles && <>
+      <button className="context-item" onClick={() => menu.onProfile?.()}>Perfil</button>
+      {menu.voiceContext ? <>
+        {!isSelf && <button className="context-item context-strong" onClick={onMention}>Mencionar</button>}
         <div className="context-sep" />
-        <button className="context-item" onClick={onManageRoles}>
-          Gerenciar cargos do servidor
+        <button className="context-item context-strong" onClick={onToggleMute}>
+          Silenciar <span className={"context-check " + (menu.locallyMuted ? "checked" : "")}>{menu.locallyMuted ? "✓" : ""}</span>
         </button>
-      </>}
-      {(onModerate || onAssignRole || onAdd) && <div className="context-sep" />}
-      {onAssignRole && menu.assignableRoles?.length > 0 && <label className="context-role-picker">
-          <span>Definir cargo</span>
-          <select
-            value={menu.user.roleId || "member"}
-            onChange={(event) => onAssignRole(event.target.value)}
-          >
-            {menu.assignableRoles.map((role) => (
-              <option key={role.id} value={role.id}>{role.name}</option>
-            ))}
+        <button className={"context-item context-strong " + (!onToggleDeafen ? "disabled" : "")} disabled={!onToggleDeafen} onClick={onToggleDeafen}>
+          Desativar áudio <span className={"context-check " + (menu.deafened ? "checked" : "")}>{menu.deafened ? "✓" : ""}</span>
+        </button>
+        {onEditServerProfile && <button className="context-item context-strong" onClick={onEditServerProfile}>Editar perfil por servidor</button>}
+        <button className="context-item context-strong disabled" disabled>Apps <span className="context-arrow">›</span></button>
+        <div className="context-sep" />
+        {onAssignRole && menu.assignableRoles?.length > 0 ? <label className="context-role-picker voice-role-picker">
+          <span>Cargos</span>
+          <select value={menu.user.roleId || "member"} onChange={(event) => onAssignRole(event.target.value)}>
+            {menu.assignableRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
           </select>
-        </label>}
-      {onModerate && !isSelf && <>
-        <button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>
-          {menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}
-        </button>
-        <button className="context-item context-danger" onClick={() => onModerate({ voiceMuted: !menu.user.voiceMuted })}>
-          {menu.user.voiceMuted ? "Permitir voz" : "Silenciar voz no servidor"}
-        </button>
+        </label> : <button className="context-item context-strong disabled" disabled>Cargos <span className="context-arrow">›</span></button>}
+        <button className="context-item context-strong disabled" disabled>Mover para <span className="context-arrow">›</span></button>
+        {onModerator && <><div className="context-sep" /><button className="context-item context-strong" onClick={onModerator}>Abrir na visualização de moderador</button></>}
+        {onModerate && !isSelf && <>
+          <button className="context-item context-danger" onClick={() => onModerate({ voiceMuted: !menu.user.voiceMuted })}>
+            {menu.user.voiceMuted ? "Ativar voz no servidor" : "Silenciar voz no servidor"} <span className={"context-check " + (menu.user.voiceMuted ? "checked" : "")}>{menu.user.voiceMuted ? "✓" : ""}</span>
+          </button>
+          <button className="context-item context-danger disabled" disabled>Desativar áudio no servidor <span className="context-check" /></button>
+        </>}
+        <div className="context-sep" />
+        <button className="context-item" onClick={onCopyHandle}>Copiar ID do usuário</button>
+      </> : <>
+        <button className="context-item" onClick={onCopyHandle}>Copiar ID do usuário</button>
+        {!isSelf && <button className="context-item" onClick={onAddFriend}>Adicionar amigo</button>}
+        {isSelf && onManageRoles && <><div className="context-sep" /><button className="context-item" onClick={onManageRoles}>Gerenciar cargos do servidor</button></>}
+        {(onModerate || onAssignRole || onAdd) && <div className="context-sep" />}
+        {onAssignRole && menu.assignableRoles?.length > 0 && <label className="context-role-picker"><span>Definir cargo</span><select value={menu.user.roleId || "member"} onChange={(event) => onAssignRole(event.target.value)}>{menu.assignableRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>}
+        {onModerate && !isSelf && <><button className="context-item" onClick={() => onModerate({ textMuted: !menu.user.textMuted })}>{menu.user.textMuted ? "Permitir chat" : "Silenciar chat no servidor"}</button><button className="context-item context-danger" onClick={() => onModerate({ voiceMuted: !menu.user.voiceMuted })}>{menu.user.voiceMuted ? "Permitir voz" : "Silenciar voz no servidor"}</button></>}
+        {onAdd && <button className="context-item" onClick={onAdd}>Adicionar insígnias</button>}
       </>}
-      {onAdd && <button className="context-item" onClick={onAdd}>
-        Adicionar insígnias
-      </button>}
     </div>
   );
 }
@@ -1428,6 +1426,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [voiceConnected, setVoiceConnected] = useState(false);
   const [voiceParticipants, setVoiceParticipants] = useState([]);
   const [muted, setMuted] = useState(false);
+  const [locallyMutedUsers, setLocallyMutedUsers] = useState(() => new Set());
+  const locallyMutedUsersRef = useRef(new Set());
   const [voiceStates, setVoiceStates] = useState({});
   const [voiceChannel, setVoiceChannel] = useState(null);
   const [camOn, setCamOn] = useState(false);
@@ -1703,6 +1703,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           return;
         }
       }
+      const voiceMember = event.target.closest(".voice-member[data-member-id]");
+      if (voiceMember) {
+        const voiceUserId = voiceMember.dataset.memberId;
+        const voiceUser = members.find((item) => item.id === voiceUserId) ||
+          Object.values(voiceStates).flat().find((item) => item.id === voiceUserId) ||
+          (voiceUserId === currentUser.id ? currentUser : null);
+        if (voiceUser) {
+          openMemberMenu(event, voiceUser, true);
+          return;
+        }
+      }
       const ownPanel = event.target.closest(".user-panel");
       if (ownPanel) {
         openMemberMenu(event, ownMember ? {...currentUser,...ownMember} : currentUser);
@@ -1740,11 +1751,11 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       const target = members.find(item => item.id === id) ||
         messages.find(item => item.author?.id === id)?.author ||
         Object.values(voiceStates).flat().find(item => item.id === id);
-      if (target) openMemberMenu(event, target);
+      if (target) openMemberMenu(event, target, row.classList.contains("voice-member"));
     };
     document.addEventListener("contextmenu", onContextMenu, true);
     return () => document.removeEventListener("contextmenu", onContextMenu, true);
-  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer, servers]);
+  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer, servers, muted, deafened, locallyMutedUsers]);
   useEffect(() => {
     api
       .servers()
@@ -2101,7 +2112,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       } else {
         const audio = audioRefs.current.get(targetUserId) || new Audio();
         audio.autoplay = true;
-        audio.muted = deafenedRef.current;
+        audio.muted = deafenedRef.current || locallyMutedUsersRef.current.has(targetUserId);
         audio.volume = Number(localStorage.getItem("sesh_output_volume") || 80) / 100;
         audio.srcObject = stream;
         audio.play().catch(() => {});
@@ -2218,10 +2229,22 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       return setNotice("Entre em uma chamada para usar o áudio.");
     const next = !deafened;
     deafenedRef.current = next;
-    audioRefs.current.forEach((audio) => {
-      audio.muted = next;
+    audioRefs.current.forEach((audio, userId) => {
+      audio.muted = next || locallyMutedUsersRef.current.has(userId);
     });
     setDeafened(next);
+  }
+  function toggleMemberAudio(userId) {
+    const next = new Set(locallyMutedUsersRef.current);
+    if (next.has(userId)) next.delete(userId);
+    else next.add(userId);
+    locallyMutedUsersRef.current = next;
+    const audio = audioRefs.current.get(userId);
+    if (audio) audio.muted = deafenedRef.current || next.has(userId);
+    setLocallyMutedUsers(next);
+    setBadgeMenu((current) => current?.user?.id === userId
+      ? { ...current, locallyMuted: next.has(userId) }
+      : current);
   }
   async function replaceVideoTrack(track) {
     for (const [, peer] of peersRef.current) {
@@ -2466,7 +2489,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       setBadgeMenu(null);
     }
   }
-  function openMemberMenu(event, user) {
+  function openMemberMenu(event, user, voiceContext = false) {
     event.preventDefault();
     event.stopPropagation();
     const ownMember = members.find((member) => member.id === currentUser.id);
@@ -2491,6 +2514,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       canModerate: mayModerateTarget,
       canAssignRole: mayModerateTarget || mayAssignSelf,
       assignableRoles,
+      voiceContext,
+      locallyMuted: isSelf ? muted : locallyMutedUsers.has(user.id),
+      deafened: isSelf ? deafened : false,
       onProfile: () => {
         setProfileView({
           mode: "popover",
@@ -3824,6 +3850,29 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             setBadgeMenu(null);
             setServerSettingsOpen(true);
           } : null}
+          onMention={badgeMenu.user.id === currentUser.id ? null : () => {
+            setDraft((current) => (current && !current.endsWith(" ") ? current + " " : current) + "@" + badgeMenu.user.username + " ");
+            setBadgeMenu(null);
+            requestAnimationFrame(() => composerInputRef.current?.focus());
+          }}
+          onToggleMute={() => {
+            if (badgeMenu.user.id === currentUser.id) {
+              toggleMute();
+              setBadgeMenu((current) => current ? { ...current, locallyMuted: !current.locallyMuted } : current);
+            } else toggleMemberAudio(badgeMenu.user.id);
+          }}
+          onToggleDeafen={badgeMenu.user.id === currentUser.id ? () => {
+            toggleDeafen();
+            setBadgeMenu((current) => current ? { ...current, deafened: !current.deafened } : current);
+          } : null}
+          onEditServerProfile={badgeMenu.user.id === currentUser.id ? () => {
+            setBadgeMenu(null);
+            openSettings("account");
+          } : null}
+          onModerator={badgeMenu.canModerate ? () => {
+            setBadgeMenu(null);
+            setServerSettingsOpen(true);
+          } : null}
           onCopyHandle={() => copyMemberHandle(badgeMenu.user)}
           onAddFriend={() => addFriendFromMenu(badgeMenu.user)}
         />
@@ -4425,7 +4474,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                             openProfile(event, participant.id)
                           }
                           onContextMenu={(event) =>
-                            openMemberMenu(event, participant)
+                            openMemberMenu(event, participant, true)
                           }
                         >
                           <span className="avatar-dot-wrap">
