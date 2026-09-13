@@ -58,6 +58,11 @@ before(async () => {
       res.end(JSON.stringify({ error: "quota exhausted" }));
       return;
     }
+    if (req.url?.startsWith("/pollinations/")) {
+      res.writeHead(200, { "Content-Type": "image/png" });
+      res.end(Buffer.from(tinyPng.split(",")[1], "base64"));
+      return;
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ image: tinyPng }));
   });
@@ -110,6 +115,18 @@ test("NVIDIA usa o endpoint NIM de imagem e entende artifacts base64", async () 
   });
   assert.equal(result.provider, "nvidia-flux");
   assert.match(result.dataUrl, /^data:image\/png;base64,/);
+});
+
+test("Pollinations gera imagem sem chave quando os provedores autenticados não existem", async () => {
+  const result = await generateImage({
+    prompt: "um círculo azul",
+    env: {
+      POLLINATIONS_IMAGE_API_URL: `${providerUrl.replace(/\/generate$/, "")}/pollinations`,
+      IMAGE_GENERATION_TIMEOUT_MS: "5000",
+    },
+  });
+  assert.equal(result.provider, "pollinations-public");
+  assert.match(result.dataUrl, /^data:image\/png;base64/);
 });
 
 test("falha de cota na NVIDIA cai automaticamente no próximo provedor", async () => {

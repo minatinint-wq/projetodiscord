@@ -16,8 +16,10 @@ pela rede privada do Render.
 ## Cotas de geração de imagem
 
 O comando `/image` tenta Cloudflare Workers AI, NVIDIA FLUX, Gemini, provedor
-personalizado e, por último, o Space público do Hugging Face. No Web Service
-`sesh-web`, configure pelo menos uma destas opções em **Environment**:
+personalizado, Pollinations público sem chave e, por último, o Space público do
+Hugging Face. O Pollinations fica ligado por padrão para a instalação não depender
+somente da cota ZeroGPU. Para priorizar uma API autenticada no Web Service
+`sesh-web`, configure uma destas opções em **Environment**:
 
 - Cloudflare: `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_API_TOKEN` com permissão
   **Workers AI - Read**. O modelo padrão é

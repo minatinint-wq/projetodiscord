@@ -4,6 +4,7 @@ const DEFAULT_HF_SPACE_URL = "https://black-forest-labs-flux-1-schnell.hf.space"
 const DEFAULT_CLOUDFLARE_IMAGE_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const DEFAULT_NVIDIA_IMAGE_MODEL = "black-forest-labs/flux.1-schnell";
 const DEFAULT_NVIDIA_IMAGE_API_BASE = "https://ai.api.nvidia.com/v1/genai";
+const DEFAULT_POLLINATIONS_IMAGE_URL = "https://image.pollinations.ai/prompt";
 
 const normalizePrompt = (value) => String(value || "")
   .normalize("NFD")
@@ -236,6 +237,32 @@ async function callNvidia({ prompt, env, signal }) {
   return { dataUrl: await responseToDataUrl(response, signal), provider: "nvidia-flux" };
 }
 
+async function callPollinations({ prompt, env, signal }) {
+  if (envValue(env, "POLLINATIONS_ENABLED").toLowerCase() === "false") return null;
+  const configuredUrl = envValue(env, "POLLINATIONS_IMAGE_API_URL");
+  const baseUrl = (configuredUrl || DEFAULT_POLLINATIONS_IMAGE_URL).replace(/\/$/, "");
+  if (!/^https:\/\//i.test(baseUrl) && !/^http:\/\/127\.0\.0\.1(?::\d+)?\//i.test(baseUrl))
+    throw new Error("POLLINATIONS_IMAGE_API_URL precisa usar HTTPS.");
+  const model = envValue(env, "POLLINATIONS_IMAGE_MODEL") || "flux";
+  if (!/^[a-z0-9._/-]{1,80}$/i.test(model)) throw new Error("POLLINATIONS_IMAGE_MODEL inválido.");
+  const width = Math.max(256, Math.min(Number(envValue(env, "POLLINATIONS_IMAGE_WIDTH")) || 768, 1024));
+  const height = Math.max(256, Math.min(Number(envValue(env, "POLLINATIONS_IMAGE_HEIGHT")) || 768, 1024));
+  const seed = Math.max(0, Math.floor(Number(envValue(env, "POLLINATIONS_IMAGE_SEED")) || Math.random() * 2_147_483_647));
+  const query = new URLSearchParams({
+    model,
+    width: String(width),
+    height: String(height),
+    seed: String(seed),
+    nologo: "true",
+    safe: "true",
+  });
+  const response = await fetch(`${baseUrl}/${encodeURIComponent(prompt)}?${query}`, {
+    headers: { Accept: "image/png,image/jpeg,image/webp" },
+    signal,
+  });
+  return { dataUrl: await responseToDataUrl(response, signal), provider: "pollinations-public" };
+}
+
 async function callGemini({ prompt, env, signal }) {
   const key = envValue(env, "GEMINI_API_KEY");
   if (!key) return null;
@@ -296,6 +323,7 @@ export async function generateImage({ prompt, nsfw = false, env = process.env })
     if (envValue(env, "GEMINI_API_KEY")) attempts.push(() => callGemini({ prompt, env, signal: controller.signal }));
     const normal = customProvider("NORMAL_IMAGE", env, "normal-custom");
     if (normal) attempts.push(() => callJsonImageProvider({ ...normal, prompt, signal: controller.signal }));
+    attempts.push(() => callPollinations({ prompt, env, signal: controller.signal }));
     attempts.push(() => callHuggingFaceSpace({ prompt, env, signal: controller.signal, prefix: "NORMAL", defaultUrl: DEFAULT_HF_SPACE_URL }));
 
     let lastError;

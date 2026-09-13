@@ -41,6 +41,10 @@ services:
         sync: false
       - key: NVIDIA_IMAGE_MODEL
         value: black-forest-labs/flux.1-schnell
+      - key: POLLINATIONS_ENABLED
+        value: "true"
+      - key: POLLINATIONS_IMAGE_MODEL
+        value: flux
       - key: MASTER_ADMIN_EMAIL
         sync: false
       - key: MASTER_ADMIN_EMAILS
