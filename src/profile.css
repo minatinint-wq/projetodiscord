@@ -157,3 +157,16 @@ html[data-reduced-motion=true] .identity-card .profile-effect-layer,html[data-re
 @keyframes premium-banner-camera{0%,100%{background-position:48% 50%;filter:brightness(.94) saturate(.98)}50%{background-position:52% 49%;filter:brightness(1.05) saturate(1.08)}}@keyframes premium-banner-parallax{0%,12%{mask-position:130% 0;transform:translate3d(-.8%,0,0) scale(1.015)}65%,100%{mask-position:-50% 0;transform:translate3d(.8%,-.5%,0) scale(1.035)}}@keyframes premium-banner-ray{0%,18%{transform:translateX(0) rotate(19deg);opacity:0}38%{opacity:.7}75%,100%{transform:translateX(315%) rotate(19deg);opacity:0}}
 
 html[data-reduced-motion=true] .premium-motion-canvas{display:none}
+
+/* avatar motion is deliberately reserved for the large profile presentation */
+.premium-motion-avatar{display:none;z-index:6;inset:-9%;width:118%;height:118%;opacity:.92;overflow:visible}
+.identity-avatar .premium-motion-avatar{display:block}
+.identity-avatar>.premium-avatar-shell .premium-avatar-frame-scene{width:143%;height:143%}
+.identity-avatar>.premium-avatar-shell .premium-avatar-frame-scene .premium-avatar-frame{width:100%;height:100%}
+.premium-avatar-shell-small .premium-avatar-frame-scene{width:122%;height:122%}
+.identity-avatar .premium-avatar-frame-aura{opacity:.28}
+.identity-avatar .premium-avatar-frame-scan{opacity:.9;animation-duration:2.9s}
+.identity-avatar .premium-avatar-frame-scene-infernal-dragon .premium-avatar-frame-base,.identity-avatar .premium-avatar-frame-scene-ember-crown .premium-avatar-frame-base{animation:premium-avatar-flame-core 2.7s ease-in-out infinite}
+.identity-avatar .premium-avatar-frame-scene-steel-wolf .premium-avatar-frame-scan{animation-duration:2.2s}
+.identity-avatar .premium-avatar-frame-scene-cyber-pulse .premium-avatar-frame-scan{animation-duration:1.9s}
+@keyframes premium-avatar-flame-core{0%,100%{filter:brightness(.86) saturate(1.02)}24%{filter:brightness(1.15) saturate(1.22)}43%{filter:brightness(.98) saturate(1.08)}67%{filter:brightness(1.2) saturate(1.28)}}

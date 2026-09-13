@@ -1,10 +1,11 @@
 import React,{useEffect,useRef} from "react"
 
 const FAMILY={
- "lunar-orbit":"lunar","celestial-tide":"lunar",
+ "lunar-orbit":"lunar","celestial-tide":"lunar","lunar-halo":"lunar",
  "gothic-bloom":"gothic","crimson-eclipse":"gothic",
- "sakura-shrine":"sakura","sakura-dawn":"sakura",
- "holo-circuit":"cyber","neon-pulse":"cyber",
+ "sakura-shrine":"sakura","sakura-dawn":"sakura","sakura-halo":"sakura",
+ "holo-circuit":"cyber","neon-pulse":"cyber","cyber-pulse":"cyber",
+ "ember-crown":"infernal",
  "steel-wolf":"steel","infernal-dragon":"infernal",
 }
 
@@ -45,7 +46,7 @@ export default function PremiumMotionCanvas({theme,mode="overlay"}){
   const ctx=canvas.getContext("2d",{alpha:true})
   const family=FAMILY[theme]||"lunar"
   const random=seeded([...theme+mode].reduce((sum,char)=>sum+char.charCodeAt(0)*17,71))
-  const count=mode==="banner"?16:28
+  const count=mode==="banner"?16:mode==="avatar"?22:28
   const particles=Array.from({length:count},()=>({x:random(),y:random(),depth:.45+random()*.9,speed:.35+random()*.85,phase:random()*Math.PI*2,spin:(random()-.5)*2.2}))
   let width=1,height=1,dpr=1,frame=0,last=0,visible=true
   const resize=()=>{
