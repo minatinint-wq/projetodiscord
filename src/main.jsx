@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import {
   Bell,
   Camera,
+  Crown,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -2412,28 +2413,17 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   const memberGroups = useMemo(() => {
     const roles = [...(selectedServer?.roles || [])]
       .sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
-    const owner = members.find((member) => member.id === selectedServer?.ownerId);
-    const regularMembers = owner ? members.filter((member) => member.id !== owner.id) : members;
+    const ownerId = selectedServer?.ownerId;
+    const ownerFirst = (items) => [...items].sort(
+      (a, b) => Number(b.id === ownerId) - Number(a.id === ownerId),
+    );
     const separated = roles.filter((role) => role.hoist);
     const groups = separated
-      .map((role) => ({ role, members: regularMembers.filter((member) => member.roleId === role.id) }))
+      .map((role) => ({ role, members: ownerFirst(members.filter((member) => member.roleId === role.id)) }))
       .filter((group) => group.members.length);
     const separatedIds = new Set(separated.map((role) => role.id));
-    const remaining = regularMembers.filter((member) => !separatedIds.has(member.roleId));
+    const remaining = ownerFirst(members.filter((member) => !separatedIds.has(member.roleId)));
     if (remaining.length) groups.push({ role: null, members: remaining });
-    if (owner) {
-      const visualRole = owner.serverRole || roles.find((role) => role.id === owner.roleId) || roles.find((role) => role.id === "owner");
-      groups.unshift({
-        owner: true,
-        role: {
-          ...visualRole,
-          id: "server-owner",
-          name: visualRole?.id === "owner" ? "Dono do servidor" : `${visualRole?.name || "Cargo"} • Dono`,
-          hoist: true,
-        },
-        members: [owner],
-      });
-    }
     return groups;
   }, [members, selectedServer?.ownerId, selectedServer?.roles]);
   const isOwner = selectedServer?.role === "owner";
@@ -4925,7 +4915,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             <aside className="member-sidebar">
               <div className="member-title">MEMBROS — {members.length}</div>
               {memberGroups.map((group) => (
-                <section className={"member-role-group" + (group.owner ? " member-owner-group" : "")} key={group.owner ? "server-owner" : group.role?.id || "members"}>
+                <section className="member-role-group" key={group.role?.id || "members"}>
                   {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div
@@ -4943,6 +4933,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       <div>
                         <strong>
                           <StyledName user={member}/>
+                          {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
                         <span className="member-role">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
