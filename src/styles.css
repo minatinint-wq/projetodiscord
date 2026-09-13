@@ -6845,3 +6845,11 @@ html[data-reduced-motion=true] .voice-tile,html[data-reduced-motion=true] .voice
 .ai-ghost-section{margin-top:4px;padding-top:5px;border-top:1px solid #ffffff0b}
 .ai-ghost-member{cursor:default;background:linear-gradient(90deg,#7656e812,transparent)}
 .ai-ghost-avatar{object-fit:cover;background:#20163a;box-shadow:0 0 18px #845cff66}
+
+/* Full-size attachment viewer. Native right-click is allowed on the enlarged image. */
+.message-attachment.can-open{cursor:zoom-in}
+.attachment-lightbox{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:56px 28px 42px;background:#05060aed;backdrop-filter:blur(12px)}
+.attachment-lightbox-image{display:block;max-width:min(96vw,1400px);max-height:calc(100dvh - 116px);object-fit:contain;border-radius:10px;box-shadow:0 24px 90px #000c;user-select:none}
+.attachment-lightbox-close{position:fixed;top:18px;right:22px;z-index:1;display:grid;width:42px;height:42px;place-items:center;border:1px solid #ffffff28;border-radius:50%;color:#fff;background:#17181cdd;cursor:pointer}
+.attachment-lightbox-close:hover{background:#2b2e36}
+.attachment-lightbox>span{position:fixed;bottom:16px;left:50%;padding:6px 10px;border-radius:7px;color:#d9dce4;font-size:12px;background:#111319d9;transform:translateX(-50%);pointer-events:none}

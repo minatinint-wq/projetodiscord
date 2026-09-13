@@ -50,4 +50,16 @@ test("resultado adulto nasce borrado e o olho revela apenas no cliente", async (
   await page.getByRole("button", { name: "Revelar imagem NSFW" }).click();
   await expect(result.locator("img")).toHaveClass(/revealed/);
   await expect(page.getByRole("button", { name: "Ocultar imagem NSFW" })).toBeVisible();
+
+  await result.locator("img").click();
+  const dialog = page.getByRole("dialog", { name: "Visualização da imagem" });
+  await expect(dialog).toBeVisible();
+  const nativeContextMenuAllowed = await dialog.locator(".attachment-lightbox-image").evaluate((image) => {
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    image.dispatchEvent(event);
+    return !event.defaultPrevented;
+  });
+  expect(nativeContextMenuAllowed).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
 });

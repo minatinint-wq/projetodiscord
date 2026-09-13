@@ -1687,6 +1687,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       selectedServer && (selectedServer.role === "owner" || ownMember?.serverRole?.permissions?.manageMembers),
     );
     const onContextMenu = (event) => {
+      if (event.target.closest(".attachment-lightbox-image")) return;
       const card = event.target.closest(".profile-card");
       // Sesh owns the context menu across the app. Capture mode below keeps
       // the browser's native menu from winning this interaction.
