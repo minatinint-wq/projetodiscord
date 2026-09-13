@@ -1448,8 +1448,25 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return()=>{window.removeEventListener("dragover",prevent);window.removeEventListener("drop",prevent);};
   },[]);
   const [mentionQuery, setMentionQuery] = useState(null);
-  const [memberListOpen, setMemberListOpen] = useState(true);
+  const [memberListOpen, setMemberListOpen] = useState(() => typeof window === "undefined" || window.innerWidth > 900);
   const [mobileNav, setMobileNav] = useState(false);
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 900px)");
+    const syncLayout = () => {
+      setMobileNav(false);
+      setMemberListOpen(!mobile.matches);
+    };
+    mobile.addEventListener("change", syncLayout);
+    return () => mobile.removeEventListener("change", syncLayout);
+  }, []);
+  function toggleMobileNavigation() {
+    setMemberListOpen(false);
+    setMobileNav((current) => !current);
+  }
+  function toggleMemberDrawer() {
+    setMobileNav(false);
+    setMemberListOpen((current) => !current);
+  }
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -3962,18 +3979,24 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         <header className="mobile-header">
           <button
             className="icon-button"
-            onClick={() => setMobileNav(!mobileNav)}
+            aria-label={mobileNav ? "Fechar navegação" : "Abrir navegação"}
+            aria-expanded={mobileNav}
+            onClick={toggleMobileNavigation}
           >
             <Menu size={20} />
           </button>
           <strong>Amigos</strong>
           <button
             className="icon-button"
-            onClick={() => setMemberListOpen(!memberListOpen)}
+            aria-label={memberListOpen ? "Fechar membros" : "Abrir membros"}
+            aria-expanded={memberListOpen}
+            onClick={toggleMemberDrawer}
           >
             <Users size={20} />
           </button>
         </header>
+        {mobileNav && <button type="button" className="mobile-drawer-backdrop nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobileNav(false)} />}
+        {memberListOpen && <button type="button" className="mobile-drawer-backdrop member-backdrop" aria-label="Fechar membros" onClick={() => setMemberListOpen(false)} />}
         <aside className={`server-rail ${mobileNav ? "mobile-open" : ""}`}>
           <img
             className="brand-mark brand-mark-img brand-home"
@@ -4033,7 +4056,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                 <button
                   className="home-dm-row"
                   key={person.id}
-                  onClick={() => setHomeTab(`dm:${person.id}`)}
+                  onClick={() => { setHomeTab(`dm:${person.id}`); setMobileNav(false); }}
                 >
                   <span className="avatar-dot-wrap">
                     <Avatar
@@ -4266,7 +4289,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                 </>
               )}
             </div>
-            <aside className="member-sidebar active-now-sidebar">
+            <aside className={`member-sidebar active-now-sidebar ${memberListOpen ? "mobile-open" : ""}`}>
               <div className="member-title">ATIVO AGORA</div>
               {activeNow.length === 0 && (
                 <div className="active-now-empty">
@@ -4295,7 +4318,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </div>
         </main>
         {!voiceConnected && currentUser.gameInterests?.[0] && <FavoriteGameActivity user={currentUser}/>}
-        <div className="user-panel">
+        <div className={`user-panel ${mobileNav ? "mobile-open" : ""}`}>
           {statusMenu && statusMenuEl()}
           <span
             className="user-avatar-btn"
@@ -4366,18 +4389,24 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       <header className="mobile-header">
         <button
           className="icon-button"
-          onClick={() => setMobileNav(!mobileNav)}
+          aria-label={mobileNav ? "Fechar navegação" : "Abrir navegação"}
+          aria-expanded={mobileNav}
+          onClick={toggleMobileNavigation}
         >
           <Menu size={20} />
         </button>
         <strong>{selectedServer.name}</strong>
         <button
           className="icon-button"
-          onClick={() => setMemberListOpen(!memberListOpen)}
+          aria-label={memberListOpen ? "Fechar membros" : "Abrir membros"}
+          aria-expanded={memberListOpen}
+          onClick={toggleMemberDrawer}
         >
           <Users size={20} />
         </button>
       </header>
+      {mobileNav && <button type="button" className="mobile-drawer-backdrop nav-backdrop" aria-label="Fechar navegação" onClick={() => setMobileNav(false)} />}
+      {memberListOpen && <button type="button" className="mobile-drawer-backdrop member-backdrop" aria-label="Fechar membros" onClick={() => setMemberListOpen(false)} />}
       <aside className={`server-rail ${mobileNav ? "mobile-open" : ""}`}>
         <img
           className="brand-mark brand-mark-img brand-home"
@@ -4637,7 +4666,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             </button>
             <button
               className={`header-action ${memberListOpen ? "selected-action" : ""}`}
-              onClick={() => setMemberListOpen(!memberListOpen)}
+              onClick={toggleMemberDrawer}
             >
               <Users size={19} />
             </button>
@@ -5015,7 +5044,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             )}
           </div>
           {memberListOpen && (
-            <aside className="member-sidebar">
+            <aside className="member-sidebar mobile-open">
               <div className="member-title">MEMBROS — {members.length + (aiSessionServerId === selectedServer.id ? 1 : 0)}</div>
               {aiSessionServerId === selectedServer.id && <section className="member-role-group ai-ghost-section">
                 <div className="member-role-group-title">APPS — 1</div>

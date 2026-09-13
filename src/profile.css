@@ -192,3 +192,59 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .identity-dialog>.premium-profile-overlay .premium-overlay-motion{display:block;width:100%;height:100%;opacity:.62;object-fit:fill}
 .premium-banner{animation:none;background-size:cover!important}
 .premium-banner-motion{position:absolute;z-index:3;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;image-rendering:auto;mix-blend-mode:screen}
+
+/* The profile stylesheet loads last, so mobile shell rules live here to avoid
+   desktop refinements turning settings back into narrow two-column layouts. */
+@media(max-width:600px){
+  .settings-hub,.profile-editor{
+    display:flex!important;
+    width:100vw;
+    height:100dvh;
+    grid-template-columns:none!important;
+    grid-template-rows:none!important;
+    border:0;
+    border-radius:0;
+    flex-direction:column!important;
+  }
+  .settings-hub-nav,.profile-editor-nav{
+    display:flex!important;
+    width:100%;
+    max-height:64px;
+    min-height:64px;
+    flex:0 0 64px;
+    grid-row:auto;
+    flex-direction:row!important;
+    align-items:center;
+    gap:4px;
+    padding:8px 48px 8px 8px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    border-right:0;
+    border-bottom:1px solid var(--sesh-line);
+    scrollbar-width:none;
+  }
+  .settings-hub-nav::-webkit-scrollbar,.profile-editor-nav::-webkit-scrollbar{display:none}
+  .settings-hub-nav>.settings-person,.profile-editor-nav>.settings-person,
+  .settings-hub-nav>.settings-search,.settings-hub-nav>.eyebrow,
+  .profile-editor-nav>.eyebrow,.profile-editor-nav>p{display:none}
+  .settings-hub-nav>button,.profile-editor-nav>button{
+    width:auto;
+    min-height:44px;
+    flex:0 0 auto;
+    padding:10px 12px;
+    font-size:12px;
+    white-space:nowrap;
+  }
+  .settings-hub-nav .settings-logout{margin:0}
+  .settings-hub-main,.profile-editor-main{
+    width:100%;
+    min-height:0;
+    flex:1 1 auto;
+    padding:18px 12px;
+    overflow-x:hidden;
+    overflow-y:auto;
+  }
+  .profile-editor-columns{display:flex;flex-direction:column}
+  .profile-editor-preview{position:static;order:-1;width:100%;max-width:320px;margin:0 auto 16px}
+  .profile-save-bar{width:100%;min-height:64px;flex:0 0 auto;padding:10px 12px max(10px,env(safe-area-inset-bottom))}
+}
