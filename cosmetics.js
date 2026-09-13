@@ -1,5 +1,6 @@
 export const PROFILE_EFFECTS = [
- ["none","Sem efeito"],["sparkles","Estrelas"],["glow","Luz suave"],["embers","Brasas"],
+ ["none","Sem efeito"],["sparkles","Estrelas"],["glow","Luz suave"],["embers","Brasas e fumaça"],
+ ["smoke","Fumaça cinematográfica"],["flames","Chamas"],["blue_fire","Fogo azul"],["ash","Cinzas ao vento"],
  ["aurora","Aurora boreal"],["confetti","Confete"],["hearts","Corações"],["cosmic","Cosmos"],
  ["lightning","Tempestade"],["fireflies","Vagalumes"],["sakura","Pétalas de cerejeira"],
  ["snow","Neve"],["matrix","Chuva digital"],["bubbles","Bolhas"],["prism","Prisma"],

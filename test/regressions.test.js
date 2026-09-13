@@ -31,11 +31,13 @@ before(async()=>{
 after(async()=>{if(proc&&!proc.killed){const ended=new Promise(r=>proc.once("exit",r));proc.kill();await ended;}if(temp)await rm(temp,{recursive:true,force:true});
 
 });
-test("cadastro entra sem Resend e aceita usuário, e-mail e tag",async()=>{
+test("cadastro entra sem Resend e aceita @ único, e-mail e ID público",async()=>{
  const account=await req("/api/auth/register","POST",{username:"loginoptional",email:"loginoptional@sesh.test",displayName:"Apelido diferente",password:"login123"});
- assert.equal(account.status,201);assert.equal(account.verificationRequired,false);assert.equal(account.verificationEmailSent,false);
- assert.equal(account.user.emailVerified,false);
- for(const identifier of ["loginoptional"," LOGINOPTIONAL ","loginoptional@sesh.test","@loginoptional","@loginoptional#"+account.user.tag]){
+  assert.equal(account.status,201);assert.equal(account.verificationRequired,false);assert.equal(account.verificationEmailSent,false);
+  assert.equal(account.user.emailVerified,false);
+ assert.match(account.user.publicId,/^S-[A-F0-9]{10}$/);
+ assert.equal((await req("/api/auth/register","POST",{username:"abc",email:"short@sesh.test",password:"login123"})).status,400);
+ for(const identifier of ["loginoptional"," LOGINOPTIONAL ","loginoptional@sesh.test","@loginoptional",account.user.publicId,"@loginoptional#"+account.user.tag]){
   const result=await req("/api/auth/login","POST",{username:identifier,password:"login123"});
   assert.equal(result.status,200,identifier);assert.equal(result.user.id,account.user.id);
  }
@@ -43,6 +45,7 @@ test("cadastro entra sem Resend e aceita usuário, e-mail e tag",async()=>{
  assert.equal((await req("/api/auth/login","POST",{username:"loginoptional",password:"errada"})).status,401);
 });
 test("perfil é atômico e imagem estática persiste",async()=>{
+ assert.equal((await req("/api/auth/me","PATCH",{username:"abc"},guest.token)).status,400);
  assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
  const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);
  assert.equal(failed.status,400);const result=await req("/api/auth/me","GET",undefined,guest.token);
@@ -77,7 +80,7 @@ test("cargos e permissões padrão persistem; anexos são validados",async()=>{
 test("DM persiste texto e imagem e respeita preferências",async()=>{
  assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"oi"},guest.token)).status,403);
  await req("/api/friends","POST",{username:"demo"},guest.token);
- await req("/api/friends","POST",{username:"testguest"},owner.token);
+ await req("/api/friends","POST",{username:guest.user.publicId},owner.token);
  const sent=await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"Olá 🎮 ❤️",attachment:png},guest.token);assert.equal(sent.status,201);
  const inbox=await req("/api/direct/"+guest.user.id+"/messages","GET",undefined,owner.token);assert.equal(inbox.messages[0].content,"Olá 🎮 ❤️");assert.equal(inbox.messages[0].attachment,png);
  await req("/api/auth/me","PATCH",{preferences:{allowDirectMessages:false}},owner.token);
@@ -129,8 +132,8 @@ test("sobreposição e cores personalizadas persistem e validam entradas",async(
  assert.equal((await req("/api/auth/me","PATCH",{profileOverlay:"unknown"},guest.token)).status,400);
 });
 test("novos cosméticos são aceitos e persistidos",async()=>{
- const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"fireflies",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
- assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"fireflies");assert.equal(result.user.nameEffect,"rainbow");
+ const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"flames",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
+ assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"rainbow");
 });
 test("gestor cria cargo inferior sem elevar privilégios",async()=>{
  const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;

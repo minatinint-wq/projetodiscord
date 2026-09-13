@@ -50,6 +50,7 @@ import useFileDrop from "./useFileDrop";
 import PremiumAvatarFrame from "./PremiumAvatarFrame";
 import { PREMIUM_FRAME_ART } from "./premiumCosmetics";
 import { updateVoiceActivity } from "./voiceActivity";
+import AtmosphericEffect from "./AtmosphericEffect";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -134,6 +135,8 @@ function BadgeIcon({ badge, className = "" }) {
 }
 function ProfileEffectLayer({ effect }) {
   if (!effect || effect === "none") return null;
+  if (["embers","smoke","flames","blue_fire","ash"].includes(effect))
+    return <AtmosphericEffect type={effect}/>;
   return (
     <span
       className={`profile-effect-layer profile-effect-${effect}`}
