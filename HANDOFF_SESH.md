@@ -72,7 +72,8 @@ Commits recentes relevantes:
 
 - Canvas atmosférico otimizado: `embers`, `smoke`, `flames`, `blue_fire`, `ash`.
 - O canvas pausa fora da tela, respeita reduced motion e limita DPR.
-- Pacote premium atual possui seis variantes com base PNG e sprite WebP de 24 quadros.
+- Molduras de avatar atuais são 313 APNGs: `snowglobe`, `fire` e `glitch` ficam locais em 288 × 288, e outras 310 vêm sob demanda do catálogo público do AvatarDecoration.
+- As 14 opções estáticas e as molduras antigas foram removidas por solicitação da usuária; overlays e banners premium continuam usando sprite WebP.
 - `AnimatedCosmetic.jsx` espera sprite sheet WebP com 24 quadros, grade 6 × 4.
 
 ## Correção de hierarquia recém-feita

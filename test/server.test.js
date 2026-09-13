@@ -158,7 +158,6 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     method: "PATCH",
     headers: auth,
     body: JSON.stringify({
-      avatarFrame: "ruby",
       avatar: tinyPng,
       profileEffect: "glow",
       bio: "Perfil seguro",
@@ -168,7 +167,6 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     }),
   });
   assert.equal(customizedProfile.response.status, 200);
-  assert.equal(customizedProfile.payload.user.avatarFrame, "ruby");
   assert.equal(customizedProfile.payload.user.favoriteGame, "Jogo de teste");
   assert.match(customizedProfile.payload.user.avatar, /^data:image\/png/);
   assert.equal(customizedProfile.payload.user.profileEffect, "glow");

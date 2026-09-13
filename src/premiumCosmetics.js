@@ -1,15 +1,16 @@
+import { REMOTE_AVATAR_DECORATIONS } from "../avatar-decorations"
+
+const REMOTE_FRAME_BASE = "https://img.avatardecoration.com/decorations/"
+
 export const PREMIUM_FRAME_ART = {
-  "lunar-halo": "/cosmetics-optimized/frames/lunar-halo.png",
-  "ember-crown": "/cosmetics-optimized/frames/ember-crown.png",
-  "sakura-halo": "/cosmetics-optimized/frames/sakura-halo.png",
-  "cyber-pulse": "/cosmetics-optimized/frames/cyber-pulse.png",
-  "steel-wolf": "/cosmetics-optimized/frames/steel-wolf.png",
-  "infernal-dragon": "/cosmetics-optimized/frames/infernal-dragon.png",
+  ...Object.fromEntries(REMOTE_AVATAR_DECORATIONS.map(([id]) => [id, REMOTE_FRAME_BASE + id + ".png"])),
+  "snowglobe": "/cosmetics-animated/frames/snowglobe.png?v=7",
+  "fire": "/cosmetics-animated/frames/fire.png?v=7",
+  "glitch": "/cosmetics-animated/frames/glitch.png?v=7",
 }
 
-export const PREMIUM_FRAME_MOTION = Object.fromEntries(
-  Object.keys(PREMIUM_FRAME_ART).map(id => [id, "/cosmetics-animated/frames/" + id + ".sprite.webp?v=6"]),
-)
+export const PREMIUM_FRAME_APNG = new Set(Object.keys(PREMIUM_FRAME_ART))
+export const PREMIUM_FRAME_MOTION = {}
 
 export const PREMIUM_OVERLAY_ART = {
   "lunar-orbit": "/cosmetics-optimized/overlays/lunar-orbit.png",

@@ -1,3 +1,5 @@
+import { REMOTE_AVATAR_DECORATIONS } from "./avatar-decorations.js";
+
 export const PROFILE_EFFECTS = [
  ["none","Sem efeito"],["sparkles","Estrelas"],["glow","Luz suave"],["embers","Brasas e fumaça"],
  ["smoke","Fumaça cinematográfica"],["flames","Chamas"],["blue_fire","Fogo azul"],["ash","Cinzas ao vento"],
@@ -7,13 +9,8 @@ export const PROFILE_EFFECTS = [
  ["meteors","Meteoros"],["butterflies","Borboletas"],["diamonds","Diamantes"],
 ];
 export const AVATAR_FRAMES = [
- ["none","Sem moldura"],["ruby","Rubi"],["gold","Ouro"],["neon","Neon"],["ice","Cristal"],
- ["rainbow","Rainbow RGB"],["sakura","Sakura"],["galaxy","Galáxia"],["inferno","Inferno"],
- ["ocean","Oceano"],["cyber","Cyber"],["aurora","Aurora"],["sunset","Pôr do sol"],
- ["jade","Jade"],["royal","Realeza"],["rose","Quartzo rosa"],["electric","Elétrica"],
- ["halo","Halo"],["blossom","Florescer"],["thorn","Espinhos"],
- ["lunar-halo","Halo lunar"],["ember-crown","Coroa de brasas"],["sakura-halo","Halo sakura"],
- ["cyber-pulse","Pulso cyber"],["steel-wolf","Lobo de aço"],["infernal-dragon","Dragão infernal"],
+ ["none","Sem moldura"],["snowglobe","Globo de neve"],["fire","Fogo"],["glitch","Glitch"],
+ ...REMOTE_AVATAR_DECORATIONS,
 ];
 export const PROFILE_OVERLAYS = [
  ["none","Sem sobreposição"],["orbital","Anéis orbitais"],["runes","Portal rúnico"],
@@ -21,7 +18,7 @@ export const PROFILE_OVERLAYS = [
  ["lunar-orbit","Órbita lunar"],["gothic-bloom","Jardim gótico"],["holo-circuit","Circuito premium"],
  ["sakura-shrine","Santuário sakura"],["steel-wolf","Lobo de aço"],["infernal-dragon","Dragão infernal"],
 ];
-export const PREMIUM_AVATAR_FRAMES = ["lunar-halo","ember-crown","sakura-halo","cyber-pulse","steel-wolf","infernal-dragon"];
+export const PREMIUM_AVATAR_FRAMES = AVATAR_FRAMES.slice(1).map(([id]) => id);
 export const PREMIUM_PROFILE_OVERLAYS = ["lunar-orbit","gothic-bloom","holo-circuit","sakura-shrine","steel-wolf","infernal-dragon"];
 export const PREMIUM_BANNER_PRESETS = ["celestial-tide","crimson-eclipse","sakura-dawn","neon-pulse","steel-wolf","infernal-dragon"];
 export const NAME_EFFECTS = [

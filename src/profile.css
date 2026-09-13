@@ -180,6 +180,11 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .premium-avatar-frame-scene{animation:none;filter:none}
 .premium-avatar-frame-scene .premium-avatar-frame-base{animation:none;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--profile-accent,#8fa9ff) 48%,transparent))}
 .premium-avatar-frame-scene .premium-avatar-frame-motion{z-index:5;width:100%;height:100%;opacity:.94;filter:none;image-rendering:auto}
+.premium-avatar-frame-apng{z-index:5;width:100%;height:100%;object-fit:contain;image-rendering:auto}
+.premium-avatar-frame-scene-snowglobe{width:132%!important;height:132%!important;transform:translate(-50%,-47%)}
+.premium-avatar-frame-scene-fire{filter:drop-shadow(0 0 5px #ff7a1673)}
+.premium-avatar-frame-scene-glitch{filter:drop-shadow(0 0 5px #7d61ff70)}
+.frame-catalog-search{margin-bottom:10px}.frame-catalog-more{width:100%;justify-content:center;margin-top:10px}
 .premium-avatar-shell-small .premium-avatar-frame-motion{display:none}
 .premium-overlay-art-base{animation:none;filter:none}
 .premium-overlay-motion{z-index:4;opacity:.9;filter:none;image-rendering:auto}

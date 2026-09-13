@@ -47,10 +47,10 @@ test("sessão persiste no restart, mute fantasma é reparado e Nitro protege cos
   await start()
   const owner = await request("/api/auth/login", "POST", { username: "demo", password: "demo123" })
   const guest = await request("/api/auth/register", "POST", { username: "restartguest", email: "restart@sesh.local", password: "restart123" })
-  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "steel-wolf" }, guest.token)).status, 403)
+  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire" }, guest.token)).status, 403)
   const admin = await request("/api/auth/login", "POST", { username: "session-admin@sesh.local", password: "session-admin-password" })
   assert.equal((await request("/api/users/" + guest.user.id + "/badges", "PATCH", { badges: ["nitro_classic"] }, admin.token)).status, 200)
-  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "steel-wolf", profileOverlay: "infernal-dragon", bannerPreset: "steel-wolf" }, guest.token)).status, 200)
+  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire", profileOverlay: "infernal-dragon", bannerPreset: "steel-wolf" }, guest.token)).status, 200)
 
   const community = (await request("/api/servers", "POST", { name: "Sessão persistente" }, owner.token)).server
   await request("/api/servers/" + community.inviteCode + "/join", "POST", {}, guest.token)

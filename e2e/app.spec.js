@@ -19,7 +19,6 @@ test("perfil salva avatar, banner e efeitos sem fechar",{tag:"@profile"},async({
  expect(me.user.avatar).toContain("data:image/png");expect(me.user.banner).toContain("data:image/png");
  await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
  await editor.getByRole("button",{name:"Vagalumes",exact:true}).click();
- await editor.getByRole("button",{name:"Rainbow RGB",exact:true}).click();
  await editor.getByRole("button",{name:"Salvar alterações"}).click();
  await expect(editor.getByRole("status")).toContainText("Tudo salvo");
  await page.screenshot({path:"test-results/profile-studio.png",fullPage:true});

@@ -185,7 +185,8 @@ function initials(name = "") {
 }
 function Avatar({ user, color = "purple", small = false, onClick }) {
   const value = initials(user?.displayName || user?.username || "?");
-  const frame = user?.avatarFrame || "none";
+  const requestedFrame = user?.avatarFrame || "none";
+  const frame = requestedFrame === "none" || PREMIUM_FRAME_ART[requestedFrame] ? requestedFrame : "none";
   const core = user?.avatar ? (
     <img className={`avatar avatar-img avatar-frame-${frame} ${small ? "avatar-small" : ""}`} src={user.avatar} alt="" />
   ) : (

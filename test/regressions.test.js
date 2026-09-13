@@ -132,8 +132,8 @@ test("sobreposição e cores personalizadas persistem e validam entradas",async(
  assert.equal((await req("/api/auth/me","PATCH",{profileOverlay:"unknown"},guest.token)).status,400);
 });
 test("novos cosméticos são aceitos e persistidos",async()=>{
- const result=await req("/api/auth/me","PATCH",{avatarFrame:"electric",profileEffect:"flames",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
- assert.equal(result.user.avatarFrame,"electric");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"rainbow");
+ const result=await req("/api/auth/me","PATCH",{avatarFrame:"glitch",profileEffect:"flames",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
+ assert.equal(result.user.avatarFrame,"glitch");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"rainbow");
 });
 test("gestor cria cargo inferior sem elevar privilégios",async()=>{
  const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;
