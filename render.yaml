@@ -19,6 +19,18 @@ services:
         value: "false"
       - key: SEED_DEMO_USER
         value: "true"
+      - key: AI_IMAGE_DAILY_LIMIT
+        value: "5"
+      - key: IMAGE_GENERATION_TIMEOUT_MS
+        value: "120000"
+      - key: NORMAL_HF_SPACE_URL
+        value: https://black-forest-labs-flux-1-schnell.hf.space
+      - key: NORMAL_HF_API_NAME
+        value: infer
+      - key: NSFW_HF_SPACE_URL
+        value: https://black-forest-labs-flux-1-schnell.hf.space
+      - key: NSFW_HF_API_NAME
+        value: infer
       - key: MASTER_ADMIN_EMAIL
         sync: false
       - key: MASTER_ADMIN_EMAILS

@@ -1,5 +1,6 @@
 const COMMAND_PATTERN = /^\/(image|imagensfw)\s+"([^"\r\n]{1,600})"\s*$/i;
 const COMMAND_PREFIX_PATTERN = /^\/(?:image|imagensfw)\b/i;
+const DEFAULT_HF_SPACE_URL = "https://black-forest-labs-flux-1-schnell.hf.space";
 
 const normalizePrompt = (value) => String(value || "")
   .normalize("NFD")
@@ -104,21 +105,21 @@ async function callJsonImageProvider({ name, url, token, model, prompt, signal }
   return { dataUrl: await responseToDataUrl(response, signal), provider: name };
 }
 
-async function callHuggingFaceSpace({ prompt, env, signal }) {
-  const baseUrl = envValue(env, "NSFW_HF_SPACE_URL").replace(/\/$/, "");
+async function callHuggingFaceSpace({ prompt, env, signal, prefix = "NSFW", defaultUrl = "" }) {
+  const baseUrl = (envValue(env, `${prefix}_HF_SPACE_URL`) || defaultUrl).replace(/\/$/, "");
   if (!baseUrl) return null;
   if (!/^https:\/\/[a-z0-9-]+\.hf\.space$/i.test(baseUrl))
-    throw new Error("NSFW_HF_SPACE_URL precisa apontar para um domínio HTTPS .hf.space.");
-  const apiName = envValue(env, "NSFW_HF_API_NAME") || "infer";
-  if (!/^[a-z0-9_-]{1,80}$/i.test(apiName)) throw new Error("NSFW_HF_API_NAME inválido.");
+    throw new Error(`${prefix}_HF_SPACE_URL precisa apontar para um domínio HTTPS .hf.space.`);
+  const apiName = envValue(env, `${prefix}_HF_API_NAME`) || "infer";
+  if (!/^[a-z0-9_-]{1,80}$/i.test(apiName)) throw new Error(`${prefix}_HF_API_NAME inválido.`);
   const token = envValue(env, "HF_TOKEN");
   const headers = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  const width = Math.max(256, Math.min(Number(envValue(env, "NSFW_IMAGE_WIDTH")) || 768, 1024));
-  const height = Math.max(256, Math.min(Number(envValue(env, "NSFW_IMAGE_HEIGHT")) || 768, 1024));
-  const steps = Math.max(1, Math.min(Number(envValue(env, "NSFW_IMAGE_STEPS")) || 4, 12));
+  const width = Math.max(256, Math.min(Number(envValue(env, `${prefix}_IMAGE_WIDTH`)) || 768, 1024));
+  const height = Math.max(256, Math.min(Number(envValue(env, `${prefix}_IMAGE_HEIGHT`)) || 768, 1024));
+  const steps = Math.max(1, Math.min(Number(envValue(env, `${prefix}_IMAGE_STEPS`)) || 4, 12));
   const submit = await fetch(`${baseUrl}/gradio_api/call/${apiName}`, {
     method: "POST",
     headers,
@@ -206,15 +207,13 @@ export async function generateImage({ prompt, nsfw = false, env = process.env })
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     if (nsfw) {
-      const huggingFace = await callHuggingFaceSpace({ prompt, env, signal: controller.signal });
-      if (huggingFace) return huggingFace;
-      const provider = customProvider("NSFW_IMAGE", env, "nsfw-separate");
-      if (!provider) {
-        const error = new Error("A API separada de /imagensfw ainda não foi configurada.");
-        error.status = 503;
-        throw error;
+      if (envValue(env, "NSFW_HF_SPACE_URL")) {
+        const huggingFace = await callHuggingFaceSpace({ prompt, env, signal: controller.signal });
+        if (huggingFace) return huggingFace;
       }
-      return await callJsonImageProvider({ ...provider, prompt, signal: controller.signal });
+      const provider = customProvider("NSFW_IMAGE", env, "nsfw-separate");
+      if (provider) return await callJsonImageProvider({ ...provider, prompt, signal: controller.signal });
+      return await callHuggingFaceSpace({ prompt, env, signal: controller.signal, defaultUrl: DEFAULT_HF_SPACE_URL });
     }
 
     const attempts = [];
@@ -225,11 +224,7 @@ export async function generateImage({ prompt, nsfw = false, env = process.env })
     if (envValue(env, "GEMINI_API_KEY")) attempts.push(() => callGemini({ prompt, env, signal: controller.signal }));
     const normal = customProvider("NORMAL_IMAGE", env, "normal-custom");
     if (normal) attempts.push(() => callJsonImageProvider({ ...normal, prompt, signal: controller.signal }));
-    if (!attempts.length) {
-      const error = new Error("Configure ao menos um provedor para o comando /image.");
-      error.status = 503;
-      throw error;
-    }
+    attempts.push(() => callHuggingFaceSpace({ prompt, env, signal: controller.signal, prefix: "NORMAL", defaultUrl: DEFAULT_HF_SPACE_URL }));
 
     let lastError;
     for (const attempt of attempts) {
