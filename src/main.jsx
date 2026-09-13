@@ -277,7 +277,7 @@ function BadgeContextMenu({ menu, onAdd, onModerate, onAssignRole, onManageRoles
         Perfil
       </button>
       <button className="context-item" onClick={onCopyHandle}>
-        Copiar nome de usuário
+        Copiar ID do usuário
       </button>
       {!isSelf && <>
         <button className="context-item" onClick={onAddFriend}>
@@ -1286,6 +1286,7 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
                 required
                 autoFocus
                 autoComplete="username"
+                minLength={register ? 4 : undefined}
                 placeholder="Digite seu usuário"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
@@ -2452,14 +2453,12 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       .catch(() => setNotice("Não foi possível copiar."));
   }
   function copyOwnHandle() {
-    const handle = currentUser.tag
-      ? `${currentUser.username}#${currentUser.tag}`
-      : currentUser.username;
-    copyText(handle, `${handle} copiado. Agora é só enviar para adicionarem você.`);
+    const publicId = currentUser.publicId || currentUser.id;
+    copyText(publicId, `ID ${publicId} copiado.`);
   }
   function copyMemberHandle(user) {
-    const handle = user.tag ? `${user.username}#${user.tag}` : user.username;
-    copyText(handle, `${handle} copiado.`);
+    const publicId = user.publicId || user.id;
+    copyText(publicId, `ID ${publicId} copiado.`);
     setBadgeMenu(null);
   }
   async function addFriendFromMenu(user) {
@@ -3136,7 +3135,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       <div className="quick-profile-actions">
         <button onClick={()=>{setStatusMenu(false);openSettings("account");}}><Settings size={16}/>Editar perfil e banner</button>
         <button onClick={()=>{setStatusMenu(false);setProfileView({mode:"full",userId:currentUser.id});}}><Eye size={16}/>Ver perfil completo</button>
-        <button onClick={copyOwnHandle}>Copiar meu usuário</button>
+        <button onClick={copyOwnHandle}>Copiar meu ID</button>
       </div>
       <details><summary>Status · {({online:"Disponível",idle:"Ausente",dnd:"Não perturbar",invisible:"Invisível"})[currentUser.status||"online"]}</summary>
       {[["online","Disponível"],["idle","Ausente"],["dnd","Não perturbar"],["invisible","Invisível"]].map(([value,label])=><button key={value} className="status-row" onClick={()=>setStatus(value)}><span className={"presence-dot presence-dot-menu presence-"+(value==="invisible"?"offline":value)}/>{label}</button>)}</details>
@@ -4219,11 +4218,11 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </span>
           <div
             className="user-details"
-            title="Clique para copiar seu nome de usuário"
+            title="Clique para copiar seu ID"
             onClick={copyOwnHandle}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
+            <span>@{currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button title={muted ? "Ativar microfone" : "Silenciar microfone"} onClick={toggleMute}>
@@ -4493,11 +4492,11 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           </span>
           <div
             className="user-details"
-            title="Clique para copiar seu nome de usuário"
+            title="Clique para copiar seu ID"
             onClick={copyOwnHandle}
           >
             <strong>{currentUser.displayName}</strong>
-            <span>{currentUser.tag ? `${currentUser.username}#${currentUser.tag}` : currentUser.username}</span>
+            <span>@{currentUser.username}</span>
           </div>
           <div className="user-actions">
             <button

@@ -15,7 +15,7 @@ export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges
   <div className="identity-card-body">
    <div className="identity-avatar"><Avatar user={user}/><span className={"presence-dot presence-"+presence}/></div>
    {!!user.badges?.length&&<div className="identity-badges">{renderBadges?.(user)}</div>}
-   <h2><StyledName user={user}/></h2><p className="identity-handle">@{user.username}{user.tag?"#"+user.tag:""}</p>
+   <h2><StyledName user={user}/></h2><p className="identity-handle">@{user.username}</p>
    <div className="identity-divider"/>
    <p className="identity-bio">{user.bio||"Cada perfil tem uma história. A sua começa aqui."}</p>
    {user.activityText&&<div className="identity-status"><i/>{user.activityText}</div>}

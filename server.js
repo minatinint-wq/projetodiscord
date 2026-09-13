@@ -228,6 +228,22 @@ const initials = (name) =>
     .join("")
     .slice(0, 2)
     .toUpperCase();
+function generatedPublicId(user, nonce = 0) {
+  if (isPrimaryMasterAdmin(user) && nonce === 0) return "S-0000000001";
+  return "S-" + crypto.createHash("sha256")
+    .update(`${user?.id || user?.email || user?.username || "sesh"}:${nonce}`)
+    .digest("hex").slice(0, 10).toUpperCase();
+}
+function allocatePublicId(user) {
+  let nonce = 0;
+  let candidate;
+  do candidate = generatedPublicId(user, nonce++);
+  while (database?.users?.some((item) => item !== user && item.publicId === candidate));
+  return candidate;
+}
+function canUseShortUsername(user) {
+  return isPrimaryMasterAdmin(user) || user?.shortUsernameAllowed === true;
+}
 const blankDatabase = () =>
   Object.fromEntries(COLLECTIONS.map((key) => [key, []]));
 const normalizeDatabase = (input) => {
@@ -237,8 +253,17 @@ const normalizeDatabase = (input) => {
       Array.isArray(input?.[key]) ? input[key] : [],
     ]),
   );
-  normalized.users = normalized.users.map((user) => ({
-    ...user,
+  const usedPublicIds = new Set();
+  normalized.users = normalized.users.map((user) => {
+    let publicId = !isPrimaryMasterAdmin(user) && /^S-[A-F0-9]{10}$/.test(String(user.publicId || "").toUpperCase()) && String(user.publicId).toUpperCase() !== "S-0000000001"
+      ? String(user.publicId).toUpperCase()
+      : generatedPublicId(user);
+    let nonce = 1;
+    while (usedPublicIds.has(publicId)) publicId = generatedPublicId(user, nonce++);
+    usedPublicIds.add(publicId);
+    return {
+    ...user, publicId,
+    shortUsernameAllowed: user.shortUsernameAllowed === true || String(user.username || "").toLowerCase() === "s",
     badges: [
       ...new Set(
         (Array.isArray(user.badges) ? user.badges : [])
@@ -251,7 +276,7 @@ const normalizeDatabase = (input) => {
     activityText: user.activityText || "",
     wishlist: user.wishlist || "",
     emailVerifiedAt: user.emailVerifiedAt === undefined ? now() : user.emailVerifiedAt,
-  }));
+  };});
   normalized.servers = normalized.servers.map((server) => {
     const candidateTag = String(server.tag || server.name || "SESH")
       .replace(/[^a-z0-9]/gi, "")
@@ -455,6 +480,7 @@ async function loadDatabase() {
     }
   }
   for (const user of database.users) {
+    if (!user.publicId) user.publicId = allocatePublicId(user);
     const badges = Array.isArray(user.badges) ? user.badges : [];
     user.badges = isCreator(user)
       ? [...new Set([...badges, "criador"])]
@@ -530,6 +556,7 @@ function userTag(user) {
 function publicUser(user) {
   return {
     id: user.id,
+    publicId: user.publicId || generatedPublicId(user),
     username: user.username,
     tag: userTag(user),
     displayName: user.displayName,
@@ -643,6 +670,7 @@ function sessionUser(user) {
     emailVerified: Boolean(user.emailVerifiedAt),
     isCreator: isCreator(user),
     isMasterAdmin: isMasterAdmin(user),
+    canUseShortUsername: canUseShortUsername(user),
     preferences: user.preferences || {},
   };
 }
@@ -1063,10 +1091,11 @@ async function handler(req, res) {
           error:
             "Usuário e senha com pelo menos 6 caracteres são obrigatórios.",
         });
-      if (!/^[a-z0-9_.-]{1,20}$/.test(username))
+      const minimumUsernameLength = email === MASTER_ADMIN_EMAIL ? 1 : 4;
+      if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
-            "Usuário inválido: use até 20 caracteres (letras, números, ponto, hífen ou underline), sem espaços.",
+            `Usuário inválido: use de ${minimumUsernameLength} a 20 caracteres (letras, números, ponto, hífen ou underline), sem espaços.`,
         });
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
         return json(res, 400, {
@@ -1098,6 +1127,7 @@ async function handler(req, res) {
         avatarColor: "purple",
         createdAt: now(),
       };
+      user.publicId = allocatePublicId(user);
       database.users.push(user);
       const token = await createSession(user.id);
       setSessionCookie(res, token);
@@ -1117,11 +1147,12 @@ async function handler(req, res) {
       const user = database.users.find(
         (item) =>
           (String(item.username).toLowerCase() === identifier && (!suppliedTag || userTag(item) === suppliedTag)) ||
+          String(item.publicId || "").toUpperCase() === rawIdentifier.toUpperCase() ||
           (item.email || "").toLowerCase() === identifier,
       );
       if (!user || !verifyPassword(input.password || "", user.password)) {
         recordLoginFailure(req, identifier);
-        return json(res, 401, { error: "Usuário ou senha incorretos. Entre com seu nome de usuário, @usuário#tag ou e-mail de cadastro (não o nome de exibição)." });
+        return json(res, 401, { error: "Usuário ou senha incorretos. Entre com @usuário, ID público ou e-mail de cadastro (não o nome de exibição)." });
       }
       loginAttempts.delete(loginLimitKey(req, identifier));
       const token = await createSession(user.id);
@@ -1323,10 +1354,11 @@ async function handler(req, res) {
           : user.username;
       if (!displayName)
         return json(res, 400, { error: "Nome de exibição é obrigatório." });
-      if (!/^[a-z0-9_.-]{1,20}$/.test(username))
+      const minimumUsernameLength = canUseShortUsername(user) ? 1 : 4;
+      if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
           error:
-            "Usuário inválido: use até 20 caracteres (letras, números, ponto, hífen ou underline), sem espaços.",
+            `Usuário inválido: use de ${minimumUsernameLength} a 20 caracteres (letras, números, ponto, hífen ou underline), sem espaços.`,
         });
       if (
         database.users.some(
@@ -2095,23 +2127,22 @@ async function handler(req, res) {
     }
     if (url.pathname === "/api/friends" && req.method === "POST") {
       const input = await body(req);
-      const friendId = String(input.username || "")
-        .trim()
-        .toLowerCase();
-      const match = friendId.match(/^@?([a-z0-9_.-]{1,20})(?:#(\d{4}))?$/i);
-      if (!match)
+      const friendId = String(input.username || "").trim();
+      const match = friendId.toLowerCase().match(/^@?([a-z0-9_.-]{1,20})(?:#(\d{4}))?$/i);
+      const publicId = friendId.toUpperCase();
+      if (!match && !/^S-[A-F0-9]{10}$/.test(publicId))
         return json(res, 400, {
-          error: "Use o formato nome#0000 para adicionar um amigo.",
+          error: "Use @nome ou o ID público no formato S-XXXXXXXXXX.",
         });
-      const [, username, tag] = match;
+      const [, username, tag] = match || [];
       const target = database.users.find(
         (item) =>
-          item.username === username &&
-          (!tag || userTag(item) === tag),
+          String(item.publicId || "").toUpperCase() === publicId ||
+          (item.username === username && (!tag || userTag(item) === tag)),
       );
       if (!target)
         return json(res, 404, {
-          error: "Usuário não encontrado. Confira o nome (sem o @).",
+          error: "Usuário não encontrado. Confira o @ ou o ID público.",
         });
       if (target.id === user.id)
         return json(res, 400, { error: "Você não pode se adicionar." });
