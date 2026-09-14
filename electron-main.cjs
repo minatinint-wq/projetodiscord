@@ -2,6 +2,7 @@ const {
   app,
   BrowserWindow,
   dialog,
+  Menu,
   session,
   desktopCapturer,
   safeStorage,
@@ -152,6 +153,7 @@ function isTrustedUrl(value) {
   }
 }
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   configureAutoUpdater();
   session.defaultSession.setPermissionCheckHandler(
     (webContents, permission, requestingOrigin) =>
