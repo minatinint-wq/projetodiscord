@@ -8,7 +8,12 @@ export const PROFILE_ART_EFFECTS = [
   ["shattered-wings", "Asas Estilhaçadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/13e64b0456243ed81ae809a507d980cadf31d1b44848bd2c89d3c511604b25ff", "apng"],
   ["nevermore-midnight", "Nunca Mais (Meia-noite)", "https://cdn.discordapp.com/assets/content/6093a8e844ec5bc6b796ad5f31063fdbd321dc525c49ff980fb123f4ff603244", "apng"],
   ["whispering-rose", "Rosa Sussurrante", "https://cdn.discordapp.com/media/v1/collectibles-shop/f6798f7dce84fed42daa90be43d3e5852e96baf9de60022065116d3ca137b096", "apng"],
-  ["mothman", "Homem-Mariposa", "https://cdn.discordapp.com/media/v1/collectibles-shop/1f2b91c50cc613ac683138f81c4fd6636445246275d0a43be220105b7426dc37", "apng"],
+  ["mothman", "Homem-Mariposa", [
+    "https://cdn.discordapp.com/media/v1/collectibles-shop/018e9aacc0a05f90dd18b4851c7130041321d0dbdc5df32944d7d361d0e65794",
+    "https://cdn.discordapp.com/media/v1/collectibles-shop/6141bed8d0353c9104a069af0c42dc80967c72a4061c018f7ace53c1f4a359ad",
+    "https://cdn.discordapp.com/media/v1/collectibles-shop/88278b3768b7a4e2dc71af8f77c136b07169c7eafb0cc752969bb07ada33e112",
+    "https://cdn.discordapp.com/media/v1/collectibles-shop/1f2b91c50cc613ac683138f81c4fd6636445246275d0a43be220105b7426dc37",
+  ], "apng"],
   ["midnight-howl", "Uivo da Meia-noite", "https://cdn.discordapp.com/media/v1/collectibles-shop/c8eda0d8533d69a251d780152bbfe6bac4fbbaab48be155a7c7dbebe8d74ed05", "apng"],
   ["jersey-devil", "Demônio de Jersey", "https://cdn.discordapp.com/media/v1/collectibles-shop/4d6f618dbe94a45857e73fd2f66050d91e492bc16494e0bdc2786d545d34b40a", "apng"],
   ["always-watching", "Sempre de Olho", "https://cdn.discordapp.com/media/v1/collectibles-shop/4394a572d2d2b1eddbc253c6c77e3725ea55a379ace4a998267afe37b2fe352b", "apng"],
@@ -46,10 +51,22 @@ export const PROFILE_ART_EFFECTS = [
 
 export const PROFILE_ART_IDS = new Set(PROFILE_ART_EFFECTS.map(([id]) => id));
 
-export function profileArtSrc(id) {
+export function profileArtSources(id) {
   const item = PROFILE_ART_EFFECTS.find(([value]) => value === id);
-  if (!item?.[2]) return null;
-  return /^https:\/\//i.test(item[2]) ? item[2] : PROFILE_ART_BASE + item[2];
+  if (!item?.[2]) return [];
+  const files = Array.isArray(item[2]) ? item[2] : [item[2]];
+  return files.map((file) => /^https:\/\//i.test(file) ? file : PROFILE_ART_BASE + file);
+}
+
+export function profileArtSrc(id, variant = 0) {
+  const sources = profileArtSources(id);
+  if (!sources.length) return null;
+  const index = Math.abs(Number.isFinite(variant) ? Math.trunc(variant) : 0) % sources.length;
+  return sources[index];
+}
+
+export function profileArtVariantCount(id) {
+  return profileArtSources(id).length;
 }
 
 export function profileArtFormat(id) {

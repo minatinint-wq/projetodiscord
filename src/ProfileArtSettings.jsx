@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
-import { PROFILE_ART_EFFECTS } from "../profile-art";
+import { PROFILE_ART_EFFECTS, profileArtVariantCount } from "../profile-art";
 import { PROFILE_FRAMES } from "../profile-frames";
 import ProfileArtEffect from "./ProfileArtEffect";
 import ProfileFrameEffect from "./ProfileFrameEffect";
@@ -32,7 +32,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
   return <>
     <section className="settings-card profile-art-settings">
       <h2>Efeitos de perfil</h2>
-      <p>A arte APNG cobre banner, avatar e conteúdo, preserva a animação original e respeita os limites do cartão. A escolha requer Nitro, mas todos enxergam o efeito equipado.</p>
+      <p>A arte APNG cobre banner, avatar e conteúdo, preserva a animação original e respeita os limites do cartão. Efeitos dinâmicos podem sortear outra composição a cada abertura. A escolha requer Nitro, mas todos enxergam o efeito equipado.</p>
       <label className="settings-search"><Search size={18}/><input value={effectQuery} onChange={(event) => { setEffectQuery(event.target.value); setEffectPage(0); }} placeholder={`Buscar entre ${PROFILE_ART_EFFECTS.length - 1} efeitos`}/></label>
       <div className="profile-art-grid">
         {effects.slice(safeEffectPage * PAGE_SIZE, safeEffectPage * PAGE_SIZE + PAGE_SIZE).map(([value, label, , format]) => {
@@ -41,7 +41,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
           return <button type="button" key={value} disabled={locked} title={locked ? `${label} · Nitro` : label} className={`profile-art-choice ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => !locked && update("profileArtEffect", value)}>
             <span className="profile-art-thumb">{value === "none" ? <span className="profile-art-none">Sem efeito</span> : <ProfileArtEffect effect={value} preview/>}</span>
             <span className="profile-catalog-label">{label}</span>
-            {value !== "none" && <small className="asset-format">{format === "apng" ? "APNG" : "PNG"}</small>}
+            {value !== "none" && <small className="asset-format">{format === "apng" ? "APNG" : "PNG"}{profileArtVariantCount(value) > 1 ? ` · ${profileArtVariantCount(value)} VARIAÇÕES` : ""}</small>}
             {locked ? <b className="premium-lock">NITRO</b> : selected && <Check size={14}/>} 
           </button>;
         })}
@@ -51,7 +51,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
 
     <section className="settings-card profile-art-settings">
       <h2>Molduras de perfil</h2>
-      <p>Camadas decorativas próprias do cartão de perfil. Elas contornam a arte completa e extrapolam a borda, sem virar moldura de avatar nem nameplate.</p>
+      <p>Camadas decorativas próprias do cartão de perfil. Elas contornam a arte completa e extrapolam a borda, sem virar moldura de avatar nem placa de identificação.</p>
       <label className="settings-search"><Search size={18}/><input value={frameQuery} onChange={(event) => { setFrameQuery(event.target.value); setFramePage(0); }} placeholder={`Buscar entre ${PROFILE_FRAMES.length - 1} molduras`}/></label>
       <div className="profile-frame-grid">
         {frames.slice(safeFramePage * PAGE_SIZE, safeFramePage * PAGE_SIZE + PAGE_SIZE).map(([value, label]) => {

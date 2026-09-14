@@ -5255,20 +5255,20 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               </>
             ) : (
               <>
-                <div className="welcome-block">
-                  <div className="welcome-icon">
-                    <Hash size={30} />
-                  </div>
-                  <h1>Bem-vindo a #{selectedChannel.name}!</h1>
-                  <p>
-                    Este é o começo deste canal. Compartilhe ideias e converse
-                    com a comunidade.
-                  </p>
-                </div>
                 <div className="messages-list" ref={messagesListRef} onScroll={(event) => {
                   const list=event.currentTarget;
                   autoScrollMessagesRef.current=list.scrollHeight-list.scrollTop-list.clientHeight<90;
                 }}>
+                  <div className="welcome-block">
+                    <div className="welcome-icon">
+                      <Hash size={30} />
+                    </div>
+                    <h1>Bem-vindo a #{selectedChannel.name}!</h1>
+                    <p>
+                      Este é o começo deste canal. Compartilhe ideias e converse
+                      com a comunidade.
+                    </p>
+                  </div>
                   {filteredMessages.map((message, index) => {
                     const previous = filteredMessages[index - 1];
                     const messageDate = new Date(message.createdAt);

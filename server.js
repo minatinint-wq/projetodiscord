@@ -1972,7 +1972,7 @@ async function handler(req, res) {
           : "default";
       if (input.profilePlate !== undefined) {
         if (NAMEPLATE_IDS.has(input.profilePlate) && !hasNitroForRequest)
-          return json(res, 403, {error: "Esta nameplate animada requer a insígnia Nitro Classic."});
+          return json(res, 403, {error: "Esta placa de identificação requer a insígnia Nitro Classic."});
         user.profilePlate = ["default", "stars", "waves", "neon", "clouds", "flora", "holo"].includes(
           input.profilePlate,
         ) || NAMEPLATE_IDS.has(input.profilePlate)
@@ -2616,7 +2616,11 @@ async function handler(req, res) {
           joinedAt: now(),
         };
         database.memberships.push(joinedMembership);
-        await saveDatabase();
+        // Joining changes only the membership collection. Persisting every
+        // collection here forced PostgreSQL deployments to stringify the full
+        // message/direct-message history (including legacy attachments), which
+        // could exhaust a 512 MB instance and leave the client on "Entrando...".
+        await saveDatabase("memberships");
         broadcastServer(server.id, {
           type: "member.joined",
           serverId: server.id,

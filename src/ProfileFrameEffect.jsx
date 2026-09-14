@@ -1,26 +1,22 @@
 import React from "react";
-import { profileFrameLayers } from "../profile-frames";
+import { profileFrameLayout, profileFrameVariables } from "../profile-frames";
 
 export default function ProfileFrameEffect({ frame, preview = false }) {
-  const layers = profileFrameLayers(frame);
-  if (!layers.length) return null;
+  const layout = profileFrameLayout(frame);
+  if (!layout?.layers.length) return null;
 
-  return <span className={preview ? "profile-frame-effect profile-frame-preview" : "profile-frame-effect"} aria-hidden="true">
-    {layers.map((src, index) => <img
-      key={src}
+  return <span className={preview ? "profile-frame-effect profile-frame-preview" : "profile-frame-effect"} style={profileFrameVariables(frame)} aria-hidden="true">
+    {layout.layers.map((layer, index) => <img
+      key={`${layer.src}-${layer.role}-${layer.edge}`}
       className="profile-frame-layer"
-      src={src}
+      src={layer.src}
       alt=""
       draggable="false"
       decoding="async"
       loading={preview ? "lazy" : "eager"}
-      data-edge={index % 2 === 0 ? "top" : "bottom"}
+      data-edge={layer.edge}
+      data-role={layer.role}
       style={{ "--frame-layer": index }}
-      onLoad={(event) => {
-        const image = event.currentTarget;
-        const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
-        image.dataset.edge = ratio < 0.9 ? "full" : ratio > 2.35 ? "bottom" : "top";
-      }}
     />)}
   </span>;
 }

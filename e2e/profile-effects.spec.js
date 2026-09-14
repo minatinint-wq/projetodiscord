@@ -1,5 +1,24 @@
 import {test,expect} from "@playwright/test";
+import {profileFrameLayout} from "../profile-frames.js";
 const base="http://127.0.0.1:34170";
+
+function expectOfficialTopGeometry(cardBox,layerBox,id){
+ const layout=profileFrameLayout(id);
+ const scale=cardBox.width/layout.containerWidth;
+ expect(Math.abs(layerBox.x-(cardBox.x-layout.overflowHorizontal*scale))).toBeLessThanOrEqual(3);
+ expect(Math.abs(layerBox.width-(cardBox.width+(layout.overflowHorizontal*2*scale)))).toBeLessThanOrEqual(3);
+ expect(Math.abs(layerBox.y-(cardBox.y-layout.overflowTop*scale))).toBeLessThanOrEqual(3);
+}
+
+async function waitForFrameImages(frame){
+ const images=frame.locator(".profile-frame-layer");
+ await images.evaluateAll(nodes=>Promise.all(nodes.map(image=>image.complete&&image.naturalWidth>0?undefined:new Promise(resolve=>{
+  image.addEventListener("load",resolve,{once:true});
+  image.addEventListener("error",resolve,{once:true});
+  setTimeout(resolve,12000);
+ }))));
+ await expect.poll(()=>images.evaluateAll(nodes=>nodes.every(image=>image.complete&&image.naturalWidth>0)),{timeout:15000}).toBe(true);
+}
 test("sobreposição e cores aparecem na prévia e no perfil após salvar",async({page,browser})=>{
  const errors=[];page.on("pageerror",e=>errors.push(e.message));
  const login=await page.request.post("/api/auth/login",{data:{username:"demo",password:"demo123"}});
@@ -51,6 +70,7 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   const frameTop=frame.locator('.profile-frame-layer[data-edge="top"]').first();
   await expect(art).toBeVisible();
   await expect(frame).toBeVisible();
+  await waitForFrameImages(frame);
   await expect(frameTop).toBeVisible();
   const boxes=await Promise.all([card.boundingBox(),art.boundingBox(),frameTop.boundingBox()]);
   const [cardBox,artBox,frameTopBox]=boxes;
@@ -58,15 +78,28 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   expect(Math.abs(artBox.width-cardBox.width)).toBeLessThanOrEqual(2);
   expect(Math.abs(artBox.height-cardBox.height)).toBeLessThanOrEqual(2);
   await expect(art).toHaveCSS("overflow","hidden");
-  expect(frameTopBox.x).toBeLessThanOrEqual(cardBox.x-17);
+  expect(frameTopBox.x).toBeLessThan(cardBox.x);
   expect(frameTopBox.y).toBeLessThanOrEqual(cardBox.y-17);
-  expect(frameTopBox.width).toBeGreaterThanOrEqual(cardBox.width+34);
-  expect(Math.abs((frameTopBox.y+frameTopBox.height)-(cardBox.y+70))).toBeLessThanOrEqual(2);
+  expectOfficialTopGeometry(cardBox,frameTopBox,"crystals-amethyst");
+  await expect(frameTop).toHaveAttribute("data-role","front");
   await frameSettings.getByPlaceholder(/Buscar entre .* molduras/).fill("Rosas Sombrias (Branco)");
   await frameSettings.getByRole("button",{name:/Rosas Sombrias \(Branco\)/}).click();
+  await waitForFrameImages(frame);
   const roseFrameTop=card.locator(':scope > .profile-frame-effect .profile-frame-layer[data-edge="top"]').first();
   const [roseCardBox,roseFrameTopBox]=await Promise.all([card.boundingBox(),roseFrameTop.boundingBox()]);
-  expect(Math.abs((roseFrameTopBox.y+roseFrameTopBox.height)-(roseCardBox.y+70))).toBeLessThanOrEqual(2);
+  expectOfficialTopGeometry(roseCardBox,roseFrameTopBox,"dark-roses-white");
+  await frameSettings.getByPlaceholder(/Buscar entre .* molduras/).fill("Senhor dos Mortos (Azul)");
+  await frameSettings.getByRole("button",{name:/Senhor dos Mortos \(Azul\)/}).click();
+  await waitForFrameImages(frame);
+  const fireFrameTop=card.locator(':scope > .profile-frame-effect .profile-frame-layer[data-edge="top"]').first();
+  const [fireCardBox,fireFrameTopBox]=await Promise.all([card.boundingBox(),fireFrameTop.boundingBox()]);
+  expectOfficialTopGeometry(fireCardBox,fireFrameTopBox,"lord-of-dead-blue");
+  const fireBackBottom=card.locator(':scope > .profile-frame-effect .profile-frame-layer[data-role="back"][data-edge="bottom"]');
+  await expect(fireBackBottom).toBeVisible();
+  const fireBottomBox=await fireBackBottom.boundingBox();
+  const fireLayout=profileFrameLayout("lord-of-dead-blue");
+  const fireScale=fireCardBox.width/fireLayout.containerWidth;
+  expect(Math.abs((fireBottomBox.y+fireBottomBox.height)-(fireCardBox.y+fireCardBox.height+fireLayout.overflowBottom*fireScale))).toBeLessThanOrEqual(2);
   await editor.getByRole("button",{name:"Salvar alterações"}).click();
   await expect(editor.getByRole("status")).toContainText("Tudo salvo");
   await editor.getByLabel("Fechar perfil",{exact:true}).click();
@@ -75,7 +108,7 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   const quickCard=quick.locator(".identity-card");
   const quickFrameTop=quickCard.locator(':scope > .profile-frame-effect .profile-frame-layer[data-edge="top"]').first();
   const [quickBox,quickCardBox,quickFrameTopBox]=await Promise.all([quick.boundingBox(),quickCard.boundingBox(),quickFrameTop.boundingBox()]);
-  expect(quickFrameTopBox.x).toBeLessThanOrEqual(quickCardBox.x-17);
+  expectOfficialTopGeometry(quickCardBox,quickFrameTopBox,"lord-of-dead-blue");
   expect(quickFrameTopBox.x).toBeGreaterThanOrEqual(quickBox.x-1);
   expect(quickFrameTopBox.x+quickFrameTopBox.width).toBeLessThanOrEqual(quickBox.x+quickBox.width+1);
   await page.screenshot({path:"test-results/profile-frame-overflow.png"});

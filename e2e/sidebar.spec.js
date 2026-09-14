@@ -5,10 +5,10 @@ async function assertDocked(page) {
   await expect(panel).toBeVisible();
   await expect.poll(async () => panel.evaluate(el =>
     Math.round(window.innerHeight - el.getBoundingClientRect().bottom)
-  )).toBe(8);
+  )).toBe(0);
   const box = await panel.boundingBox();
-  expect(box.x).toBe(84);
-  expect(Math.abs(box.width - 234)).toBeLessThanOrEqual(1); // The sidebar also has a 1px outer border.
+  expect(box.x).toBe(72);
+  expect(Math.abs(box.width - 244)).toBeLessThanOrEqual(1);
   const scroll = page.locator(".channel-sidebar:not(.home-sidebar) .channel-scroll");
   if (await scroll.count()) {
     const listBox = await scroll.boundingBox();
