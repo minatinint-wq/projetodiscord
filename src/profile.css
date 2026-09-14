@@ -70,21 +70,18 @@ html[data-reduced-motion=true] .profile-overlay,html[data-reduced-motion=true] .
 .profile-art-effect{
   position:absolute!important;
   z-index:8!important;
-  inset:0!important;
+  inset:0 auto auto 0!important;
   width:100%!important;
-  height:100%!important;
+  height:auto!important;
+  min-height:100%!important;
   display:block!important;
-  object-fit:cover;
-  object-position:center;
+  object-fit:fill;
+  object-position:top center;
   border-radius:inherit;
   pointer-events:none;
   user-select:none;
   opacity:1!important;
   visibility:visible!important;
-  mask-image: radial-gradient(ellipse 100% 104% at 50% 50%, #000 0%, #000 82%, rgba(0,0,0,.65) 90%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 100% 104% at 50% 50%, #000 0%, #000 82%, rgba(0,0,0,.65) 90%, transparent 100%);
-  mask-repeat:no-repeat;
-  -webkit-mask-repeat:no-repeat;
 }
 .profile-art-effect[data-format="png"]{animation:profile-art-drift 11s ease-in-out infinite alternate}
 @keyframes profile-art-drift{from{transform:scale(1.015) translate3d(-.4%,-.25%,0)}to{transform:scale(1.045) translate3d(.4%,.25%,0)}}

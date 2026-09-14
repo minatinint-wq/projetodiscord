@@ -2,28 +2,27 @@ const PROFILE_ART_BASE = "/profile-art/";
 const DISCORD_PROFILE_EFFECT_REFERENCE =
   "https://cdn.discordapp.com/media/v1/collectibles-shop/84168a5adc7db3805121683b85f398b21ebfd9e0396bc9a2bbf70591acb482fb";
 
-// Catálogo coletado diretamente dos cartões da loja. O quarto campo registra o
-// formato real confirmado pelo MIME + assinatura interna, sem confiar na URL.
-// A maioria das prévias da loja é PNG estático; APNGs continuam animados no img.
+// O quarto campo registra o formato real confirmado pelo MIME + assinatura
+// interna. Os primeiros 15 itens usam a mídia do detalhe, nunca a capa estática.
 export const PROFILE_ART_EFFECTS = [
   ["none", "Sem efeito", null, "none"],
   ["discord-espreitadores", "Espreitadores", DISCORD_PROFILE_EFFECT_REFERENCE, "apng"],
-  ["trapped-souls", "Almas Aprisionadas (animado)", "trapped-souls.png", "apng"],
+  ["trapped-souls", "Almas Aprisionadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/3b74ba84c8941ad0d91afafd00d169b8124cd2956fcaa7fda3b784a6edafcba6", "apng"],
   ["macabre-frame", "Moldura Macabra", "macabre-frame.png", "apng"],
-  ["shattered-wings", "Asas Estilhaçadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/dc424970b232e08726c601206010cca8fb4e37b8124e4e15f24af32bb18742ba", "png"],
-  ["nevermore-midnight", "Nunca Mais (Meia-noite)", "https://cdn.discordapp.com/assets/content/cabac17518f20cc7c642dbeec8f6cec45e98820c4e9b8a78cceb44412a3985e8", "png"],
-  ["whispering-rose", "Rosa Sussurrante", "https://cdn.discordapp.com/media/v1/collectibles-shop/fa324b1c3c17941dd4edb3cbeedc41d288660aa7cae440e1e61fd54651d78055", "png"],
-  ["mothman", "Homem-Mariposa", "https://cdn.discordapp.com/media/v1/collectibles-shop/88278b3768b7a4e2dc71af8f77c136b07169c7eafb0cc752969bb07ada33e112", "png"],
-  ["midnight-howl", "Uivo da Meia-noite", "https://cdn.discordapp.com/media/v1/collectibles-shop/d54ed9347319264bb42a14757bbd19284570c98622162e1ac57ef4eac41a8204", "png"],
-  ["jersey-devil", "Demônio de Jersey", "https://cdn.discordapp.com/media/v1/collectibles-shop/c630a6338341e384a575da9bf2571237ae6b7317f8e77d47216d28b25a58270b", "png"],
-  ["always-watching", "Sempre de Olho", "https://cdn.discordapp.com/media/v1/collectibles-shop/44073352736ba9910fe5dfb0ca31125d985b281efd72cf19ba1bd9ed073e0df9", "png"],
-  ["nevermore-white", "Nunca Mais (Branco)", "https://cdn.discordapp.com/assets/content/8396ce3a1df9dcee95c2f576f78b03f40d66f52f189dc1deb519f904e717dc0c", "png"],
-  ["night-bloom-basic", "Damas-da-noite (Básico)", "https://cdn.discordapp.com/media/v1/collectibles-shop/5c86da4e65bd9a5a5c0f37ad559ec6637fde50a6782dc6800cb7ee88293676d0", "png"],
-  ["lets-play", "Vamos Brincar", "https://cdn.discordapp.com/media/v1/collectibles-shop/120627a78de773d458668ba9dc5db233e94df7f70f321e3e2f752b63e4797a3a", "png"],
-  ["dark-roses-black", "Rosas Sombrias (Preto)", "https://cdn.discordapp.com/assets/content/4d71e444e4288fa4d727b209622455074596560add27586e8cd3bdc292902fad", "png"],
-  ["hello-kitty", "Hello Kitty", "https://cdn.discordapp.com/media/v1/collectibles-shop/80ee7cc461db7f7493816a03af3b03a620c8edc248f188f8b2913ffbf7266371", "png"],
-  ["nevermore-crimson", "Nunca Mais (Carmesim)", "https://cdn.discordapp.com/assets/content/0922c837516e30b1635e171fb2bc450210e49334dd9623b58fbdda65d922e306", "png"],
-  ["mermaid-bubbles", "Bolhas de Sereia", "https://cdn.discordapp.com/media/v1/collectibles-shop/cbcc272d92c12625b122c3ac045007cbf203f4bc03d5e5a18271d711066642ed", "png"],
+  ["shattered-wings", "Asas Estilhaçadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/13e64b0456243ed81ae809a507d980cadf31d1b44848bd2c89d3c511604b25ff", "apng"],
+  ["nevermore-midnight", "Nunca Mais (Meia-noite)", "https://cdn.discordapp.com/assets/content/6093a8e844ec5bc6b796ad5f31063fdbd321dc525c49ff980fb123f4ff603244", "apng"],
+  ["whispering-rose", "Rosa Sussurrante", "https://cdn.discordapp.com/media/v1/collectibles-shop/f6798f7dce84fed42daa90be43d3e5852e96baf9de60022065116d3ca137b096", "apng"],
+  ["mothman", "Homem-Mariposa", "https://cdn.discordapp.com/media/v1/collectibles-shop/1f2b91c50cc613ac683138f81c4fd6636445246275d0a43be220105b7426dc37", "apng"],
+  ["midnight-howl", "Uivo da Meia-noite", "https://cdn.discordapp.com/media/v1/collectibles-shop/c8eda0d8533d69a251d780152bbfe6bac4fbbaab48be155a7c7dbebe8d74ed05", "apng"],
+  ["jersey-devil", "Demônio de Jersey", "https://cdn.discordapp.com/media/v1/collectibles-shop/4d6f618dbe94a45857e73fd2f66050d91e492bc16494e0bdc2786d545d34b40a", "apng"],
+  ["always-watching", "Sempre de Olho", "https://cdn.discordapp.com/media/v1/collectibles-shop/4394a572d2d2b1eddbc253c6c77e3725ea55a379ace4a998267afe37b2fe352b", "apng"],
+  ["nevermore-white", "Nunca Mais (Branco)", "https://cdn.discordapp.com/assets/content/c63fef5bf0e775acdf282856277d09f8992e2ac812a61abeca218d5164dad09d", "apng"],
+  ["night-bloom-basic", "Damas-da-noite (Básico)", "https://cdn.discordapp.com/media/v1/collectibles-shop/bbd175b29de9b89e9bb88f5e1f690033a7112be874c57e7d7aed06c9db80a606", "apng"],
+  ["lets-play", "Vamos Brincar", "https://cdn.discordapp.com/media/v1/collectibles-shop/84168a5adc7db3805121683b85f398b21ebfd9e0396bc9a2bbf70591acb482fb", "apng"],
+  ["dark-roses-black", "Rosas Sombrias (Preto)", "https://cdn.discordapp.com/assets/content/d0d1bcd19aa85c9a61436790216d90421a481336f07335859ee9ae4d184184e2", "apng"],
+  ["hello-kitty", "Hello Kitty", "https://cdn.discordapp.com/media/v1/collectibles-shop/22c28cdfaab06dbb57914448ef7318ac3b59a083697b68c69f2030dfa828558c", "apng"],
+  ["nevermore-crimson", "Nunca Mais (Carmesim)", "https://cdn.discordapp.com/assets/content/e306e4ac3b1fa6bd141077675f38a4e587b06b7cacf1c1f6df9ab903aa2738e8", "apng"],
+  ["mermaid-bubbles", "Bolhas de Sereia", "https://cdn.discordapp.com/media/v1/collectibles-shop/d3809919c161a030bc9cc3149b4cbd227bc679a21ac1c4ac086fc1d7d97350b0", "apng"],
   ["hellhound", "Cão dos Infernos", "https://cdn.discordapp.com/media/v1/collectibles-shop/ee63dbed7337a57ac139ae5bb16f4c35fe2092e5471193bff974d3a14672a664", "png"],
   ["darth-vader-arrival", "A Chegada de Darth Vader", "https://cdn.discordapp.com/assets/content/74e2a228eeb1d5539e158b3ff11ae6033bffe06ed65d1aa0b962baeb5f34d72b", "png"],
   ["shooting-stars", "Estrelas Cadentes", "https://cdn.discordapp.com/media/v1/collectibles-shop/9f77a88352e50a0e92fc7b55339be67080140ceb332ae92b307df2dc3d7fd0b8", "png"],
