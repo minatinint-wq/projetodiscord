@@ -1,5 +1,6 @@
 import http from "node:http";
 import crypto from "node:crypto";
+import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +50,7 @@ const loginAttempts = new Map();
 const sockets = new Map();
 const voiceRooms = new Map();
 const imageGenerationUsage = new Map();
+const profileMediaUrls = new Map();
 const AI_IMAGE_DAILY_LIMIT = Math.max(1, Math.min(Number(process.env.AI_IMAGE_DAILY_LIMIT) || 5, 50));
 const AI_SESH_USER = Object.freeze({
   id: "ai-sesh",
@@ -714,6 +716,27 @@ function userTag(user) {
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return String(1000 + (hash % 9000));
 }
+function publicProfileMedia(user, field) {
+  const value = user?.[field] || null;
+  if (typeof value !== "string" || !/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(value)) return value;
+  const key = `${user.id}:${field}`;
+  const cached = profileMediaUrls.get(key);
+  if (cached?.value === value) return cached.url;
+  const version = crypto.createHash("sha256").update(value).digest("hex").slice(0, 12);
+  const url = `/api/users/${encodeURIComponent(user.id)}/media/${field}?v=${version}`;
+  profileMediaUrls.set(key, { value, url });
+  return url;
+}
+function profileMediaPayload(value) {
+  const match = typeof value === "string"
+    ? value.match(/^data:image\/(png|jpeg|gif|webp);base64,([a-z0-9+/=]+)$/i)
+    : null;
+  if (!match) return null;
+  return {
+    contentType: `image/${match[1].toLowerCase()}`,
+    bytes: Buffer.from(match[2], "base64"),
+  };
+}
 function publicUser(user) {
   const publicBadges = badgesForUser(user);
   return {
@@ -725,8 +748,8 @@ function publicUser(user) {
     displayName: safeDisplayName(user.displayName, user.username),
     createdAt: user.createdAt || null,
     avatarColor: user.avatarColor,
-    avatar: user.avatar || null,
-    banner: user.banner || null,
+    avatar: publicProfileMedia(user, "avatar"),
+    banner: publicProfileMedia(user, "banner"),
     bannerPreset: user.bannerPreset || "aurora",
     bannerPositionX: user.bannerPositionX ?? 50,
     bannerPositionY: user.bannerPositionY ?? 50,
@@ -818,7 +841,7 @@ async function issueEmailVerification(user) {
     tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
     createdAt: now(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   });
-  await saveDatabase();
+  await saveDatabase("emailVerifications");
   if (!RESEND_API_KEY || !RESEND_FROM_EMAIL || !SESH_PUBLIC_URL) return { sent: false, configured: false };
   const verificationUrl = `${SESH_PUBLIC_URL}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const response = await fetch("https://api.resend.com/emails", {
@@ -834,6 +857,10 @@ async function issueEmailVerification(user) {
 function sessionUser(user) {
   return {
     ...publicUser(user),
+    // A própria conta recebe os valores editáveis. Nas respostas públicas,
+    // data URLs viram links curtos para não se repetirem em cada mensagem.
+    avatar: user.avatar || null,
+    banner: user.banner || null,
     email: user.email || "",
     emailVerified: Boolean(user.emailVerifiedAt),
     isCreator: isCreator(user),
@@ -1047,6 +1074,8 @@ async function createSession(userId) {
   sessions.set(token, userId);
   database.sessions = database.sessions.filter((record) => Number(record.expiresAt) > Date.now()).slice(-4999);
   database.sessions.push({ tokenHash, userId, expiresAt, createdAt: now() });
+  // O cadastro chama esta função logo após inserir o usuário; a gravação
+  // integral mantém usuário e sessão atômicos nesse fluxo.
   await saveDatabase();
   return token;
 }
@@ -1054,7 +1083,7 @@ async function revokeSession(token) {
   sessions.delete(token);
   const tokenHash = sessionHash(token);
   database.sessions = database.sessions.filter((record) => record.tokenHash !== tokenHash);
-  await saveDatabase();
+  await saveDatabase("sessions");
 }
 function getUser(req) {
   const token = sessionToken(req);
@@ -1543,7 +1572,8 @@ async function handler(req, res) {
         resolved.startsWith(`${distDir}${path.sep}`)
       ) {
         try {
-          const data = await fs.readFile(resolved);
+          const stat = await fs.stat(resolved);
+          if (!stat.isFile()) throw new Error("Não é arquivo.");
           const ext = path.extname(resolved).toLowerCase();
           const types = {
             ".html": "text/html; charset=utf-8",
@@ -1568,10 +1598,15 @@ async function handler(req, res) {
             "Content-Type":
               types[ext] ||
               "application/octet-stream",
+            "Content-Length": stat.size,
             "Cache-Control": cache,
           });
           if (req.method === "HEAD") return res.end();
-          return res.end(data);
+          const stream = createReadStream(resolved, { highWaterMark: 64 * 1024 });
+          stream.on("error", () => res.destroy());
+          res.on("close", () => stream.destroy());
+          stream.pipe(res);
+          return;
         } catch {
           /* cai para o index.html (SPA) */
         }
@@ -1598,6 +1633,23 @@ async function handler(req, res) {
     }
     let user = getUser(req);
     if (!user) return json(res, 401, { error: "Autenticação necessária." });
+    const profileMediaMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/media\/(avatar|banner)$/);
+    if (profileMediaMatch) {
+      if (req.method !== "GET" && req.method !== "HEAD")
+        return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET, HEAD" });
+      const target = database.users.find((item) => item.id === profileMediaMatch[1]);
+      if (!target || !canViewUser(user, target))
+        return json(req, res, 404, { error: "Mídia de perfil não encontrada." });
+      const media = profileMediaPayload(target[profileMediaMatch[2]]);
+      if (!media) return json(req, res, 404, { error: "Mídia de perfil não encontrada." });
+      res.writeHead(200, {
+        ...securityHeaders(),
+        "Content-Type": media.contentType,
+        "Content-Length": media.bytes.length,
+        "Cache-Control": "private, max-age=31536000, immutable",
+      });
+      return req.method === "HEAD" ? res.end() : res.end(media.bytes);
+    }
     if (url.pathname === "/api/auth/logout" && req.method === "POST") {
       await revokeSession(sessionToken(req));
       clearSessionCookie(res);
@@ -1788,6 +1840,9 @@ async function handler(req, res) {
           safeImageDataUrl(input.avatar)
         )
           user.avatar = input.avatar;
+        else if (input.avatar === publicProfileMedia(user, "avatar")) {
+          // O editor pode reenviar a URL pública atual ao salvar outro campo.
+        }
         else
           return json(res, 400, {
             error: "Foto inválida: use uma imagem de até 3 MB.",
@@ -1804,6 +1859,9 @@ async function handler(req, res) {
           /^#[0-9a-fA-F]{6}$/.test(input.banner)
         )
           user.banner = input.banner;
+        else if (input.banner === publicProfileMedia(user, "banner")) {
+          // Mantém a mídia atual quando só outra preferência foi alterada.
+        }
         else
           return json(res, 400, {
             error: "Banner inválido: use uma imagem de até 3 MB ou uma cor.",

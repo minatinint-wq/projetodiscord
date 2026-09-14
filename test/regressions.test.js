@@ -98,7 +98,8 @@ test("banner animado mantém bytes e enquadramento com Nitro",async()=>{
  const result=await req("/api/auth/me","PATCH",{banner:gif,bannerPositionX:25,bannerPositionY:80,effectSpeed:"slow",effectIntensity:"subtle",profileEffect:"butterflies"},guest.token);
  assert.equal(result.status,200);assert.equal(result.user.banner,gif);assert.equal(result.user.bannerPositionY,80);
  const profile=await req("/api/users/"+guest.user.id,"GET",undefined,owner.token);
- assert.equal(profile.user.banner,gif);assert.equal(profile.user.bannerPositionX,25);assert(profile.user.badges.includes("nitro_classic"));
+ assert.match(profile.user.banner,/^\/api\/users\/.+\/media\/banner\?v=[a-f0-9]{12}$/);assert.equal(profile.user.bannerPositionX,25);assert(profile.user.badges.includes("nitro_classic"));
+ const media=await fetch(url+profile.user.banner,{headers:{Cookie:owner.token}});assert.equal(media.status,200);assert.deepEqual(Buffer.from(await media.arrayBuffer()),Buffer.from(gif.split(",")[1],"base64"));
  const invalid=await req("/api/auth/me","PATCH",{bannerPositionY:101,bio:"invalid changes"},guest.token);assert.equal(invalid.status,400);
  assert.equal((await req("/api/auth/me","GET",undefined,guest.token)).user.bannerPositionY,80);
  await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"canceled"},admin.token);

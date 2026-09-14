@@ -4,7 +4,7 @@ const base = "http://127.0.0.1:34170"
 
 test("Nitro aplica banner, moldura e sobreposição premium com animações internas", async ({ page, browser }) => {
   const registered = await page.request.post("/api/auth/register", {
-    data: { username: "premiumvisual", email: "premiumvisual@sesh.test", password: "test1234", displayName: "Visual Premium" },
+    data: { username: "premiumvisual", email: "premiumvisual@sesh.test", password: "Visual-975310", displayName: "Visual Premium" },
   })
   const member = (await registered.json()).user
   const admin = await browser.newContext()

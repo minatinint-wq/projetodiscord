@@ -32,7 +32,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
   return <>
     <section className="settings-card profile-art-settings">
       <h2>Efeitos de perfil</h2>
-      <p>A arte cobre banner, avatar e conteúdo com fade nas bordas. APNGs preservam seus frames; PNGs estáticos recebem movimento suave. A escolha requer Nitro, mas todos enxergam o efeito equipado.</p>
+      <p>A arte APNG cobre banner, avatar e conteúdo, preserva a animação original e ultrapassa suavemente as bordas do cartão. A escolha requer Nitro, mas todos enxergam o efeito equipado.</p>
       <label className="settings-search"><Search size={18}/><input value={effectQuery} onChange={(event) => { setEffectQuery(event.target.value); setEffectPage(0); }} placeholder={`Buscar entre ${PROFILE_ART_EFFECTS.length - 1} efeitos`}/></label>
       <div className="profile-art-grid">
         {effects.slice(safeEffectPage * PAGE_SIZE, safeEffectPage * PAGE_SIZE + PAGE_SIZE).map(([value, label, , format]) => {

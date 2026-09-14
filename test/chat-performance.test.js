@@ -71,6 +71,8 @@ before(async () => {
   });
   await waitForServer();
   await req("/api/auth/login", "POST", { username: "demo", password: "demo123" });
+  const profile = await req("/api/auth/me", "PATCH", { avatar: bigPng, banner: bigPng });
+  assert.equal(profile.status, 200);
   const created = await req("/api/servers", "POST", { name: "Perf" });
   channelId = created.payload.server.channels.find((c) => c.type === "text").id;
   for (let i = 0; i < 5; i += 1)
@@ -107,9 +109,22 @@ test("modo refs troca base64 por descritor e reduz o payload", async () => {
   assert.ok(light.bytes < full.bytes / 10);
   const found = light.payload.messages.find((m) => m.id === imageMessageId);
   assert.deepEqual(found.attachment, { ref: true, kind: "image" });
+  assert.match(found.author.avatar, /^\/api\/users\/.+\/media\/avatar\?v=[a-f0-9]{12}$/);
+  assert.match(found.author.banner, /^\/api\/users\/.+\/media\/banner\?v=[a-f0-9]{12}$/);
   assert.ok(!JSON.stringify(light.payload).includes("base64"));
   const textOnly = light.payload.messages.find((m) => !m.attachment);
   assert.ok(textOnly);
+});
+
+test("mídia pública do perfil é cacheável e não se repete no JSON do chat", async () => {
+  const light = await req(`/api/channels/${channelId}/messages?attachments=refs`);
+  const mediaPath = light.payload.messages[0].author.avatar;
+  const response = await fetch(`${baseUrl}${mediaPath}`, { headers: { Cookie: cookie } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.match(response.headers.get("cache-control"), /immutable/);
+  assert.ok((await response.arrayBuffer()).byteLength > 100_000);
+  assert.ok(light.bytes < 50_000);
 });
 
 test("busca individual devolve a mensagem completa", async () => {

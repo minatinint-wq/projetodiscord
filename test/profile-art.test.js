@@ -9,7 +9,7 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
   assert.equal(PROFILE_ART_IDS.size, PROFILE_ART_EFFECTS.length);
   for (const [id, , file, format] of PROFILE_ART_EFFECTS.slice(1)) {
     const src = profileArtSrc(id);
-    assert(["png", "apng"].includes(format));
+    assert.equal(format, "apng", `${id} precisa usar a mídia animada do detalhe`);
     assert.equal(profileArtFormat(id), format);
     if (file.startsWith("https://")) {
       const url = new URL(src);
