@@ -1,6 +1,11 @@
 import React from "react";
 import { Emoji, EmojiStyle } from "emoji-picker-react";
-import { emojiToUnified } from "./emojiUtils";
+
+function emojiToUnified(emoji) {
+  return Array.from(String(emoji || ""))
+    .map((character) => character.codePointAt(0).toString(16))
+    .join("-");
+}
 
 export default function EmojiArtwork({ emoji, size = 20 }) {
   return (

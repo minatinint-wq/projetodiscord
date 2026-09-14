@@ -65,7 +65,6 @@ import AtmosphericEffect from "./AtmosphericEffect";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
-import EmojiText from "./EmojiText";
 import { microphone, mediaError } from "./media";
 import "./styles.css";
 import "./refinement.css";
@@ -247,7 +246,7 @@ function MessageContent({ content, members, onProfile }) {
           >
             @{member.displayName}
           </button>
-        ) : <React.Fragment key={index}><EmojiText text={fragment} /></React.Fragment>;
+        ) : <React.Fragment key={index}>{fragment}</React.Fragment>;
       })}
     </p>
   );
@@ -5263,7 +5262,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           <button className="message-reference" type="button" onClick={() => jumpToMessage(message.replyTo.id)}>
                             <Reply size={13}/>
                             <strong>{message.replyTo.author?.displayName || "Mensagem"}</strong>
-                            <span><EmojiText text={message.replyTo.content || (message.replyTo.hasAttachment ? "Imagem" : "Conteúdo removido")} /></span>
+                            <span>{message.replyTo.content || (message.replyTo.hasAttachment ? "Imagem" : "Conteúdo removido")}</span>
                           </button>
                         )}
                         {message.forwardedFrom && (
