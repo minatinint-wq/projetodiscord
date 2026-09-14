@@ -4524,24 +4524,6 @@ body[data-profile-effect="embers"] .profile-card {
     0 0 30px #d34f3766,
     0 24px 80px #000c;
 }
-.member {
-  position: relative;
-}
-.member-plate-stars {
-  background: linear-gradient(90deg, #272044, transparent);
-}
-.member-plate-waves {
-  background: linear-gradient(90deg, #153d53, transparent);
-}
-.member-plate-neon {
-  background: linear-gradient(90deg, #382047, transparent);
-  box-shadow: inset 2px 0 #d34df2;
-}
-.member-plate-label {
-  margin-left: 5px;
-  color: #d49cff;
-  font-size: 11px;
-}
 @media (max-width: 700px) {
   .profile-card {
     width: calc(100vw - 20px);

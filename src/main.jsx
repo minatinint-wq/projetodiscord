@@ -1,8 +1,6 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_CATALOG } from "../game-catalog.js";
-import { NAMEPLATES } from "../nameplates.js";
-const NAMEPLATE_LABELS = Object.fromEntries(NAMEPLATES.map(([id, label]) => [id, label]));
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -1776,24 +1774,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       viewed.nameColor || "#f1f3f5",
     );
   }, [currentUser, profileData]);
-  useEffect(() => {
-    document.querySelectorAll(".member").forEach((row) => {
-      const username = row
-        .querySelector(".member-role")
-        ?.textContent?.replace(/^@/, "");
-      const member = members.find((item) => item.username === username);
-      if (!member || row.querySelector(".member-plate-label")) return;
-      const plate = member.profilePlate || "default";
-      row.classList.add(`member-plate-${plate}`);
-      if (plate !== "default") {
-        const label = document.createElement("span");
-        label.className = "member-plate-label";
-        label.textContent =
-          plate === "stars" ? "✦" : plate === "waves" ? "〰" : NAMEPLATE_LABELS[plate] || "✧";
-        row.querySelector(".member-role")?.after(label);
-      }
-    });
-  }, [members]);
   useEffect(() => {
     if (selectedServer && homeTab.startsWith("dm:")) setHomeTab("online");
   }, [selectedServer, homeTab]);
@@ -5398,7 +5378,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       </span>
                       <div>
                         <strong>
-                          <StyledName user={member}/>
+                          <StyledName user={member} withPlate/>
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
