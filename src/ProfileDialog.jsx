@@ -27,7 +27,7 @@ export default function ProfileDialog({data,currentUser,onClose,onRetry,onEdit,o
  {!user?<div className="identity-loading">{data?.error?<><h2>Não foi possível abrir o perfil</h2><p role="alert">{data.error}</p><button className="prompt-confirm" onClick={onRetry}>Tentar novamente</button></>:<p role="status">Carregando perfil…</p>}</div>:<>
  <aside className="identity-side"><ProfileCard {...{user:userWithRole,Avatar,ProfileEffectLayer,renderBadges,presence}}/>
  <div className="identity-actions">{own?<button onClick={onEdit}><PenLine size={16}/>Editar perfil</button>:isFriend?<button onClick={()=>onMessage(user)}><MessageSquare size={16}/>Mensagem</button>:<button onClick={()=>onAddFriend(user)}><UserPlus size={16}/>Adicionar amigo</button>}</div></aside>
- <main className="identity-main"><header><span className="eyebrow">CONHEÇA QUEM ESTÁ DO OUTRO LADO</span><h1><StyledName user={userWithRole}/></h1><p>Conexões começam com interesses em comum.</p></header>
+ <main className="identity-main"><header><span className="eyebrow">CONHEÇA QUEM ESTÁ DO OUTRO LADO</span><h1><StyledName user={userWithRole} roleAware={false}/></h1><p>Conexões começam com interesses em comum.</p></header>
  <nav className="identity-tabs" aria-label="Abas do perfil">{[["profile","Perfil"],["activity","Atividade"],["wishlist","Lista de desejos"]].map(([id,label])=><button key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
  <div className="identity-tab-content">
  {tab==="profile"&&<><section className="identity-section"><h3>SOBRE MIM</h3><p className="identity-full-bio">{user.bio||"Este perfil ainda não tem uma biografia."}</p></section>
