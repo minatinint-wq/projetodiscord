@@ -555,8 +555,24 @@ async function persistDatabase() {
   await fs.writeFile(`${dataFile}.tmp`, encodeDatabase(snapshot), "utf8");
   await fs.rename(`${dataFile}.tmp`, dataFile);
 }
+// Agrupa mutações que chegam enquanto uma gravação já está em andamento.
+// Sem isso, cada mensagem aguardava uma gravação completa do estado inteiro
+// atrás de todas as anteriores — um gargalo perceptível no chat.
+let saveInProgress = false;
+let saveRequested = false;
 function saveDatabase() {
-  saveQueue = saveQueue.catch(() => {}).then(persistDatabase);
+  saveRequested = true;
+  if (saveInProgress) return saveQueue;
+
+  saveInProgress = true;
+  saveQueue = saveQueue.catch(() => {}).then(async () => {
+    while (saveRequested) {
+      saveRequested = false;
+      await persistDatabase();
+    }
+  }).finally(() => {
+    saveInProgress = false;
+  });
   return saveQueue;
 }
 function securityHeaders() {
@@ -2503,7 +2519,6 @@ async function handler(req, res) {
         editedAt: null,
       };
       database.messages.push(message);
-      await saveDatabase();
       const output = decorateMessage(message);
       broadcast(channel.id, { type: "message.created", message: output });
       for (const targetUserId of mentions.targetIds)
@@ -2514,6 +2529,7 @@ async function handler(req, res) {
           channelName: channel.name,
           message: output,
         });
+      await saveDatabase();
       return json(res, 201, { message: output });
     }
     const dmMatch = url.pathname.match(/^\/api\/direct\/([^/]+)\/messages$/);
@@ -2539,10 +2555,10 @@ async function handler(req, res) {
         return json(res, 400, { error: "Envie até 4000 caracteres ou uma imagem PNG, JPEG, GIF ou WebP de até 3 MB." });
       const message = { id: id(), authorId: user.id, recipientId: recipient.id, content, attachment, createdAt: now(), editedAt: null };
       database.directMessages.push(message);
-      await saveDatabase();
       const output = decorateMessage(message);
       notifyUser(recipient.id, { type: "direct.created", message: output });
       notifyUser(user.id, { type: "direct.created", message: output });
+      await saveDatabase();
       return json(res, 201, { message: output });
     }
     if (url.pathname === "/api/friends" && req.method === "GET") {
