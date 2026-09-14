@@ -121,13 +121,14 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: "#0c101a",
     title: "Sesh",
-    frame: false,
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   });
+  window.removeMenu();
   window.setMenuBarVisibility(false);
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event, url) => {
