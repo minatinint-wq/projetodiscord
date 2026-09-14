@@ -5400,7 +5400,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
-                        <span className="member-role">{member.serverRole?.name || member.username}</span>{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) && <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span>}
+                        <span className="member-secondary">{member.gameInterests?.[0] && GAME_CATALOG.find(game => game.id === member.gameInterests[0]) ? <span className="member-game"><GameIcon game={GAME_CATALOG.find(game => game.id === member.gameInterests[0])}/>{GAME_CATALOG.find(game => game.id === member.gameInterests[0]).name}</span> : <span className="member-handle">@{member.username}</span>}</span>
                       </div>
                     </div>
                   ))}

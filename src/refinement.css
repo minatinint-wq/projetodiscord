@@ -185,3 +185,16 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .dm-message .emoji-img{width:1.28em;height:1.28em}
 .messages-list>article.message,.direct-messages>article.dm-message{content-visibility:auto;contain-intrinsic-size:auto 140px}
 .attachment-loading{font-size:12px;color:#979fb6;padding:10px 12px;border:1px dashed #3a3d47;border-radius:8px}
+
+/* Member rail: compact hierarchy inspired by native chat clients, without cloning one. */
+.member-sidebar{width:236px;padding:16px 8px 22px;background:#111216;border-left:1px solid #24262d;scrollbar-color:#383b44 transparent}
+.member-title{margin:0 8px 14px;color:#9aa0aa;font-size:11px;line-height:16px;font-weight:750;letter-spacing:.025em;text-transform:none}
+.member-role-group{margin:0 0 17px}.member-role-group-title{padding:0 8px 7px;color:color-mix(in srgb,var(--role-group-color,#aab0bc) 72%,#aab0bc);font-size:11px;line-height:16px;font-weight:720;letter-spacing:.015em;text-transform:none}
+.member-owner-group{margin-bottom:17px;padding-bottom:0;border:0}.member-owner-group .member-role-group-title{font-size:11px}
+.member{position:relative;gap:10px;min-height:38px;margin:1px 0;padding:4px 8px;border-radius:7px;color:#d5d8de;cursor:pointer;transition:background .12s ease,color .12s ease}
+.member:hover{background:#1d1f25;color:#fff}.member>.avatar-dot-wrap{width:32px;height:32px;flex:0 0 32px}.member>.avatar-dot-wrap>.avatar,.member>.avatar-dot-wrap>.premium-avatar-shell{width:32px!important;height:32px!important;flex-basis:32px!important}
+.member>div{min-width:0;display:flex;flex:1;flex-direction:column;justify-content:center;gap:1px}.member strong{display:flex;align-items:center;min-width:0;min-height:20px;color:inherit;font-size:14px;font-weight:620;line-height:20px;white-space:nowrap}.member strong>.styled-name,.member strong>.nameplate-name{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.member .nameplate-name{min-height:22px;max-width:150px;padding:0 7px;border-radius:5px}.member .nameplate-name>video{opacity:.82}.member .nameplate-name>.styled-name{line-height:22px;font-size:13px;font-weight:680;text-shadow:0 1px 2px #000d}
+.member-owner-crown{flex:0 0 auto;margin-left:4px}.member strong .server-tag{flex:0 0 auto;margin-left:6px;padding:2px 5px;border-radius:4px;font-size:8px;line-height:12px;letter-spacing:.035em}
+.member-secondary{display:flex;min-width:0;min-height:14px;align-items:center}.member-game{max-width:170px;color:#a9afb9;font-size:11px;line-height:14px}.member-game .game-icon{width:14px;height:14px;border-radius:3px}.member-handle{overflow:hidden;color:#858b96;font-size:11px;line-height:14px;text-overflow:ellipsis;white-space:nowrap}
+.member .presence-dot{right:-1px;bottom:-1px;width:10px;height:10px;border:2px solid #111216}.member:hover .presence-dot{border-color:#1d1f25}
