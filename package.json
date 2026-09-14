@@ -14,6 +14,7 @@
     "desktop": "concurrently --kill-others-on-fail \"npm run web\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "vite build",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
+    "dist:win:publish": "npm run build && electron-builder --win nsis --x64 --publish always",
     "preview": "vite preview",
     "electron": "electron .",
     "db:import": "node scripts/import-database.js",
@@ -38,6 +39,7 @@
     "wait-on": "latest"
   },
   "dependencies": {
+    "electron-updater": "6.6.2",
     "pg": "^8.23.0",
     "ws": "latest"
   },
@@ -71,6 +73,14 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Sesh Desktop"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "minatinint-wq",
+        "repo": "projetodiscord",
+        "releaseType": "release"
+      }
+    ]
   }
 }

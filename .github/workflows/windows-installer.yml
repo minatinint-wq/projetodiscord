@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-installer:
@@ -29,13 +29,18 @@ jobs:
       - name: Validate
         run: npm test
 
-      - name: Build Windows installer
-        run: npm run dist:win
+      - name: Set a monotonic desktop version
+        run: npm version "1.2.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+
+      - name: Build and publish Windows installer
+        run: npm run dist:win:publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SeshDesktop-Setup-${{ github.sha }}
+          name: SeshDesktop-Setup-${{ github.run_number }}
           path: release/SeshDesktop-Setup.exe
           if-no-files-found: error
           retention-days: 30

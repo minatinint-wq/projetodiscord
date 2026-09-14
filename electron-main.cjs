@@ -7,6 +7,7 @@ const {
   safeStorage,
   shell,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -15,42 +16,59 @@ const { pathToFileURL } = require("node:url");
 
 let backend;
 let window;
+let updateCheckInFlight = false;
 const backendPort = app.isPackaged ? 38471 : 3001;
 const remoteAppUrl = "https://sesh-web-08o6.onrender.com/app";
 const remoteOrigin = new URL(remoteAppUrl).origin;
-function isNewerVersion(candidate, current) {
-  const parse = (value) => String(value || "0.0.0").split(".").map((part) => Number.parseInt(part, 10) || 0);
-  const next = parse(candidate);
-  const installed = parse(current);
-  for (let index = 0; index < 3; index += 1) {
-    if (next[index] !== installed[index]) return next[index] > installed[index];
-  }
-  return false;
-}
 async function checkForUpdates() {
-  const manifestUrl = String(process.env.SESH_UPDATE_MANIFEST_URL || `${remoteOrigin}/releases/latest.json`).trim();
-  if (!app.isPackaged || !manifestUrl) return;
+  if (!app.isPackaged || updateCheckInFlight) return;
+  updateCheckInFlight = true;
   try {
-    const response = await fetch(manifestUrl, {
-      headers: { "user-agent": `Sesh/${app.getVersion()}` },
-      signal: AbortSignal.timeout(8_000),
-    });
-    const manifest = await response.json();
-    if (!response.ok || !isNewerVersion(manifest.version, app.getVersion()) || !/^https:\/\//.test(manifest.downloadUrl || "")) return;
+    await autoUpdater.checkForUpdates();
+  } catch {
+    // Atualizações são opcionais; uma falha de rede não bloqueia o app.
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+function configureAutoUpdater() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.on("update-available", async (info) => {
     const result = await dialog.showMessageBox(window, {
       type: "info",
       title: "Atualização do Sesh disponível",
-      message: `A versão ${manifest.version} está disponível.`,
-      detail: manifest.notes || "Baixe o novo pacote para continuar com recursos e correções atuais.",
-      buttons: ["Atualizar agora", "Mais tarde"],
+      message: `A versão ${info.version} está disponível.`,
+      detail: "O Sesh baixa a atualização em segundo plano e instala sobre esta versão, sem abrir navegador ou criar outro arquivo para você.",
+      buttons: ["Baixar atualização", "Mais tarde"],
       defaultId: 0,
       cancelId: 1,
       noLink: true,
     });
-    if (result.response === 0) await shell.openExternal(manifest.downloadUrl);
-  } catch {
-    // Atualizações são opcionais; a ausência temporária do manifesto não bloqueia o app.
-  }
+    if (result.response === 0) {
+      window?.setProgressBar(0.01);
+      autoUpdater.downloadUpdate().catch(() => window?.setProgressBar(-1));
+    }
+  });
+  autoUpdater.on("download-progress", (progress) => {
+    window?.setProgressBar(Math.max(0.01, Math.min(progress.percent / 100, 1)));
+  });
+  autoUpdater.on("update-downloaded", async (info) => {
+    window?.setProgressBar(-1);
+    const result = await dialog.showMessageBox(window, {
+      type: "info",
+      title: "Atualização pronta",
+      message: `A versão ${info.version} foi baixada.`,
+      detail: "Reinicie agora para aplicar a atualização automaticamente.",
+      buttons: ["Reiniciar e atualizar", "Depois"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (result.response === 0) autoUpdater.quitAndInstall(true, true);
+  });
+  autoUpdater.on("error", () => window?.setProgressBar(-1));
 }
 
 function encryptedDataKey() {
@@ -134,6 +152,7 @@ function isTrustedUrl(value) {
   }
 }
 app.whenReady().then(async () => {
+  configureAutoUpdater();
   session.defaultSession.setPermissionCheckHandler(
     (webContents, permission, requestingOrigin) =>
       isTrustedUrl(requestingOrigin) && permission === "media",
@@ -190,6 +209,7 @@ app.whenReady().then(async () => {
   }
   createWindow();
   setTimeout(checkForUpdates, 2_500);
+  setInterval(checkForUpdates, 6 * 60 * 60 * 1_000);
 });
 app.on("window-all-closed", () => {
   if (backend?.listening) backend.close();

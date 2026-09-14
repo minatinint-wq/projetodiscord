@@ -40,7 +40,7 @@ html[data-reduced-motion=true] .profile-overlay,html[data-reduced-motion=true] .
 .identity-banner{height:132px;background-position:center;background-size:cover;border-bottom:1px solid #ffffff10}
 .identity-card-body{position:relative;z-index:2;padding:0 18px 18px;overflow-wrap:anywhere}
 .identity-avatar{position:relative;width:76px;height:76px;margin-top:-34px;margin-bottom:16px}
-.identity-avatar>.avatar{width:76px;height:76px;border-radius:50%;font-size:26px;outline:6px solid #1c1d25;object-fit:cover;object-position:center}
+.identity-avatar>.avatar{width:76px;height:76px;border-radius:50%;font-size:26px;object-fit:cover;object-position:center}
 .identity-avatar>.presence-dot{right:-1px;bottom:1px;width:18px;height:18px;border:4px solid #1c1d25}
 .identity-badges{display:flex;align-items:center;gap:7px;min-height:22px;margin:0 0 10px}
 .identity-badges .badge-tooltip img{width:22px;height:22px;object-fit:contain}.identity-badges .profile-badge{display:inline-flex}
@@ -114,7 +114,7 @@ html[data-reduced-motion=true] .identity-card .profile-effect-layer,html[data-re
 .premium-avatar-energy-sakura-halo i{width:7px;height:4px;border-radius:90% 0 90% 0;background:#ffb2d2;animation-name:premium-petal-orbit}
 .premium-avatar-energy-cyber-pulse:before{background:conic-gradient(from 0deg,transparent,#5bf2ff,transparent 18%,transparent 48%,#a871ff,transparent 68%);animation-duration:3.2s}
 .premium-avatar-energy-steel-wolf:before{background:conic-gradient(from 0deg,transparent 5%,#3d8fff 13%,transparent 22% 72%,#c9e1ff 78%,transparent 86%);animation-duration:5s}
-.identity-avatar>.premium-avatar-shell{width:76px;height:76px;flex-basis:76px}.identity-avatar>.premium-avatar-shell>.avatar{outline:6px solid #1c1d25}.identity-avatar>.premium-avatar-shell .premium-avatar-frame{width:150%;height:150%}
+.identity-avatar>.premium-avatar-shell{width:76px;height:76px;flex-basis:76px}.identity-avatar>.premium-avatar-shell .premium-avatar-frame{width:150%;height:150%}
 .premium-profile-overlay{overflow:visible!important;opacity:calc(var(--profile-effect-opacity,.7)*.9)!important}.premium-overlay-art{position:absolute;z-index:1;left:50%;top:50%;width:123%;height:113%;object-fit:fill;transform:translate(-50%,-50%);pointer-events:none}.premium-overlay-light{position:absolute;z-index:2;inset:-4%;border-radius:inherit;background:conic-gradient(from 0deg at 50% 50%,transparent 0 18%,color-mix(in srgb,var(--profile-accent) 52%,transparent) 25%,transparent 32% 68%,#fff5 75%,transparent 82%);mask:linear-gradient(#000 0 0) border-box,linear-gradient(#000 0 0) padding-box;mask-composite:exclude;border:3px solid transparent;animation:premium-ring-scan 11s linear infinite}
 .premium-overlay-particles i{position:absolute;z-index:3;left:var(--particle-x);top:var(--particle-top);width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 10px currentColor;animation:premium-particle-flow calc(var(--particle-duration)*var(--profile-effect-speed,1)) cubic-bezier(.35,.02,.65,.98) infinite;animation-delay:var(--particle-delay)}
 .premium-overlay-gothic-bloom .premium-overlay-particles i,.premium-overlay-infernal-dragon .premium-overlay-particles i{background:#ff564f}.premium-overlay-sakura-shrine .premium-overlay-particles i{width:13px;height:7px;border-radius:90% 0 90% 0;background:#ffb4d2;animation-name:premium-petal-fall}.premium-overlay-holo-circuit .premium-overlay-light{animation-duration:3.8s}.premium-overlay-steel-wolf .premium-overlay-light{animation-duration:5.5s}

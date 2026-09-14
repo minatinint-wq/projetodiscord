@@ -281,8 +281,11 @@ button {
 .avatar {
   width: 40px;
   height: 40px;
+  aspect-ratio: 1 / 1;
   flex: 0 0 auto;
   border-radius: 50%;
+  overflow: hidden;
+  clip-path: circle(50% at 50% 50%);
   display: grid;
   place-items: center;
   color: #fff;
@@ -2202,6 +2205,7 @@ button {
 }
 .avatar-img {
   object-fit: cover;
+  object-position: center;
 }
 .profile-click {
   cursor: pointer;

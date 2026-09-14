@@ -6,9 +6,11 @@ Gere com `npm run dist:win`. O resultado é `release/SeshDesktop.exe`.
 Ele acessa o servidor compartilhado https://sesh-web-08o6.onrender.com/app.
 É necessária conexão à internet.
 
-A release do GitHub contém o executável e seu SHA-256. O aplicativo consulta
-`/releases/latest.json` e oferece o download quando há versão mais nova.
-A atualização do portátil é manual: fechar o app e substituir o arquivo.
+Cada push para `main` publica uma Release do GitHub com o instalador e o
+manifesto de atualização. Ao abrir (e a cada seis horas), o aplicativo verifica
+essa Release. Quando houver versão nova, ele pede confirmação, baixa em segundo
+plano e reinicia para instalar sobre a instalação existente — sem navegador,
+arquivo extra no Desktop ou instalação manual.
 
 ## Armazenamento
 O portátil não inicia o antigo backend local. A autenticação e os dados ficam
@@ -20,8 +22,9 @@ do Electron inclui os módulos de catálogo/cosméticos para evitar imports ause
 
 ## Publicar
 1. Executar testes de API, UI, build e smoke test do Electron.
-2. Gerar o executável, calcular SHA-256 e publicar na release v1.2.0.
-3. Fazer commit/push; verificar a versão de /api/health depois do deploy Render.
+2. Fazer commit/push para `main`; o GitHub Actions cria a versão sequencial,
+   publica a Release e anexa o instalador e o manifesto.
+3. Verificar a Release publicada e a versão de /api/health depois do deploy Render.
 4. Confirmar armazenamento PostgreSQL e backups fora do disco efêmero.
 5. Testar áudio, câmera e compartilhamento com duas redes reais.
 
