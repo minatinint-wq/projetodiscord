@@ -67,7 +67,25 @@ html[data-reduced-motion=true] .profile-overlay,html[data-reduced-motion=true] .
 .identity-hint{font-size:11px;color:#898da4;line-height:1.6}.identity-wishes p{display:flex;align-items:flex-start;gap:12px;padding:12px;border-bottom:1px solid #ffffff0b;overflow-wrap:anywhere}.identity-wishes svg{color:#c29fee;flex-shrink:0;margin-top:4px}
 .identity-loading{grid-column:1/-1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;text-align:center}
 .identity-card .profile-effect-layer{opacity:var(--profile-effect-opacity,.7)}
-.profile-art-effect{position:absolute!important;z-index:8!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;object-fit:fill;border-radius:inherit;pointer-events:none;user-select:none;opacity:1!important;visibility:visible!important}
+.profile-art-effect{
+  position:absolute!important;
+  z-index:8!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+  object-fit:cover;
+  object-position:center;
+  border-radius:inherit;
+  pointer-events:none;
+  user-select:none;
+  opacity:1!important;
+  visibility:visible!important;
+  mask-image: radial-gradient(ellipse 82% 88% at 50% 40%, #000 0%, #000 68%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 82% 88% at 50% 40%, #000 0%, #000 68%, transparent 100%);
+  mask-repeat:no-repeat;
+  -webkit-mask-repeat:no-repeat;
+}
 .identity-card>.identity-banner,.identity-card>.identity-card-body{position:relative;z-index:2}
 .profile-atmosphere{position:absolute;inset:0;z-index:4;width:100%;height:100%;pointer-events:none;opacity:var(--profile-effect-opacity,.7);border-radius:inherit}
 .profile-atmosphere-embers,.profile-atmosphere-flames{mix-blend-mode:screen}.profile-atmosphere-blue_fire{mix-blend-mode:screen;filter:saturate(1.12)}.profile-atmosphere-smoke{opacity:calc(var(--profile-effect-opacity,.7) * .82)}
