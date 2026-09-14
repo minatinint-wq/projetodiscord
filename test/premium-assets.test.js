@@ -12,7 +12,7 @@ const pngInfo = async (url) => {
 }
 
 test("pacote premium tem molduras APNG e seis variantes de perfil", async () => {
-  assert.equal(PREMIUM_AVATAR_FRAMES.length, 313)
+  assert.equal(PREMIUM_AVATAR_FRAMES.length, 637)
   assert.equal(PREMIUM_PROFILE_OVERLAYS.length, 6)
   assert.equal(PREMIUM_BANNER_PRESETS.length, 6)
   for (const id of ["snowglobe", "fire", "glitch"]) {

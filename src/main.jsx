@@ -1,6 +1,8 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_CATALOG } from "../game-catalog.js";
+import { NAMEPLATES } from "../nameplates.js";
+const NAMEPLATE_LABELS = Object.fromEntries(NAMEPLATES.map(([id, label]) => [id, label]));
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -1787,7 +1789,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         const label = document.createElement("span");
         label.className = "member-plate-label";
         label.textContent =
-          plate === "stars" ? "✦" : plate === "waves" ? "〰" : "✧";
+          plate === "stars" ? "✦" : plate === "waves" ? "〰" : NAMEPLATE_LABELS[plate] || "✧";
         row.querySelector(".member-role")?.after(label);
       }
     });

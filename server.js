@@ -7,6 +7,7 @@ import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
 import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS } from "./cosmetics.js";
 import { classifyImagePrompt, generateImage, parseImageCommand } from "./image-generation.js";
+import { NAMEPLATE_IDS } from "./nameplates.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -1789,12 +1790,15 @@ async function handler(req, res) {
         ].includes(input.profileTheme)
           ? input.profileTheme
           : "default";
-      if (input.profilePlate !== undefined)
+      if (input.profilePlate !== undefined) {
+        if (NAMEPLATE_IDS.has(input.profilePlate) && !hasNitroForRequest)
+          return json(res, 403, {error: "Esta nameplate animada requer a insígnia Nitro Classic."});
         user.profilePlate = ["default", "stars", "waves", "neon", "clouds", "flora", "holo"].includes(
           input.profilePlate,
-        )
+        ) || NAMEPLATE_IDS.has(input.profilePlate)
           ? input.profilePlate
           : "default";
+      }
       if (input.profileEffect !== undefined)
         user.profileEffect = PROFILE_EFFECTS.map(([value]) => value).includes(
           input.profileEffect,
