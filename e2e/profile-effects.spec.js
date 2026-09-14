@@ -43,8 +43,8 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   await effectSettings.getByPlaceholder(/Buscar entre .* efeitos/).fill("Golfinhos Dançantes");
   await effectSettings.getByRole("button",{name:/Golfinhos Dançantes/}).click();
   const frameSettings=editor.locator(".settings-card.profile-art-settings").nth(1);
-  await frameSettings.getByPlaceholder(/Buscar entre .* molduras/).fill("Coelhinho de Morango");
-  await frameSettings.getByRole("button",{name:/Coelhinho de Morango/}).click();
+  await frameSettings.getByPlaceholder(/Buscar entre .* molduras/).fill("Cristais (Ametista)");
+  await frameSettings.getByRole("button",{name:/Cristais \(Ametista\)/}).click();
   const card=editor.locator(".profile-editor-preview .identity-card");
   const art=card.locator(":scope > .profile-art-effect");
   const frame=card.locator(":scope > .profile-frame-effect");
@@ -61,7 +61,7 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   expect(frameTopBox.x).toBeLessThanOrEqual(cardBox.x-17);
   expect(frameTopBox.y).toBeLessThanOrEqual(cardBox.y-17);
   expect(frameTopBox.width).toBeGreaterThanOrEqual(cardBox.width+34);
-  expect(Math.abs((frameTopBox.y+frameTopBox.height)-(cardBox.y+42))).toBeLessThanOrEqual(2);
+  expect(Math.abs(frameTopBox.y-(cardBox.y-100))).toBeLessThanOrEqual(2);
   await editor.getByRole("button",{name:"Salvar alterações"}).click();
   await expect(editor.getByRole("status")).toContainText("Tudo salvo");
   await editor.getByLabel("Fechar perfil",{exact:true}).click();
