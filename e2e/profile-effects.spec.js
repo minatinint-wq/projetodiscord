@@ -61,12 +61,12 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   expect(frameTopBox.x).toBeLessThanOrEqual(cardBox.x-17);
   expect(frameTopBox.y).toBeLessThanOrEqual(cardBox.y-17);
   expect(frameTopBox.width).toBeGreaterThanOrEqual(cardBox.width+34);
-  expect(Math.abs(frameTopBox.y-(cardBox.y-64))).toBeLessThanOrEqual(2);
+  expect(Math.abs((frameTopBox.y+frameTopBox.height)-(cardBox.y+70))).toBeLessThanOrEqual(2);
   await frameSettings.getByPlaceholder(/Buscar entre .* molduras/).fill("Rosas Sombrias (Branco)");
   await frameSettings.getByRole("button",{name:/Rosas Sombrias \(Branco\)/}).click();
   const roseFrameTop=card.locator(':scope > .profile-frame-effect .profile-frame-layer[data-edge="top"]').first();
   const [roseCardBox,roseFrameTopBox]=await Promise.all([card.boundingBox(),roseFrameTop.boundingBox()]);
-  expect(Math.abs(roseFrameTopBox.y-(roseCardBox.y-64))).toBeLessThanOrEqual(2);
+  expect(Math.abs((roseFrameTopBox.y+roseFrameTopBox.height)-(roseCardBox.y+70))).toBeLessThanOrEqual(2);
   await editor.getByRole("button",{name:"Salvar alterações"}).click();
   await expect(editor.getByRole("status")).toContainText("Tudo salvo");
   await editor.getByLabel("Fechar perfil",{exact:true}).click();
