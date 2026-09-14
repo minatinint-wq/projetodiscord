@@ -249,6 +249,21 @@ if (encryptionKey && encryptionKey.length !== 32)
 
 const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function pgQueryWithRetry(text, params = [], attempts = 4) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await pgClient.query(text, params);
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 >= attempts) break;
+      console.warn(`PostgreSQL indisponível; nova tentativa ${attempt + 2}/${attempts}.`);
+      await wait(250 * 2 ** attempt);
+    }
+  }
+  throw lastError;
+}
 function messageRetentionHash(message) {
   return crypto.createHash("sha256").update(JSON.stringify({
     id: message.id,
@@ -495,15 +510,26 @@ async function loadDatabase() {
             rejectUnauthorized:
               process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false",
           };
-    pgClient = new pg.Client({ connectionString: DATABASE_URL, ssl });
-    await pgClient.connect();
-    await pgClient.query(
+    pgClient = new pg.Pool({
+      connectionString: DATABASE_URL,
+      ssl,
+      max: 3,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+      keepAlive: true,
+    });
+    pgClient.on("error", (error) => {
+      // Pools discard broken idle connections. Logging the event prevents a
+      // transient database disconnect from becoming an uncaught process crash.
+      console.error("Conexão PostgreSQL ociosa foi descartada:", error.message);
+    });
+    await pgQueryWithRetry(
       "CREATE TABLE IF NOT EXISTS app_state (key text primary key, value jsonb not null)",
     );
-    await pgClient.query(
+    await pgQueryWithRetry(
       "CREATE TABLE IF NOT EXISTS avatar_decorations (id text primary key, content_type text not null default 'image/png', bytes bytea not null, updated_at timestamptz not null default now())",
     );
-    const { rows } = await pgClient.query("SELECT key, value FROM app_state");
+    const { rows } = await pgQueryWithRetry("SELECT key, value FROM app_state");
     const loaded = {};
     for (const row of rows) loaded[row.key] = row.value;
     database = normalizeDatabase(loaded);
@@ -597,14 +623,20 @@ async function persistDatabase(keys = null) {
       params.push(key, JSON.stringify(database[key] || []));
       return `($${2 * index + 1}, $${2 * index + 2}::jsonb)`;
     });
-    await pgClient.query("BEGIN");
+    const transaction = await pgClient.connect();
     try {
-      await pgClient.query(
+      await transaction.query("BEGIN");
+      await transaction.query(
         `INSERT INTO app_state (key, value) VALUES ${rows.join(",")} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
         params,
       );
-      await pgClient.query("COMMIT");
-    } catch (error) { await pgClient.query("ROLLBACK"); throw error; }
+      await transaction.query("COMMIT");
+    } catch (error) {
+      try { await transaction.query("ROLLBACK"); } catch { /* connection already gone */ }
+      throw error;
+    } finally {
+      transaction.release();
+    }
     return;
   }
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
@@ -1406,7 +1438,7 @@ async function handler(req, res) {
     if (url.pathname === "/api/health") {
       if (req.method !== "GET" && req.method !== "HEAD")
         return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET" });
-      if (req.method === "GET" && pgClient) await pgClient.query("SELECT 1");
+      if (req.method === "GET" && pgClient) await pgQueryWithRetry("SELECT 1", [], 2);
       return json(req, res, 200, { ok: true });
     }
     const decorationMatch = url.pathname.match(/^\/api\/avatar-decorations\/([a-z0-9_]+)\.png$/i);
