@@ -5395,8 +5395,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
+                      {nameplateSrc(member.profilePlate) && <span className="member-nameplate-surface" aria-hidden="true"><video src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
                       <div className={nameplateSrc(member.profilePlate) ? "member-info member-info-nameplate" : "member-info"}>
-                        {nameplateSrc(member.profilePlate) && <video className="member-nameplate-art" src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata" aria-hidden="true"/>}
                         <strong>
                           <StyledName user={member}/>
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
