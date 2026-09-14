@@ -61,6 +61,7 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   expect(frameTopBox.x).toBeLessThanOrEqual(cardBox.x-17);
   expect(frameTopBox.y).toBeLessThanOrEqual(cardBox.y-17);
   expect(frameTopBox.width).toBeGreaterThanOrEqual(cardBox.width+34);
+  expect(Math.abs((frameTopBox.y+frameTopBox.height)-(cardBox.y+42))).toBeLessThanOrEqual(2);
   await editor.getByRole("button",{name:"Salvar alterações"}).click();
   await expect(editor.getByRole("status")).toContainText("Tudo salvo");
   await editor.getByLabel("Fechar perfil",{exact:true}).click();
