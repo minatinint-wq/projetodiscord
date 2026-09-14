@@ -42,5 +42,6 @@ export function premiumCosmetic(field, value) {
   if (field === "profileOverlay") return Boolean(PREMIUM_OVERLAY_ART[value])
   if (field === "bannerPreset") return PREMIUM_BANNER_IDS.has(value)
   if (field === "nameEffect") return value !== "solid"
+  if (field === "profileArtEffect") return value !== "none"
   return false
 }

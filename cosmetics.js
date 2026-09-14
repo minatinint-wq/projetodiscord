@@ -13,9 +13,7 @@ export const AVATAR_FRAMES = [
  ...REMOTE_AVATAR_DECORATIONS,
 ];
 export const PROFILE_OVERLAYS = [
- ["none","Sem sobreposição"],["orbital","Anéis orbitais"],["runes","Portal rúnico"],
- ["crystal","Cristais"],["nebula","Nebulosa"],["petals","Jardim lunar"],["circuit","Circuito holográfico"],
- ["lunar-orbit","Órbita lunar"],["gothic-bloom","Jardim gótico"],["holo-circuit","Circuito premium"],
+ ["none","Sem sobreposição"],["lunar-orbit","Órbita lunar"],["gothic-bloom","Jardim gótico"],["holo-circuit","Circuito premium"],
  ["sakura-shrine","Santuário sakura"],["steel-wolf","Lobo de aço"],["infernal-dragon","Dragão infernal"],
 ];
 export const PREMIUM_AVATAR_FRAMES = AVATAR_FRAMES.slice(1).map(([id]) => id);

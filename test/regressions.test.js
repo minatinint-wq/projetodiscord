@@ -123,7 +123,7 @@ test("arquivos de chat são validados e respeitam permissão de anexar",async()=
  }
 });
 test("sobreposição e cores personalizadas persistem e validam entradas",async()=>{
- const input={profileOverlay:"orbital",profilePrimaryColor:"#080c30",profileAccentColor:"#81bcff"};
+ const input={profileOverlay:"lunar-orbit",profilePrimaryColor:"#080c30",profileAccentColor:"#81bcff"};
  const updated=await req("/api/auth/me","PATCH",input,guest.token);assert.equal(updated.status,200);
  const publicProfile=await req("/api/users/"+guest.user.id,"GET",undefined,owner.token);
  for(const [key,value] of Object.entries(input))assert.equal(publicProfile.user[key],value);

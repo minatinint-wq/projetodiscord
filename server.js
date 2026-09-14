@@ -8,6 +8,7 @@ import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
 import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS, NAME_EFFECTS } from "./cosmetics.js";
 import { classifyImagePrompt, generateImage, parseImageCommand } from "./image-generation.js";
 import { NAMEPLATE_IDS } from "./nameplates.js";
+import { PROFILE_ART_IDS } from "./profile-art.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -695,7 +696,7 @@ function publicUser(user) {
     bannerPositionY: user.bannerPositionY ?? 50,
     effectIntensity: user.effectIntensity || "balanced",
     effectSpeed: user.effectSpeed || "normal",
-    profileOverlay: user.profileOverlay || "none",
+    profileOverlay: PROFILE_OVERLAYS.some(([value]) => value === user.profileOverlay) ? user.profileOverlay : "none",
     profilePrimaryColor: user.profilePrimaryColor || null,
     profileAccentColor: user.profileAccentColor || null,
     bio: user.bio || "",
@@ -706,6 +707,7 @@ function publicUser(user) {
     nameEffect: publicBadges.includes("nitro_classic") ? user.nameEffect || "solid" : "solid",
     profileTheme: user.profileTheme || "default",
     profilePlate: user.profilePlate || "default",
+    profileArtEffect: publicBadges.includes("nitro_classic") && PROFILE_ART_IDS.has(user.profileArtEffect) ? user.profileArtEffect : "none",
     profileEffect: user.profileEffect || "none",
     avatarFrame: AVATAR_FRAMES.some(([value]) => value === user.avatarFrame) ? user.avatarFrame : "none",
     favoriteGame: user.favoriteGame || "",
@@ -1805,6 +1807,13 @@ async function handler(req, res) {
         ) || NAMEPLATE_IDS.has(input.profilePlate)
           ? input.profilePlate
           : "default";
+      }
+      if (input.profileArtEffect !== undefined) {
+        if (input.profileArtEffect !== "none" && !PROFILE_ART_IDS.has(input.profileArtEffect))
+          return json(res, 400, {error: "Efeito animado de perfil inválido."});
+        if (input.profileArtEffect !== "none" && !hasNitroForRequest)
+          return json(res, 403, {error: "Este efeito animado de perfil requer a insígnia Nitro Classic."});
+        user.profileArtEffect = input.profileArtEffect;
       }
       if (input.profileEffect !== undefined)
         user.profileEffect = PROFILE_EFFECTS.map(([value]) => value).includes(

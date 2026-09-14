@@ -3101,7 +3101,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         activityText: form.activityText,
         wishlist: form.wishlist,
         nameStyle: form.nameStyle, nameColor: form.nameColor, nameEffect: form.nameEffect,
-        profileTheme: form.profileTheme, profilePlate: form.profilePlate,
+        profileTheme: form.profileTheme, profilePlate: form.profilePlate, profileArtEffect: form.profileArtEffect,
         profileEffect: form.profileEffect, avatarFrame: form.avatarFrame,
       };
       if (form.password) input.password = form.password;

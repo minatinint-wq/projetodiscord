@@ -5,6 +5,7 @@ import {bannerPresentation,profilePresentation} from "./profilePresentation";
 import ProfileOverlay from "./ProfileOverlay";
 import {PREMIUM_BANNER_IDS,PREMIUM_BANNER_MOTION} from "./premiumCosmetics";
 import AnimatedCosmetic from "./AnimatedCosmetic";
+import ProfileArtEffect from "./ProfileArtEffect";
 export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges,presence="offline"}){
  const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).filter(Boolean);
  const bannerStyle=bannerPresentation(user),premiumBanner=PREMIUM_BANNER_IDS.has(user.bannerPreset);
@@ -13,6 +14,7 @@ export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges
   <div className={"identity-banner "+(premiumBanner?"premium-banner premium-banner-"+user.bannerPreset:"")} style={bannerStyle}>{premiumBanner&&<AnimatedCosmetic className="premium-banner-motion" src={PREMIUM_BANNER_MOTION[user.bannerPreset]} width={720} height={240}/>}</div>
   <ProfileEffectLayer effect={user.profileEffect}/>
   <ProfileOverlay effect={user.profileOverlay}/>
+  <ProfileArtEffect effect={user.profileArtEffect}/>
   <div className="identity-card-body">
    <div className="identity-avatar"><Avatar user={user}/><span className={"presence-dot presence-"+presence}/></div>
    {!!user.badges?.length&&<div className="identity-badges">{renderBadges?.(user)}</div>}
