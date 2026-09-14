@@ -121,7 +121,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: "#0c101a",
     title: "Sesh",
-    titleBarStyle: "hidden",
+    frame: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
