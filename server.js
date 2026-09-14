@@ -704,7 +704,7 @@ function publicUser(user) {
     status: user.status || "online",
     nameStyle: user.nameStyle || "default",
     nameColor: user.nameColor || "#f1f3f5",
-    nameEffect: publicBadges.includes("nitro_classic") ? user.nameEffect || "solid" : "solid",
+    nameEffect: user.nameEffect || "solid",
     profileTheme: user.profileTheme || "default",
     profilePlate: user.profilePlate || "default",
     profileArtEffect: publicBadges.includes("nitro_classic") && PROFILE_ART_IDS.has(user.profileArtEffect) ? user.profileArtEffect : "none",
@@ -1757,8 +1757,6 @@ async function handler(req, res) {
           : "#f1f3f5";
       if (input.nameEffect !== undefined) {
         const validNameEffect = NAME_EFFECTS.some(([value]) => value === input.nameEffect);
-        if (validNameEffect && input.nameEffect !== "solid" && !hasNitroForRequest)
-          return json(res, 403, {error: "Efeitos animados de nick requerem a insígnia Nitro Classic."});
         user.nameEffect = validNameEffect ? input.nameEffect : "solid";
       }
       for (const field of ["profilePrimaryColor", "profileAccentColor"]) {

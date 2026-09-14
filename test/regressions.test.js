@@ -134,7 +134,7 @@ test("novos cosméticos são aceitos e persistidos",async()=>{
  const result=await req("/api/auth/me","PATCH",{avatarFrame:"glitch",profileEffect:"flames",nameEffect:"red_black_pulse"},guest.token);assert.equal(result.status,200);
  assert.equal(result.user.avatarFrame,"glitch");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"red_black_pulse");
  const plain=await req("/api/auth/register","POST",{username:"plainuser",email:"plain@sesh.local",password:"Valida-975310!Z",displayName:"Plain"});assert.equal(plain.status,201);
- assert.equal((await req("/api/auth/me","PATCH",{nameEffect:"rgb"},plain.token)).status,403);
+ const plainNameEffect=await req("/api/auth/me","PATCH",{nameEffect:"rgb"},plain.token);assert.equal(plainNameEffect.status,200);assert.equal(plainNameEffect.user.nameEffect,"rgb");
 });
 test("gestor cria cargo inferior sem elevar privilégios",async()=>{
  const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;

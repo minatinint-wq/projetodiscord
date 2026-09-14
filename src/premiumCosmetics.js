@@ -41,7 +41,8 @@ export function premiumCosmetic(field, value) {
   if (field === "avatarFrame") return Boolean(PREMIUM_FRAME_ART[value])
   if (field === "profileOverlay") return Boolean(PREMIUM_OVERLAY_ART[value])
   if (field === "bannerPreset") return PREMIUM_BANNER_IDS.has(value)
-  if (field === "nameEffect") return value !== "solid"
+  // Nome e animações de perfil estão disponíveis para todos agora.
+  if (field === "nameEffect") return false
   if (field === "profileArtEffect") return value !== "none"
   return false
 }
