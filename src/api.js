@@ -160,7 +160,7 @@ export const api = {
 export function connectSocket(onEvent) {
   const socketUrl = API_URL ? `${API_URL.replace(/^http/, "ws")}/ws`
     : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
-  let socket, timer, closed = false, attempts = 0;
+  let socket, timer, pingTimer, closed = false, attempts = 0;
   const pending = [];
   const emit = (event) => Promise.resolve().then(() => onEvent(event)).catch((error) => console.error("Sesh realtime:", error));
   const reconnect = () => {
@@ -178,10 +178,14 @@ export function connectSocket(onEvent) {
         const recovered = attempts > 0;
         attempts = 0;
         emit({ type: "connection.status", connected: true, recovered });
+        const ping = () => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify({ type: "connection.ping", sentAt: Date.now() }));
+        ping();
+        clearInterval(pingTimer);
+        pingTimer = setInterval(ping, 5_000);
         for (const event of pending.splice(0)) socket.send(JSON.stringify(event));
       };
-      socket.onmessage = ({ data }) => { try { emit(JSON.parse(data)); } catch {} };
-      socket.onclose = reconnect;
+      socket.onmessage = ({ data }) => { try { const event=JSON.parse(data); if(event.type==="connection.pong"&&Number.isSafeInteger(event.sentAt)) emit({type:"connection.latency",rtt:Math.max(0,Date.now()-event.sentAt)}); else emit(event); } catch {} };
+      socket.onclose = () => { clearInterval(pingTimer); reconnect(); };
       socket.onerror = () => socket?.close();
     } catch { reconnect(); }
   }
@@ -191,7 +195,7 @@ export function connectSocket(onEvent) {
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
       else if (!closed && pending.length < 50 && !event.type?.startsWith("voice.")) pending.push(event);
     },
-    close() { closed = true; clearTimeout(timer); pending.length = 0; socket?.close(); },
+    close() { closed = true; clearTimeout(timer); clearInterval(pingTimer); pending.length = 0; socket?.close(); },
     get socket() { return socket; },
   };
 }

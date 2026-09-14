@@ -4736,6 +4736,7 @@ body[data-profile-effect="embers"] .profile-card {
   background: #c25c71;
 }
 .voice-status {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4782,6 +4783,7 @@ body[data-profile-effect="embers"] .profile-card {
 .voice-status button:hover {
   background: #b24e64;
 }
+.voice-status .voice-status-metrics{margin-left:auto;width:auto;min-width:36px;padding:0 7px;color:#9fe8c0;background:#1d4835;font-size:10px;font-weight:800}.voice-connection-panel{position:absolute;z-index:80;bottom:calc(100% + 8px);left:0;width:290px;padding:14px;border:1px solid #3a3d46;border-radius:12px;background:#24252c;box-shadow:0 16px 42px #000b;color:#dfe2ea}.voice-connection-panel header{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;padding-bottom:10px;border-bottom:1px solid #ffffff12}.voice-connection-panel header strong{color:#9da8ff;font-size:14px}.voice-connection-panel header button{width:24px;height:24px;background:transparent;color:#afb5c2;font-size:20px}.voice-connection-panel p{margin:4px 0;font-size:12px}.voice-connection-panel p b{color:#fff}.voice-connection-panel small{display:block;margin-top:12px;padding-top:10px;border-top:1px solid #ffffff12;color:#a6abb6;font-size:11px;line-height:1.45}
 .action-danger {
   color: #f0a2b4 !important;
 }

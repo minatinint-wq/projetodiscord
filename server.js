@@ -2829,7 +2829,10 @@ wss.on("connection", (socket, req) => {
     try {
       if (raw.length > 150_000) return socket.close(1009, "Message too large");
       const event = JSON.parse(raw.toString());
-      if (event.type === "voice.join" || event.type === "voice.leave") {
+      if (event.type === "connection.ping") {
+        if (Number.isSafeInteger(event.sentAt))
+          socket.send(JSON.stringify({ type: "connection.pong", sentAt: event.sentAt }));
+      } else if (event.type === "voice.join" || event.type === "voice.leave") {
         if (typeof event.channelId !== "string" || event.channelId.length > 80)
           return;
         const channel = database.channels.find(
