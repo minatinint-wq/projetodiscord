@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { GAME_CATALOG, GAME_IDS } from "./game-catalog.js";
-import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS } from "./cosmetics.js";
+import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE_OVERLAYS, PREMIUM_BANNER_PRESETS, NAME_EFFECTS } from "./cosmetics.js";
 import { classifyImagePrompt, generateImage, parseImageCommand } from "./image-generation.js";
 import { NAMEPLATE_IDS } from "./nameplates.js";
 
@@ -215,6 +215,10 @@ function normalizedRoles(roles) {
       style: ROLE_STYLES.includes(role.style) ? role.style : "solid",
       hoist: Boolean(role.hoist),
       icon: safeImageDataUrl(role.icon, 350_000) ? role.icon : null,
+      emoji: (() => {
+        const emoji = String(role.emoji || "").trim();
+        return emoji && emoji.length <= 32 && [...emoji].length <= 16 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(emoji) ? emoji : "";
+      })(),
       position: index + 1,
       permissions: Object.fromEntries(
         ROLE_PERMISSIONS.map((permission) => [
@@ -675,6 +679,7 @@ function userTag(user) {
   return String(1000 + (hash % 9000));
 }
 function publicUser(user) {
+  const publicBadges = badgesForUser(user);
   return {
     id: user.id,
     publicId: user.publicId || generatedPublicId(user),
@@ -694,11 +699,11 @@ function publicUser(user) {
     profilePrimaryColor: user.profilePrimaryColor || null,
     profileAccentColor: user.profileAccentColor || null,
     bio: user.bio || "",
-    badges: badgesForUser(user),
+    badges: publicBadges,
     status: user.status || "online",
     nameStyle: user.nameStyle || "default",
     nameColor: user.nameColor || "#f1f3f5",
-    nameEffect: user.nameEffect || "solid",
+    nameEffect: publicBadges.includes("nitro_classic") ? user.nameEffect || "solid" : "solid",
     profileTheme: user.profileTheme || "default",
     profilePlate: user.profilePlate || "default",
     profileEffect: user.profileEffect || "none",
@@ -1748,29 +1753,12 @@ async function handler(req, res) {
         user.nameColor = /^#[0-9a-fA-F]{6}$/.test(String(input.nameColor))
           ? String(input.nameColor)
           : "#f1f3f5";
-      if (input.nameEffect !== undefined)
-        user.nameEffect = [
-          "solid",
-          "neon",
-          "gradient",
-          "outline",
-          "desenho",
-          "pop",
-          "gummy",
-          "prism",
-          "rgb",
-          "rainbow",
-          "pink_pulse",
-          "blue_gradient",
-          "aurora",
-          "holographic",
-          "glitch",
-          "fire",
-          "ice",
-          "starlight",
-        ].includes(input.nameEffect)
-          ? input.nameEffect
-          : "solid";
+      if (input.nameEffect !== undefined) {
+        const validNameEffect = NAME_EFFECTS.some(([value]) => value === input.nameEffect);
+        if (validNameEffect && input.nameEffect !== "solid" && !hasNitroForRequest)
+          return json(res, 403, {error: "Efeitos animados de nick requerem a insígnia Nitro Classic."});
+        user.nameEffect = validNameEffect ? input.nameEffect : "solid";
+      }
       for (const field of ["profilePrimaryColor", "profileAccentColor"]) {
         if (input[field] === undefined) continue;
         if (input[field] !== null && (typeof input[field] !== "string" || !/^#[0-9a-fA-F]{6}$/.test(input[field])))

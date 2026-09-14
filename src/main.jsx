@@ -835,13 +835,14 @@ function RoleConfigPanel({ role, members, ownerId, canAssignOwner, onUpdate, onA
         {tab === "display" && (
           <section className="role-display-settings">
             <div className={"role-style-sample role-style-" + (role.style || "solid")} style={{ "--member-role-color": role.color }}>
-              {role.icon ? <img src={role.icon} alt="" /> : <i />}
+              {role.icon ? <img src={role.icon} alt="" /> : role.emoji ? <span className="role-emoji" aria-hidden="true">{role.emoji}</span> : <i />}
               <span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>Prévia do efeito aplicado ao cargo</small></span>
             </div>
             <label>Nome do cargo<input value={role.name} maxLength={40} onChange={(event) => onUpdate(role.id, { name: event.target.value })} /></label>
             <label>Cor do cargo<input type="color" value={role.color} onChange={(event) => onUpdate(role.id, { color: event.target.value })} /></label>
             <label>Estilo<select aria-label="Efeito do cargo" value={role.style || "solid"} onChange={(event) => onUpdate(role.id, { style: event.target.value })}><option value="solid">Sólido</option><option value="glow">Brilho suave</option><option value="pulse">Pulso de luz</option><option value="dark_wave">Pulso escuro</option><option value="rgb">Rainbow RGB</option><option value="gradient">Gradiente vivo</option><option value="shimmer">Reflexo metálico</option><option value="neon">Neon</option><option value="electric">Elétrico</option><option value="blink">Piscar</option></select></label>
-            <div className="role-icon-upload"><div className="role-icon-preview" style={{ "--role-preview-color": role.color }}>{role.icon ? <img src={role.icon} alt="" /> : <i />}</div><div><strong>Ícone do cargo</strong><small>Envie uma imagem de até 250 KB para identificar este cargo.</small><div><label className="role-icon-button">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={chooseRoleIcon} /></label>{role.icon && <button type="button" onClick={() => onUpdate(role.id, { icon: null })}>Remover</button>}</div>{imageError && <em>{imageError}</em>}</div></div>
+            <label className="role-emoji-field">Emoji do cargo<span><input value={role.emoji || ""} maxLength={32} placeholder="✨" aria-label="Emoji do cargo" onChange={(event) => onUpdate(role.id, { emoji: event.target.value })}/><EmojiPicker onSelect={(emoji) => onUpdate(role.id, { emoji })}/>{role.emoji && <button type="button" onClick={() => onUpdate(role.id, { emoji: "" })}>Limpar</button>}</span><small>Escolha no painel ou cole um único emoji.</small></label>
+            <div className="role-icon-upload"><div className="role-icon-preview" style={{ "--role-preview-color": role.color }}>{role.icon ? <img src={role.icon} alt="" /> : role.emoji ? <span className="role-emoji" aria-hidden="true">{role.emoji}</span> : <i />}</div><div><strong>Ícone do cargo</strong><small>Envie uma imagem de até 250 KB para identificar este cargo.</small><div><label className="role-icon-button">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={chooseRoleIcon} /></label>{role.icon && <button type="button" onClick={() => onUpdate(role.id, { icon: null })}>Remover</button>}</div>{imageError && <em>{imageError}</em>}</div></div>
             <label className="role-hoist-setting"><span><strong>Separar membros deste cargo</strong><small>Mostra este cargo como uma seção própria na lateral, seguindo a ordem da lista.</small></span><input type="checkbox" checked={Boolean(role.hoist)} onChange={(event) => onUpdate(role.id, { hoist: event.target.checked })} /></label>
           </section>
         )}
@@ -885,7 +886,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   function addRole() {
     const roleId = `role_${crypto.randomUUID()}`;
     setRolesSaved(false); setSettingsSection("roles");
-    setForm((current) => ({ ...current, roles: [...current.roles, { id: roleId, name: "Novo cargo", color: "#c93642", style: "solid", permissions: Object.fromEntries(Object.entries(DEFAULT_CUSTOM_ROLE_PERMISSIONS).map(([key, value]) => [key, value && (server.role === "owner" || Boolean(server.permissions?.[key]))])) }] }));
+    setForm((current) => ({ ...current, roles: [...current.roles, { id: roleId, name: "Novo cargo", color: "#c93642", style: "solid", emoji: "", icon: null, permissions: Object.fromEntries(Object.entries(DEFAULT_CUSTOM_ROLE_PERMISSIONS).map(([key, value]) => [key, value && (server.role === "owner" || Boolean(server.permissions?.[key]))])) }] }));
     setRoleEditorId(roleId);
   }
   function updateRole(roleId, patch) {
@@ -1003,7 +1004,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <p className="server-role-hint">Arraste os cargos pela alça para definir a prioridade. Os mais acima aparecem primeiro na lateral quando “Separar membros” está ativo.</p>
             <section className="settings-roles-list">
               {defaultRole && <article className="settings-role-item default-role"><div className="settings-role-main"><i className="role-color-dot" /><span><strong>Permissões padrão</strong><small>Permissões de quem ainda não tem cargo personalizado</small></span></div><button type="button" className="role-edit" disabled={server.role !== "owner"} onClick={() => setRoleEditorId(defaultRole.id)}>Editar</button></article>}
-              {customRoles.map((role, index) => <article key={role.id} data-role-id={role.id} className={"settings-role-item role-style-" + (role.style || "solid") + (roleDrag.roleId === role.id ? " is-dragging" : "") + (roleDrag.overId === role.id ? " drag-over-" + roleDrag.side : "")} style={{ "--role-preview-color": role.color, "--member-role-color": role.color }} onDragOver={(event) => hoverRole(event, role)} onDrop={(event) => dropRole(event, role)}><button type="button" className="role-drag-handle" draggable={canEditRole(role)} disabled={!canEditRole(role)} aria-label={"Arrastar cargo " + (role.name || "Novo cargo")} aria-grabbed={roleDrag.roleId === role.id} onDragStart={(event) => beginRoleDrag(event, role)} onDragEnd={() => setRoleDrag({ roleId: "", overId: "", side: "" })}><GripVertical size={18}/></button><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : "role-color-dot"}>{role.icon && <img src={role.icon} alt="" />}</i><span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
+              {customRoles.map((role, index) => <article key={role.id} data-role-id={role.id} className={"settings-role-item role-style-" + (role.style || "solid") + (roleDrag.roleId === role.id ? " is-dragging" : "") + (roleDrag.overId === role.id ? " drag-over-" + roleDrag.side : "")} style={{ "--role-preview-color": role.color, "--member-role-color": role.color }} onDragOver={(event) => hoverRole(event, role)} onDrop={(event) => dropRole(event, role)}><button type="button" className="role-drag-handle" draggable={canEditRole(role)} disabled={!canEditRole(role)} aria-label={"Arrastar cargo " + (role.name || "Novo cargo")} aria-grabbed={roleDrag.roleId === role.id} onDragStart={(event) => beginRoleDrag(event, role)} onDragEnd={() => setRoleDrag({ roleId: "", overId: "", side: "" })}><GripVertical size={18}/></button><div className="settings-role-main"><i className={role.icon ? "role-list-icon has-image" : role.emoji ? "role-list-icon has-emoji" : "role-color-dot"}>{role.icon ? <img src={role.icon} alt="" /> : role.emoji || null}</i><span><strong className="role-effect-text">{role.name || "Novo cargo"}</strong><small>{role.hoist ? "Membros separados na lateral" : "Lista geral de membros"}</small></span></div><div className="role-list-actions"><button type="button" className="role-move" title="Subir" aria-label="Subir cargo" disabled={!canEditRole(role) || (server.role !== "owner" && role.position <= server.actorPosition + 1)} onClick={() => moveRole(role.id, -1)}>↑</button><button type="button" className="role-move" title="Descer" aria-label="Descer cargo" disabled={!canEditRole(role)} onClick={() => moveRole(role.id, 1)}>↓</button><button type="button" className="role-edit" disabled={!canEditRole(role)} onClick={() => setRoleEditorId(role.id)}>Editar</button><button type="button" className="role-remove" disabled={!canEditRole(role)} onClick={() => setForm((current) => ({ ...current, roles: current.roles.filter((item) => item.id !== role.id) }))}>Remover</button></div><span className="role-order">#{index + 1}</span></article>)}
               {!customRoles.length && <div className="role-empty-state"><strong>Nenhum cargo criado</strong><span>Crie o primeiro cargo para organizar permissões e membros.</span></div>}
             </section>
             {rolesSaved && <p className="role-save-feedback">Cargos salvos.</p>}{error && <div className="form-error">{error}</div>}
@@ -4311,7 +4312,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             ) : (
               friendsData.friends.map((person) => (
                 <button
-                  className="home-dm-row"
+                  className={"home-dm-row" + (nameplateSrc(person.profilePlate) ? " has-nameplate" : "")}
                   key={person.id}
                   onClick={() => { setHomeTab(`dm:${person.id}`); setMobileNav(false); }}
                 >
@@ -4325,7 +4326,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       className={`presence-dot presence-${person.presence}`}
                     />
                   </span>
-                  <span className="home-dm-name">{person.displayName}</span>
+                  {nameplateSrc(person.profilePlate) && <span className="home-dm-nameplate" aria-hidden="true"><video src={nameplateSrc(person.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
+                  <span className="home-dm-name"><StyledName user={person}/></span>
                 </button>
               ))
             )}
@@ -5381,7 +5383,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               </section>}
               {memberGroups.map((group) => (
                 <section className={"member-role-group" + (group.members.some((member) => member.id === selectedServer.ownerId) ? " member-owner-group" : "")} data-role-id={group.role?.id || "members"} key={group.role?.id || "members"}>
-                  {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.name} — {group.members.length}</div>}
+                  {group.role && <div className="member-role-group-title" style={{ "--role-group-color": group.role.color }}>{group.role.emoji && <span className="role-group-emoji" aria-hidden="true">{group.role.emoji}</span>}{group.role.name} — {group.members.length}</div>}
                   {group.members.map((member) => (
                     <div
                       className={`member profile-click role-style-${member.serverRole?.style || "solid"}`}

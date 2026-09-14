@@ -62,11 +62,11 @@ test("GIF exige Nitro ativo no backend",async()=>{
 test("e-mail não permite assumir privilégio administrativo",async()=>{
  const result=await req("/api/auth/me","PATCH",{email:"test-admin@sesh.local"},guest.token);assert.equal(result.status,403);
 });
-test("cargos e permissões padrão persistem; anexos são validados",async()=>{
- const roles=[...server.roles.map(role=>role.id==="member"?{...role,permissions:{...role.permissions,attachFiles:false}}:role),{id:"moderator",name:"Guardiões",color:"#ab88ff",style:"dark_wave",permissions:{sendMessages:true,connectVoice:true},hoist:true}];
+test("cargos, emoji, ícone e permissões persistem; anexos são validados",async()=>{
+ const roles=[...server.roles.map(role=>role.id==="member"?{...role,permissions:{...role.permissions,attachFiles:false}}:role),{id:"moderator",name:"Guardiões",color:"#ab88ff",style:"dark_wave",emoji:"🛡️",icon:gif,permissions:{sendMessages:true,connectVoice:true},hoist:true}];
  const changed=await req("/api/servers/"+server.id,"PATCH",{roles},owner.token);assert.equal(changed.status,200);
  const reloaded=await req("/api/servers/"+server.id,"GET",undefined,owner.token);
- assert.ok(reloaded.server.roles.some(role=>role.id==="moderator"));assert.equal(reloaded.server.roles.find(role=>role.id==="moderator").style,"dark_wave");assert.equal(reloaded.server.roles.find(role=>role.id==="member").permissions.attachFiles,false);
+ assert.ok(reloaded.server.roles.some(role=>role.id==="moderator"));assert.equal(reloaded.server.roles.find(role=>role.id==="moderator").style,"dark_wave");assert.equal(reloaded.server.roles.find(role=>role.id==="moderator").emoji,"🛡️");assert.equal(reloaded.server.roles.find(role=>role.id==="moderator").icon,gif);assert.equal(reloaded.server.roles.find(role=>role.id==="member").permissions.attachFiles,false);
  assert.equal((await req("/api/channels/"+server.channels[0].id+"/messages","POST",{attachment:png},guest.token)).status,403);
  const invalid=await req("/api/servers/"+server.id,"PATCH",{name:"nao deve salvar",memberRoles:{[guest.user.id]:"missing"}},owner.token);assert.equal(invalid.status,400);
  assert.equal((await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server.name,"Regressions");
@@ -131,8 +131,10 @@ test("sobreposição e cores personalizadas persistem e validam entradas",async(
  assert.equal((await req("/api/auth/me","PATCH",{profileOverlay:"unknown"},guest.token)).status,400);
 });
 test("novos cosméticos são aceitos e persistidos",async()=>{
- const result=await req("/api/auth/me","PATCH",{avatarFrame:"glitch",profileEffect:"flames",nameEffect:"rainbow"},guest.token);assert.equal(result.status,200);
- assert.equal(result.user.avatarFrame,"glitch");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"rainbow");
+ const result=await req("/api/auth/me","PATCH",{avatarFrame:"glitch",profileEffect:"flames",nameEffect:"red_black_pulse"},guest.token);assert.equal(result.status,200);
+ assert.equal(result.user.avatarFrame,"glitch");assert.equal(result.user.profileEffect,"flames");assert.equal(result.user.nameEffect,"red_black_pulse");
+ const plain=await req("/api/auth/register","POST",{username:"plainuser",email:"plain@sesh.local",password:"Valida-975310!Z",displayName:"Plain"});assert.equal(plain.status,201);
+ assert.equal((await req("/api/auth/me","PATCH",{nameEffect:"rgb"},plain.token)).status,403);
 });
 test("gestor cria cargo inferior sem elevar privilégios",async()=>{
  const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;

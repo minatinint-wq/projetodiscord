@@ -26,4 +26,6 @@ export const NAME_EFFECTS = [
  ["pink_pulse","Rosa pulsante"],["blue_gradient","Azul degradê"],["aurora","Aurora"],
  ["holographic","Holográfico"],["glitch","Glitch"],["fire","Fogo"],["ice","Gelo"],
  ["starlight","Luz estelar"],["prism","Prisma"],["outline","Contorno"],["desenho","Desenho"],["pop","Pop"],["gummy","Gummy"],
+ ["red_black_pulse","Vermelho · pulso preto"],["white_black_pulse","Branco · pulso preto"],
+ ["dark_sweep","Onda escura"],["color_cycle","Cores alternadas"],["chromatic","Cromático"],
 ];

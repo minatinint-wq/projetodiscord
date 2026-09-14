@@ -16,8 +16,8 @@ export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges
   <div className="identity-card-body">
    <div className="identity-avatar"><Avatar user={user}/><span className={"presence-dot presence-"+presence}/></div>
    {!!user.badges?.length&&<div className="identity-badges">{renderBadges?.(user)}</div>}
-   <h2><StyledName user={user} withPlate/></h2><p className="identity-handle">@{user.username}</p>
-   {role&&<span className={"profile-role-badge role-style-"+(role.style||"solid")} style={{"--role-color":role.color,"--member-role-color":role.color}}>{role.icon?<img src={role.icon} alt=""/>:<i/>}<span className="role-effect-text">{role.name}</span><small>Cargo</small></span>}
+   <h2><StyledName user={user}/></h2><p className="identity-handle">@{user.username}</p>
+   {role&&<div className="profile-role-list"><span className={"profile-role-badge role-style-"+(role.style||"solid")} style={{"--role-color":role.color,"--member-role-color":role.color}}>{role.icon?<img src={role.icon} alt=""/>:role.emoji?<span className="role-emoji" aria-hidden="true">{role.emoji}</span>:<i/>}<span className="role-effect-text">{role.name}</span></span></div>}
    <div className="identity-divider"/>
    <p className="identity-bio">{user.bio||"Cada perfil tem uma história. A sua começa aqui."}</p>
    {user.activityText&&<div className="identity-status"><i/>{user.activityText}</div>}
