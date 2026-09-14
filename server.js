@@ -9,6 +9,7 @@ import { PROFILE_EFFECTS, AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES
 import { classifyImagePrompt, generateImage, parseImageCommand } from "./image-generation.js";
 import { NAMEPLATE_IDS } from "./nameplates.js";
 import { PROFILE_ART_IDS } from "./profile-art.js";
+import { PROFILE_FRAME_IDS } from "./profile-frames.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_VERSION = JSON.parse(await fs.readFile(new URL("./package.json", import.meta.url), "utf8")).version;
@@ -27,6 +28,7 @@ const DATA_ENCRYPTION_KEY = String(
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const RESEND_FROM_EMAIL = String(process.env.RESEND_FROM_EMAIL || "").trim();
 const SESH_PUBLIC_URL = String(process.env.SESH_PUBLIC_URL || "").trim().replace(/\/$/, "");
+const MESSAGE_RETENTION_DAYS = Math.max(0, Math.min(Number(process.env.MESSAGE_RETENTION_DAYS) || 0, 3650));
 const COLLECTIONS = [
   "users",
   "servers",
@@ -245,6 +247,37 @@ if (encryptionKey && encryptionKey.length !== 32)
 
 const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
+function messageRetentionHash(message) {
+  return crypto.createHash("sha256").update(JSON.stringify({
+    id: message.id,
+    channelId: message.channelId,
+    authorId: message.authorId,
+    content: message.content || "",
+    attachment: message.attachment || null,
+    createdAt: message.createdAt,
+  })).digest("hex");
+}
+function expireOldServerMessages() {
+  if (!MESSAGE_RETENTION_DAYS) return 0;
+  const cutoff = Date.now() - MESSAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const expiredAt = now();
+  let expired = 0;
+  database.messages = database.messages.map((message) => {
+    const createdAt = Date.parse(message.createdAt);
+    if (message.expiredAt || message.pinnedAt || !Number.isFinite(createdAt) || createdAt >= cutoff) return message;
+    expired++;
+    return {
+      id: message.id,
+      channelId: message.channelId,
+      authorId: message.authorId,
+      createdAt: message.createdAt,
+      expiredAt,
+      messageHash: messageRetentionHash(message),
+    };
+  });
+  if (expired) console.log(`Sesh: ${expired} mensagem(ns) de canal expirada(s); conteúdo substituído por hash SHA-256.`);
+  return expired;
+}
 const hashPassword = (
   password,
   salt = crypto.randomBytes(16).toString("hex"),
@@ -550,10 +583,12 @@ async function persistDatabase(keys = null) {
   // local a regravaçao é integral, mas sem structuredClone: JSON.stringify
   // é síncrono (atômico na thread), então o clone profundo de MBs de
   // base64 era custo puro a cada mensagem.
+  const expiredMessages = expireOldServerMessages();
   if (pgClient) {
     const targets = Array.isArray(keys) && keys.length
       ? [...new Set(keys.filter((key) => COLLECTIONS.includes(key)))]
       : [...COLLECTIONS];
+    if (expiredMessages && !targets.includes("messages")) targets.push("messages");
     if (!targets.length) return;
     const params = [];
     const rows = targets.map((key, index) => {
@@ -708,6 +743,7 @@ function publicUser(user) {
     profileTheme: user.profileTheme || "default",
     profilePlate: user.profilePlate || "default",
     profileArtEffect: publicBadges.includes("nitro_classic") && PROFILE_ART_IDS.has(user.profileArtEffect) ? user.profileArtEffect : "none",
+    profileFrame: publicBadges.includes("nitro_classic") && PROFILE_FRAME_IDS.has(user.profileFrame) ? user.profileFrame : "none",
     profileEffect: user.profileEffect || "none",
     avatarFrame: AVATAR_FRAMES.some(([value]) => value === user.avatarFrame) ? user.avatarFrame : "none",
     favoriteGame: user.favoriteGame || "",
@@ -1139,6 +1175,9 @@ function reserveImageGeneration(userId) {
   };
 }
 function decorateMessage(message) {
+  const visibleMessage = message.expiredAt
+    ? { ...message, content: "Mensagem expirada", attachment: null, expired: true }
+    : message;
   const user = database.users.find((item) => item.id === message.authorId);
   const reply = message.replyToId
     ? database.messages.find((item) => item.id === message.replyToId && item.channelId === message.channelId)
@@ -1147,7 +1186,7 @@ function decorateMessage(message) {
     ? database.users.find((item) => item.id === message.forwardedFrom.authorId)
     : null;
   return {
-    ...message,
+    ...visibleMessage,
     author: publicUser(user),
     reactions: (Array.isArray(message.reactions) ? message.reactions : [])
       .filter((reaction) => reaction?.emoji && Array.isArray(reaction.userIds) && reaction.userIds.length)
@@ -1159,7 +1198,7 @@ function decorateMessage(message) {
     replyTo: reply
       ? {
           id: reply.id,
-          content: String(reply.content || "").slice(0, 180),
+          content: reply.expiredAt ? "Mensagem expirada" : String(reply.content || "").slice(0, 180),
           hasAttachment: Boolean(reply.attachment),
           author: publicUser(database.users.find((item) => item.id === reply.authorId)),
         }
@@ -1812,6 +1851,13 @@ async function handler(req, res) {
         if (input.profileArtEffect !== "none" && !hasNitroForRequest)
           return json(res, 403, {error: "Este efeito animado de perfil requer a insígnia Nitro Classic."});
         user.profileArtEffect = input.profileArtEffect;
+      }
+      if (input.profileFrame !== undefined) {
+        if (input.profileFrame !== "none" && !PROFILE_FRAME_IDS.has(input.profileFrame))
+          return json(res, 400, {error: "Moldura de perfil inválida."});
+        if (input.profileFrame !== "none" && !hasNitroForRequest)
+          return json(res, 403, {error: "Esta moldura de perfil requer a insígnia Nitro Classic."});
+        user.profileFrame = input.profileFrame;
       }
       if (input.profileEffect !== undefined)
         user.profileEffect = PROFILE_EFFECTS.map(([value]) => value).includes(
@@ -2477,6 +2523,9 @@ async function handler(req, res) {
     if (channelMatch && req.method === "POST") {
       const channel = channelForUser(user, channelMatch[1]);
       const input = await body(req);
+      const clientMessageId = String(input.clientMessageId || "").trim();
+      if (input.clientMessageId !== undefined && !/^[a-zA-Z0-9_-]{8,80}$/.test(clientMessageId))
+        return json(res, 400, { error: "Identificador de envio inválido." });
       let content = String(input.content || "").trim();
       let attachment = input.attachment || null;
       let forwardedSource = null;
@@ -2500,6 +2549,9 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode enviar mensagens neste canal." });
       if (membership.textMuted)
         return json(res, 403, { error: "Você está silenciado no chat deste servidor." });
+      const duplicate = clientMessageId && database.messages.find((item) =>
+        item.channelId === channel.id && item.authorId === user.id && item.clientMessageId === clientMessageId);
+      if (duplicate) return json(res, 200, { message: decorateMessage(duplicate), duplicate: true });
       const imageCommand = forwardedSource ? null : parseImageCommand(content);
       if (imageCommand?.invalid)
         return json(res, 400, { error: 'Use /image "prompt", /imagem "prompt" ou /imagensfw "prompt".' });
@@ -2562,6 +2614,7 @@ async function handler(req, res) {
         return json(res, 403, { error: "Seu cargo não pode mencionar @everyone, @here ou cargos." });
       const message = {
         id: id(),
+        ...(clientMessageId ? { clientMessageId } : {}),
         channelId: channel.id,
         authorId: user.id,
         content,
@@ -2631,11 +2684,16 @@ async function handler(req, res) {
       if (recipient.preferences?.allowDirectMessages === false)
         return json(res, 403, { error: "Esta pessoa pausou o recebimento de mensagens diretas." });
       const input = await body(req);
+      const clientMessageId = String(input.clientMessageId || "").trim();
+      if (input.clientMessageId !== undefined && !/^[a-zA-Z0-9_-]{8,80}$/.test(clientMessageId))
+        return json(res, 400, { error: "Identificador de envio inválido." });
       const content = String(input.content || "").trim();
       const attachment = input.attachment || null;
       if ((!content && !attachment) || content.length > 4000 || (attachment && !safeAttachment(attachment)))
         return json(res, 400, { error: "Envie até 4000 caracteres ou uma imagem PNG, JPEG, GIF ou WebP de até 3 MB." });
-      const message = { id: id(), authorId: user.id, recipientId: recipient.id, content, attachment, createdAt: now(), editedAt: null };
+      const duplicate = clientMessageId && database.directMessages.find((item) => item.authorId === user.id && item.recipientId === recipient.id && item.clientMessageId === clientMessageId);
+      if (duplicate) return json(res, 200, { message: decorateMessage(duplicate), duplicate: true });
+      const message = { id: id(), ...(clientMessageId ? { clientMessageId } : {}), authorId: user.id, recipientId: recipient.id, content, attachment, createdAt: now(), editedAt: null };
       database.directMessages.push(message);
       const output = decorateMessage(message);
       notifyUser(recipient.id, { type: "direct.created", message: output });

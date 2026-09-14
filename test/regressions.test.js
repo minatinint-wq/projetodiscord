@@ -136,6 +136,15 @@ test("novos cosméticos são aceitos e persistidos",async()=>{
  const plain=await req("/api/auth/register","POST",{username:"plainuser",email:"plain@sesh.local",password:"Valida-975310!Z",displayName:"Plain"});assert.equal(plain.status,201);
  const plainNameEffect=await req("/api/auth/me","PATCH",{nameEffect:"rgb"},plain.token);assert.equal(plainNameEffect.status,200);assert.equal(plainNameEffect.user.nameEffect,"rgb");
 });
+test("envio rápido usa identificador idempotente sem duplicar mensagens",async()=>{
+ const channel=server.channels.find(item=>item.type==="text");
+ const clientMessageId="fast-send-12345678";
+ const first=await req("/api/channels/"+channel.id+"/messages","POST",{content:"mensagem rápida",clientMessageId},guest.token);
+ const repeated=await req("/api/channels/"+channel.id+"/messages","POST",{content:"mensagem rápida",clientMessageId},guest.token);
+ assert.equal(first.status,201);assert.equal(repeated.status,200);assert.equal(repeated.duplicate,true);assert.equal(repeated.message.id,first.message.id);
+ const history=await req("/api/channels/"+channel.id+"/messages","GET",undefined,guest.token);
+ assert.equal(history.messages.filter(message=>message.clientMessageId===clientMessageId).length,1);
+});
 test("gestor cria cargo inferior sem elevar privilégios",async()=>{
  const current=(await req("/api/servers/"+server.id,"GET",undefined,owner.token)).server;
  const manager={id:"manager",name:"Gestor",permissions:{...current.roles.find(r=>r.id==="owner").permissions}};

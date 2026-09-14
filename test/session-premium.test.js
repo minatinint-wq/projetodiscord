@@ -50,9 +50,10 @@ test("sessão persiste no restart, mute fantasma é reparado e Nitro protege cos
   const owner = await request("/api/auth/login", "POST", { username: "demo", password: "demo123" })
   const guest = await request("/api/auth/register", "POST", { username: "restartguest", email: "restart@sesh.local", password: "Reinicio-468013" })
   assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire" }, guest.token)).status, 403)
+  assert.equal((await request("/api/auth/me", "PATCH", { profileFrame: "symbiote" }, guest.token)).status, 403)
   const admin = await request("/api/auth/login", "POST", { username: "session-admin@sesh.local", password: "session-admin-password" })
   assert.equal((await request("/api/users/" + guest.user.id + "/badges", "PATCH", { badges: ["nitro_classic"] }, admin.token)).status, 200)
-  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire", profileOverlay: "infernal-dragon", bannerPreset: "steel-wolf" }, guest.token)).status, 200)
+  assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire", profileOverlay: "infernal-dragon", bannerPreset: "steel-wolf", profileArtEffect: "dancing-dolphins", profileFrame: "symbiote" }, guest.token)).status, 200)
 
   const community = (await request("/api/servers", "POST", { name: "Sessão persistente" }, owner.token)).server
   await request("/api/servers/" + community.inviteCode + "/join", "POST", {}, guest.token)
@@ -66,6 +67,9 @@ test("sessão persiste no restart, mute fantasma é reparado e Nitro protege cos
   await writeFile(dataFile, JSON.stringify(database, null, 2))
 
   await start()
-  assert.equal((await request("/api/auth/me", "GET", undefined, guest.token)).status, 200)
+  const restored = await request("/api/auth/me", "GET", undefined, guest.token)
+  assert.equal(restored.status, 200)
+  assert.equal(restored.user.profileArtEffect, "dancing-dolphins")
+  assert.equal(restored.user.profileFrame, "symbiote")
   assert.equal((await request("/api/channels/" + community.channels[0].id + "/messages", "POST", { content: "sessão recuperada" }, guest.token)).status, 201)
 })

@@ -44,5 +44,6 @@ export function premiumCosmetic(field, value) {
   // Nome e animações de perfil estão disponíveis para todos agora.
   if (field === "nameEffect") return false
   if (field === "profileArtEffect") return value !== "none"
+  if (field === "profileFrame") return value !== "none"
   return false
 }

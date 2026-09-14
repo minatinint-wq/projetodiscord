@@ -1,5 +1,5 @@
 import React from "react";
-import { profileArtSrc } from "../profile-art";
+import { profileArtFormat, profileArtSrc } from "../profile-art";
 
 export default function ProfileArtEffect({ effect, preview = false }) {
   const src = profileArtSrc(effect);
@@ -11,6 +11,6 @@ export default function ProfileArtEffect({ effect, preview = false }) {
     aria-hidden="true"
     draggable="false"
     decoding="async"
+    data-format={profileArtFormat(effect)}
   />;
 }
-

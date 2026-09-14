@@ -1898,7 +1898,6 @@ function App({ currentUser, onLogout, onUserUpdate }) {
 
   const selectedChannelRef = useRef(selectedChannel);
   selectedChannelRef.current = selectedChannel;
-  const sendingMessageRef = useRef(false);
   useEffect(() => {
     if (!selectedServer) { setSelectedChannel(null); setMembers([]); return; }
     let active = true;
@@ -1971,12 +1970,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       }
       if (event.type === "direct.created") window.dispatchEvent(new CustomEvent("sesh:direct-message", { detail: event.message }));
       if (event.type === "message.created")
-        setMessages((current) =>
-          event.message.channelId === selectedChannel?.id &&
-          !current.some((item) => item.id === event.message.id)
-            ? [...current, event.message]
-            : current,
-        );
+        setMessages((current) => {
+          if (event.message.channelId !== selectedChannel?.id) return current;
+          const pending = event.message.clientMessageId && current.find((item) =>
+            item.sendState && item.clientMessageId === event.message.clientMessageId);
+          if (pending) return current.map((item) => item.id === pending.id ? event.message : item);
+          return current.some((item) => item.id === event.message.id) ? current : [...current, event.message];
+        });
       if (event.type === "message.updated" && event.message.channelId === selectedChannel?.id) {
         setMessages((current) => current.map((message) =>
           message.id === event.message.id ? event.message : message,
@@ -3101,7 +3101,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         activityText: form.activityText,
         wishlist: form.wishlist,
         nameStyle: form.nameStyle, nameColor: form.nameColor, nameEffect: form.nameEffect,
-        profileTheme: form.profileTheme, profilePlate: form.profilePlate, profileArtEffect: form.profileArtEffect,
+        profileTheme: form.profileTheme, profilePlate: form.profilePlate, profileArtEffect: form.profileArtEffect, profileFrame: form.profileFrame,
         profileEffect: form.profileEffect, avatarFrame: form.avatarFrame,
       };
       if (form.password) input.password = form.password;
@@ -3174,42 +3174,68 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   }
   async function sendMessage(event) {
     event.preventDefault();
-    if ((!draft.trim() && !attachment) || !selectedChannel || sendingMessageRef.current || readingAttachment) return;
-    sendingMessageRef.current = true;
-    const imageCommand = /^\/(?:image|imagem|imagensfw)\s+"[^"\r\n]{1,600}"\s*$/i.test(draft.trim());
+    if ((!draft.trim() && !attachment) || !selectedChannel || readingAttachment) return;
+    const content = draft.trim();
+    const sentAttachment = attachment;
+    const sentReply = replyingTo;
+    const clientMessageId = crypto.randomUUID();
+    const optimisticId = `pending:${clientMessageId}`;
+    const payload = { content, attachment: sentAttachment, replyToId: sentReply?.id || null, clientMessageId };
+    const imageCommand = /^\/(?:image|imagem|imagensfw)\s+"[^"\r\n]{1,600}"\s*$/i.test(content);
     const imageAuthorized = imageCommand && (selectedServer?.ownerId === currentUser.id || Boolean(selectedServer?.permissions?.manageServer));
     if (imageAuthorized) {
       setAiSessionServerId(selectedChannel.serverId);
       setAiGenerating(true);
     }
     const sentChannelId = selectedChannel.id;
+    const optimistic = {
+      id: optimisticId,
+      clientMessageId,
+      channelId: sentChannelId,
+      authorId: currentUser.id,
+      author: currentUser,
+      content,
+      attachment: sentAttachment,
+      replyTo: sentReply ? { id: sentReply.id, content: sentReply.content, hasAttachment: Boolean(sentReply.attachment), author: sentReply.author } : null,
+      reactions: [],
+      createdAt: new Date().toISOString(),
+      editedAt: null,
+      sendState: "sending",
+      pendingPayload: payload,
+    };
+    setMessages((current) => [...current, optimistic]);
+    setDraft("");
+    setAttachment(null);
+    setReplyingTo(null);
     try {
-      const result = await api.sendMessage(selectedChannel.id, {
-        content: draft.trim(),
-        attachment,
-        replyToId: replyingTo?.id || null,
-      });
+      const result = await api.sendMessage(sentChannelId, payload);
       if (selectedChannelRef.current?.id !== sentChannelId) return;
-      setMessages((current) =>
-        current.some((item) => item.id === result.message.id)
-          ? current
-          : [...current, result.message],
-      );
-      setDraft("");
-      setAttachment(null);
-      setReplyingTo(null);
-      if (guideServer === selectedChannel.serverId) dismissGuide();
+      setMessages((current) => [...current.filter((item) => item.id !== optimisticId && item.id !== result.message.id), result.message]
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
+      if (guideServer === selectedChannelRef.current?.serverId) dismissGuide();
     } catch (err) {
       setNotice(err.message);
+      setMessages((current) => current.map((item) => item.id === optimisticId ? { ...item, sendState: "failed", sendError: err.message } : item));
     } finally {
       if (imageAuthorized) setAiGenerating(false);
-      sendingMessageRef.current = false;
+    }
+  }
+  async function retryMessage(message) {
+    if (!message.pendingPayload || message.sendState !== "failed") return;
+    setMessages((current) => current.map((item) => item.id === message.id ? { ...item, sendState: "sending", sendError: null } : item));
+    try {
+      const result = await api.sendMessage(message.channelId, message.pendingPayload);
+      if (selectedChannelRef.current?.id !== message.channelId) return;
+      setMessages((current) => [...current.filter((item) => item.id !== message.id && item.id !== result.message.id), result.message]
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))));
+    } catch (error) {
+      setNotice(error.message);
+      setMessages((current) => current.map((item) => item.id === message.id ? { ...item, sendState: "failed", sendError: error.message } : item));
     }
   }
   async function attachFiles(files) {
     if (!files.length) return;
     if (files.length > 1) return setNotice("Envie um arquivo por mensagem.");
-    if (sendingMessageRef.current) return setNotice("Aguarde o envio da mensagem.");
     const attempt=++attachmentRead.current;setReadingAttachment(true);
     try {const file=await readAttachment(files[0]);if(attempt===attachmentRead.current)setAttachment(file);}
     catch(error){if(attempt===attachmentRead.current)setNotice(error.message);}
@@ -5254,7 +5280,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     {!sameDay && <div className="message-day-divider"><span>{messageDate.toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})}</span></div>}
                     <article
                       id={`message-${message.id}`}
-                      className={"message"+(compact?" message-compact":"")+(unreadMarkers[message.channelId]===message.id?" message-unread-start":"")}
+                      className={"message"+(compact?" message-compact":"")+(unreadMarkers[message.channelId]===message.id?" message-unread-start":"")+(message.sendState?` message-${message.sendState}`:"")+(message.expired?" message-expired":"")}
                       data-member-id={message.author.id}
                       data-message-id={message.id}
                     >
@@ -5306,6 +5332,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         )}
                         {message.content && <MessageContent content={message.content} members={members} onProfile={openProfile} />}
                         {message.attachment && <AttachmentView attachment={message.attachment} nsfw={Boolean(message.ai?.nsfw)} alt={`Imagem enviada por ${message.author.displayName}`}/>}
+                        {message.sendState === "sending" && <span className="message-delivery-state">Enviando…</span>}
+                        {message.sendState === "failed" && <button type="button" className="message-retry" title={message.sendError || "Falha no envio"} onClick={() => retryMessage(message)}>Falhou · tentar novamente</button>}
+                        {message.expired && message.messageHash && <span className="message-retention-hash" title={message.messageHash}>Hash {message.messageHash.slice(0, 12)}</span>}
                         {message.reactions?.length > 0 && (
                           <div className="reactions">
                             {message.reactions.map((reaction) => (
@@ -5322,14 +5351,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                           </div>
                         )}
                       </div>
-                      <button
+                      {!message.sendState && !message.expired && <button
                         type="button"
                         className="message-more"
                         aria-label="Opções da mensagem"
                         onClick={(event) => openMessageMenu(event, message)}
                       >
                         <MoreVertical size={17} />
-                      </button>
+                      </button>}
                     </article>
                     </React.Fragment>;
                   })}
