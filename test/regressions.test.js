@@ -48,6 +48,9 @@ test("perfil é atômico e imagem estática persiste",async()=>{
  const markup='<img src=x onerror="alert(document.cookie)">';
  const rejectedName=await req("/api/auth/me","PATCH",{displayName:markup},guest.token);
  assert.equal(rejectedName.status,400);assert.match(rejectedName.error,/não use tags/i);
+ const encodedName='## &lt;img src=x onerror=alert(1)&gt;';
+ const rejectedEncodedName=await req("/api/auth/me","PATCH",{displayName:encodedName},guest.token);
+ assert.equal(rejectedEncodedName.status,400);assert.match(rejectedEncodedName.error,/não use tags/i);
  assert.equal((await req("/api/auth/me","GET",undefined,guest.token)).user.displayName,"Visitante");
  assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
  const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);

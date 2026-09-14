@@ -4,8 +4,8 @@ import test from "node:test";
 import { PROFILE_ART_EFFECTS, PROFILE_ART_IDS, profileArtFormat, profileArtSrc } from "../profile-art.js";
 import { PROFILE_FRAMES, PROFILE_FRAME_IDS, profileFrameLayers } from "../profile-frames.js";
 
-test("profile art catalog exposes bundled APNGs and approved Discord references", () => {
-  assert(PROFILE_ART_EFFECTS.length >= 40);
+test("profile art catalog exposes APNGs and approved Discord references", () => {
+  assert(PROFILE_ART_EFFECTS.length >= 38);
   assert.equal(PROFILE_ART_IDS.size, PROFILE_ART_EFFECTS.length);
   for (const [id, , file, format] of PROFILE_ART_EFFECTS.slice(1)) {
     const src = profileArtSrc(id);

@@ -112,6 +112,19 @@ test("cadastro exige senha forte e não devolve token no corpo", async () => {
   assert.equal(markupName.response.status, 400);
   assert.match(markupName.payload.error, /não use tags/i);
 
+  const encodedMarkupName = await raw("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: "nomecodificado",
+      displayName: "## &lt;img src=x onerror=alert(1)&gt;",
+      email: "nomecodificado@sesh.local",
+      password: "Vela-Azul-2026",
+    }),
+  });
+  assert.equal(encodedMarkupName.response.status, 400);
+  assert.match(encodedMarkupName.payload.error, /não use tags/i);
+
   const weak = await raw("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -1006,21 +1006,38 @@ function passwordError(password, { username = "", email = "" } = {}) {
   if (mailUser && mailUser.length >= 3 && lowered.includes(mailUser)) return "A senha não pode conter seu e-mail.";
   return null;
 }
+function decodeDisplayNameMarkup(value) {
+  let decoded = String(value || "");
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = decoded
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;|&#0*60;|&#x0*3c;/gi, "<")
+      .replace(/&gt;|&#0*62;|&#x0*3e;/gi, ">");
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded.replace(/%3c/gi, "<").replace(/%3e/gi, ">");
+}
 function displayNameError(value) {
   if (typeof value !== "string" || !value.trim()) return "Nome de exibição é obrigatório.";
   if (value.trim().length > 80) return "O nome de exibição deve ter no máximo 80 caracteres.";
-  if (/[<>]/.test(value) || /[\u0000-\u001f\u007f]/.test(value))
+  if (/[<>]/.test(decodeDisplayNameMarkup(value)) || /[\u0000-\u001f\u007f]/.test(value))
     return "Nome de exibição inválido: não use tags ou caracteres de controle.";
   return null;
 }
 function safeDisplayName(value, fallback = "Usuário") {
-  const cleaned = String(value || "")
+  const raw = String(value || "");
+  const safeFallback = String(fallback || "Usuário").trim().slice(0, 80) || "Usuário";
+  // If markup was ever stored (plain, entity-encoded or URL-encoded), discard
+  // the whole legacy display name instead of leaving prefixes such as "##".
+  if (/[<>]/.test(decodeDisplayNameMarkup(raw))) return safeFallback;
+  const cleaned = raw
     .replace(/<[^>]*>/g, "")
     .replace(/[<>\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);
-  return cleaned || String(fallback || "Usuário").trim().slice(0, 80) || "Usuário";
+  return cleaned || safeFallback;
 }
 const sessionHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 async function createSession(userId) {
