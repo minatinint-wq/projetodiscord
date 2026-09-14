@@ -1846,7 +1846,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         openMemberMenu(event, ownMember ? {...currentUser,...ownMember} : currentUser);
         return;
       }
-      if (card && profileData?.user && currentUser.isMasterAdmin) {
+      if (card && profileData?.user && currentUser.isCreator) {
         event.preventDefault();
         event.stopPropagation();
         setBadgeMenu({
@@ -1882,7 +1882,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     };
     document.addEventListener("contextmenu", onContextMenu, true);
     return () => document.removeEventListener("contextmenu", onContextMenu, true);
-  }, [currentUser.id, currentUser.isMasterAdmin, profileData, members, messages, voiceStates, selectedServer, servers, muted, deafened, locallyMutedUsers]);
+  }, [currentUser.id, currentUser.isCreator, profileData, members, messages, voiceStates, selectedServer, servers, muted, deafened, locallyMutedUsers]);
   useEffect(() => {
     api
       .servers()
@@ -3084,7 +3084,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         avatar: accountForm.avatar,
         banner: accountForm.banner,
       };
-      if (currentUser.isMasterAdmin) input.badges = accountForm.badges;
+      if (currentUser.isCreator) input.badges = accountForm.badges;
       const result = await api.updateMe(input);
       onUserUpdate(result.user);
       setNotice("Perfil atualizado!");
@@ -3114,7 +3114,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         profileEffect: form.profileEffect, avatarFrame: form.avatarFrame,
       };
       if (form.password) input.password = form.password;
-      if (currentUser.isMasterAdmin) input.badges = form.badges;
+      if (currentUser.isCreator) input.badges = form.badges;
       const result = await api.updateMe(input);
       onUserUpdate(result.user);
       setAccountForm(result.user);
@@ -3770,7 +3770,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       <label className="setting-check" key={key}>
                         <input
                           type="checkbox"
-                          disabled={!currentUser.isMasterAdmin}
+                          disabled={!currentUser.isCreator}
                           checked={accountForm.badges.includes(key)}
                           onChange={(event) =>
                             setAccountForm({
@@ -4178,7 +4178,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       {badgeMenu && (
         <BadgeContextMenu
           menu={badgeMenu}
-          onAdd={currentUser.isMasterAdmin ? () => openBadgeEditor(badgeMenu.user) : null}
+          onAdd={currentUser.isCreator ? () => openBadgeEditor(badgeMenu.user) : null}
           onModerate={badgeMenu.canModerate ? (input) => moderateMember(badgeMenu.user, input) : null}
           onAssignRole={badgeMenu.canAssignRole ? (roleId) => moderateMember(badgeMenu.user, { roleId }) : null}
           onManageRoles={badgeMenu.user.id === currentUser.id && canManageSettings ? () => {
@@ -5994,7 +5994,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       <label className="setting-check" key={key}>
                         <input
                           type="checkbox"
-                          disabled={!currentUser.isMasterAdmin}
+                          disabled={!currentUser.isCreator}
                           checked={accountForm.badges.includes(key)}
                           onChange={(event) =>
                             setAccountForm({

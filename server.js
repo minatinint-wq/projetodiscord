@@ -722,6 +722,9 @@ function isPrimaryMasterAdmin(user) {
 function isMasterAdmin(user) {
   return MASTER_ADMIN_EMAILS.has((user?.email || "").toLowerCase());
 }
+function canManageBadges(user) {
+  return isCreator(user);
+}
 function sanitizeBadges(target, badges) {
   const selected = Array.isArray(badges)
     ? [...new Set(badges.filter((badge) => ALLOWED_BADGES.includes(badge)))]
@@ -1640,7 +1643,7 @@ async function handler(req, res) {
       const input = await body(req);
       const storedUser = user;
       user = { ...user };
-      const proposedBadges = input.badges !== undefined && isMasterAdmin(user) ? sanitizeBadges(user, input.badges) : user.badges;
+      const proposedBadges = input.badges !== undefined && canManageBadges(user) ? sanitizeBadges(user, input.badges) : user.badges;
       const hasNitroForRequest = badgesForUser({ ...user, badges: proposedBadges }).includes("nitro_classic");
       if (!hasNitroForRequest &&
           [input.avatar, input.banner].some(value => typeof value === "string" && /^data:image\/gif;/i.test(value)))
@@ -1851,9 +1854,9 @@ async function handler(req, res) {
           .trim()
           .slice(0, 300);
       if (input.badges !== undefined) {
-        if (!isMasterAdmin(user))
+        if (!canManageBadges(user))
           return json(res, 403, {
-            error: "Somente o admin master pode gerenciar insígnias.",
+            error: "Acesso de criador necessário para gerenciar insígnias.",
           });
         user.badges = proposedBadges;
       }
@@ -1902,9 +1905,9 @@ async function handler(req, res) {
     }
     const badgeMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/badges$/);
     if (badgeMatch && req.method === "PATCH") {
-      if (!isMasterAdmin(user))
+      if (!canManageBadges(user))
         return json(res, 403, {
-          error: "Somente o admin master pode gerenciar insígnias.",
+          error: "Acesso de criador necessário para gerenciar insígnias.",
         });
       const target = database.users.find((item) => item.id === badgeMatch[1]);
       if (!target) return json(res, 404, { error: "Usuário não encontrado." });
