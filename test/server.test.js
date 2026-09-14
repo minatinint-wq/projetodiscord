@@ -31,22 +31,30 @@ async function waitForServer() {
   throw new Error("O servidor de teste não iniciou.");
 }
 
+function sessionCookie(response) {
+  const setCookie = response.headers.get("set-cookie") || "";
+  const match = setCookie.match(/sesh_session=[^;]*/);
+  return match ? match[0] : "";
+}
+
 async function request(pathname, options = {}) {
+  const { cookie, ...rest } = options;
   const response = await fetch(`${baseUrl}${pathname}`, {
-    ...options,
+    ...rest,
     headers: {
       "Content-Type": "application/json",
-      ...(options.headers || {}),
+      ...(cookie ? { Cookie: cookie } : {}),
+      ...(rest.headers || {}),
     },
   });
   const payload = await response.json();
-  return { response, payload };
+  return { response, payload, cookie: sessionCookie(response) || cookie || "" };
 }
 
-async function connectVoice(token) {
+async function connectVoice(cookie) {
   const ticketResult = await request("/api/auth/ws-ticket", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    cookie,
   });
   assert.equal(ticketResult.response.status, 201);
   const ticket = ticketResult.payload.ticket;
@@ -122,9 +130,9 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   });
   assert.equal(login.response.status, 200);
   assert.equal(login.payload.user.username, "demo");
-  assert.ok(login.payload.token);
+  assert.ok(login.cookie.includes("sesh_session="));
 
-  const auth = { Authorization: `Bearer ${login.payload.token}` };
+  const auth = { cookie: login.cookie };
   const me = await request("/api/auth/me", { headers: auth });
   assert.equal(me.response.status, 200);
   assert.equal(me.payload.user.email, "demo@sesh.local");
@@ -186,13 +194,13 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
       username: "visitante",
       displayName: "Visitante",
       email: "visitante@sesh.local",
-      password: "teste123",
+      password: "Vela-Azul-97531",
     }),
   });
   assert.equal(secondUser.response.status, 201);
 
   const secondAuth = {
-    Authorization: `Bearer ${secondUser.payload.token}`,
+    cookie: secondUser.cookie,
   };
   const hiddenProfile = await request(`/api/users/${login.payload.user.id}`, {
     headers: secondAuth,
@@ -255,8 +263,8 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   );
   assert.ok(voiceChannel);
 
-  const ownerSocket = await connectVoice(login.payload.token);
-  const visitorSocket = await connectVoice(secondUser.payload.token);
+  const ownerSocket = await connectVoice(login.cookie);
+  const visitorSocket = await connectVoice(secondUser.cookie);
   try {
     const ownerJoined = waitForSocketEvent(
       ownerSocket,

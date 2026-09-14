@@ -32,13 +32,15 @@ async function stop() {
     await ended
   }
 }
-async function request(route, method = "GET", data, token) {
+async function request(route, method = "GET", data, auth) {
   const response = await fetch(baseUrl + route, {
     method,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) },
+    headers: { "Content-Type": "application/json", ...(auth ? { Cookie: auth } : {}) },
     ...(data === undefined ? {} : { body: JSON.stringify(data) }),
   })
-  return { status: response.status, ...await response.json() }
+  const setCookie = response.headers.get("set-cookie") || ""
+  const jar = (setCookie.match(/sesh_session=[^;]*/) || [])[0] || auth || ""
+  return { status: response.status, cookie: jar, token: jar, ...await response.json() }
 }
 
 after(async () => { await stop(); await rm(temp, { recursive: true, force: true }) })
@@ -46,7 +48,7 @@ after(async () => { await stop(); await rm(temp, { recursive: true, force: true 
 test("sessão persiste no restart, mute fantasma é reparado e Nitro protege cosméticos", async () => {
   await start()
   const owner = await request("/api/auth/login", "POST", { username: "demo", password: "demo123" })
-  const guest = await request("/api/auth/register", "POST", { username: "restartguest", email: "restart@sesh.local", password: "restart123" })
+  const guest = await request("/api/auth/register", "POST", { username: "restartguest", email: "restart@sesh.local", password: "Reinicio-468013" })
   assert.equal((await request("/api/auth/me", "PATCH", { avatarFrame: "fire" }, guest.token)).status, 403)
   const admin = await request("/api/auth/login", "POST", { username: "session-admin@sesh.local", password: "session-admin-password" })
   assert.equal((await request("/api/users/" + guest.user.id + "/badges", "PATCH", { badges: ["nitro_classic"] }, admin.token)).status, 200)

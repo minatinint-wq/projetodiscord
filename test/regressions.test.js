@@ -7,15 +7,14 @@ const port=35500+Math.floor(Math.random()*400),url="http://127.0.0.1:"+port;
 let proc,temp,owner,guest,server;
 const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const gif="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-async function req(route,method="GET",data,token){const response=await fetch(url+route,{method,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})});
+async function req(route,method="GET",data,auth){const response=await fetch(url+route,{method,headers:{"Content-Type":"application/json",...(auth?{Cookie:auth}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})});
+const setCookie=response.headers.get("set-cookie")||"";
+const jar=(setCookie.match(/sesh_session=[^;]*/)||[])[0]||auth||"";
 
 
 
 
-
-
-
-return {status:response.status,...await response.json()};}
+return {status:response.status,cookie:jar,token:jar,...await response.json()};}
 before(async()=>{
  temp=await mkdtemp(path.join(os.tmpdir(),"sesh-regressions-"));
  proc=spawn(process.execPath,["server.js"],{cwd:process.cwd(),env:{...process.env,HOST:"127.0.0.1",PORT:String(port),DATABASE_URL:"",DATA_FILE:path.join(temp,"data.json"),SEED_DEMO_USER:"true",MASTER_ADMIN_EMAIL:"test-admin@sesh.local",MASTER_ADMIN_PASSWORD:"test-admin-password",MASTER_ADMIN_EMAILS:"",CREATOR_EMAIL:"",CREATOR_EMAILS:"",RESEND_API_KEY:""},stdio:"ignore"});
@@ -23,7 +22,7 @@ before(async()=>{
  for(let i=0;i<100;i++){try{if((await fetch(url+"/api/health")).ok)break;}catch{}await new Promise(r=>setTimeout(r,50));}
  owner=await req("/api/auth/login","POST",{username:"demo",password:"demo123"});
 
- guest=await req("/api/auth/register","POST",{username:"testguest",email:"testguest@sesh.local",password:"test1234",displayName:"Visitante"});
+ guest=await req("/api/auth/register","POST",{username:"testguest",email:"testguest@sesh.local",password:"Hospede-975310",displayName:"Visitante"});
 
  server=(await req("/api/servers","POST",{name:"Regressions"},owner.token)).server;
  await req("/api/servers/"+server.inviteCode+"/join","POST",{},guest.token);
@@ -32,16 +31,16 @@ after(async()=>{if(proc&&!proc.killed){const ended=new Promise(r=>proc.once("exi
 
 });
 test("cadastro entra sem Resend e aceita @ único, e-mail e ID público",async()=>{
- const account=await req("/api/auth/register","POST",{username:"loginoptional",email:"loginoptional@sesh.test",displayName:"Apelido diferente",password:"login123"});
+ const account=await req("/api/auth/register","POST",{username:"loginoptional",email:"loginoptional@sesh.test",displayName:"Apelido diferente",password:"Opcional-135790"});
   assert.equal(account.status,201);assert.equal(account.verificationRequired,false);assert.equal(account.verificationEmailSent,false);
   assert.equal(account.user.emailVerified,false);
  assert.match(account.user.publicId,/^S-[A-F0-9]{10}$/);
- assert.equal((await req("/api/auth/register","POST",{username:"abc",email:"short@sesh.test",password:"login123"})).status,400);
+ assert.equal((await req("/api/auth/register","POST",{username:"abc",email:"short@sesh.test",password:"Opcional-135790"})).status,400);
  for(const identifier of ["loginoptional"," LOGINOPTIONAL ","loginoptional@sesh.test","@loginoptional",account.user.publicId,"@loginoptional#"+account.user.tag]){
-  const result=await req("/api/auth/login","POST",{username:identifier,password:"login123"});
+  const result=await req("/api/auth/login","POST",{username:identifier,password:"Opcional-135790"});
   assert.equal(result.status,200,identifier);assert.equal(result.user.id,account.user.id);
  }
- assert.equal((await req("/api/auth/login","POST",{username:"loginoptional#0001",password:"login123"})).status,401);
+ assert.equal((await req("/api/auth/login","POST",{username:"loginoptional#0001",password:"Opcional-135790"})).status,401);
  assert.equal((await req("/api/auth/login","POST",{username:"loginoptional",password:"errada"})).status,401);
 });
 test("perfil é atômico e imagem estática persiste",async()=>{
@@ -109,7 +108,7 @@ test("Nitro manual do admin libera GIF e membro não concede insígnias",async()
  const granted=await req("/api/users/"+guest.user.id+"/badges","PATCH",{badges:["nitro_classic","cacador_bugs"]},admin.token);
  assert.equal(granted.status,200);assert(granted.user.badges.includes("nitro_classic"));assert(granted.user.badges.includes("cacador_bugs"));
  assert.equal((await req("/api/auth/me","PATCH",{banner:gif},guest.token)).status,200);
- const fresh=await req("/api/auth/login","POST",{username:"testguest",password:"test1234"});assert(fresh.user.badges.includes("nitro_classic"));
+ const fresh=await req("/api/auth/login","POST",{username:"testguest",password:"Hospede-975310"});assert(fresh.user.badges.includes("nitro_classic"));
  assert.equal((await req("/api/auth/me","PATCH",{badges:["criador"]},guest.token)).status,403);
  assert.equal((await req("/api/users/"+owner.user.id+"/badges","PATCH",{badges:["nitro_classic"]},guest.token)).status,403);
 });

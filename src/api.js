@@ -9,7 +9,9 @@ function requestSignal(externalSignal) {
 }
 
 async function request(path, options = {}) {
-  const legacyToken = localStorage.getItem("orbit_token");
+  // Sessão via cookie httpOnly (credentials:include). Nenhum token em
+  // localStorage: o legado "orbit_token" foi removido do envio — qualquer
+  // resquício é apagado uma vez pelo cliente em main.jsx.
   const timeout = requestSignal(options.signal);
   let response;
   try {
@@ -19,7 +21,6 @@ async function request(path, options = {}) {
       signal: timeout.signal,
       headers: {
         "Content-Type": "application/json",
-        ...(legacyToken ? { Authorization: `Bearer ${legacyToken}` } : {}),
         ...(options.headers || {}),
       },
     });

@@ -1406,10 +1406,12 @@ function AuthScreen({ onLogin, lockedEmail = "" }) {
               <div className="auth-password-field">
                 <input
                   required
-                  minLength="6"
+                  minLength={register ? "10" : undefined}
                   type={showPassword ? "text" : "password"}
                   autoComplete={register ? "new-password" : "current-password"}
-                  placeholder="Mínimo de 6 caracteres"
+                  placeholder={
+                    register ? "Mínimo de 10 caracteres" : "Sua senha"
+                  }
                   value={form.password}
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })

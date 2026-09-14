@@ -501,7 +501,7 @@ async function loadDatabase() {
     database.channels.push(...starter.channels);
     database.messages.push(starter.message);
   }
-  if (MASTER_ADMIN_EMAIL && MASTER_ADMIN_PASSWORD.length >= 8) {
+  if (MASTER_ADMIN_EMAIL && MASTER_ADMIN_PASSWORD.length >= 10) {
     let admin = database.users.find(
       (user) => (user.email || "").toLowerCase() === MASTER_ADMIN_EMAIL,
     );
@@ -564,6 +564,10 @@ function securityHeaders() {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Permitted-Cross-Domain-Policies": "none",
+    "Origin-Agent-Cluster": "?1",
     "Permissions-Policy":
       "camera=(self), microphone=(self), display-capture=(self), geolocation=()",
     "Content-Security-Policy":
@@ -573,19 +577,42 @@ function securityHeaders() {
       : {}),
   };
 }
-function json(res, status, payload) {
+// AUTH_SECURITY: respostas JSON nunca entram em cache e, em produção,
+// reforçam o isolamento entre documentos/janelas (COOP/CORP acima).
+// Aceita json(res, status, payload) e json(req, res, status, payload).
+function json(a, b, c, d, e = {}) {
+  let req = null;
+  let res;
+  let status;
+  let payload;
+  let extraHeaders;
+  if (a && typeof a.writeHead === "function") {
+    res = a;
+    status = b;
+    payload = c;
+    extraHeaders = d || {};
+  } else {
+    req = a;
+    res = b;
+    status = c;
+    payload = d;
+    extraHeaders = e || {};
+  }
   const headers = {
     ...securityHeaders(),
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   };
   if (CORS_ORIGIN) {
     headers["Access-Control-Allow-Origin"] = CORS_ORIGIN;
     headers["Access-Control-Allow-Credentials"] = "true";
   }
   res.writeHead(status, headers);
+  // HEAD não deve retornar corpo.
+  if (req?.method === "HEAD") return res.end();
   res.end(JSON.stringify(payload));
 }
 function userTag(user) {
@@ -804,17 +831,31 @@ function canViewUser(viewer, target) {
     (item) => item.userId === target.id && viewerServers.has(item.serverId),
   );
 }
+// Client IP atrás de Cloudflare/Render: confia nos cabeçalhos do proxy.
+// Sem isso, req.socket.remoteAddress é o IP interno do roteador e o
+// rate-limit por IP nunca distingue (nem protege) clientes reais.
+function clientIp(req) {
+  const connecting = String(req.headers["cf-connecting-ip"] || "").trim();
+  if (connecting) return connecting.split(",")[0].trim();
+  const forwarded = String(req.headers["x-forwarded-for"] || "").trim();
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req.socket.remoteAddress || "unknown";
+}
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60_000;
+const REGISTER_MAX_PER_HOUR = 10;
+const registerAttempts = new Map(); // ip -> { count, resetAt }
 function loginLimitKey(req, identifier) {
-  return (req.socket.remoteAddress || "unknown") + ":" + identifier;
+  return clientIp(req) + ":" + String(identifier || "").toLowerCase();
+}
+function loginRetryAfterMs(req, identifier) {
+  const current = loginAttempts.get(loginLimitKey(req, identifier));
+  if (!current || current.resetAt <= Date.now()) return 0;
+  if (current.count < LOGIN_MAX_ATTEMPTS) return 0;
+  return Math.max(0, current.resetAt - Date.now());
 }
 function loginBlocked(req, identifier) {
-  const key = loginLimitKey(req, identifier);
-  const current = loginAttempts.get(key);
-  if (!current || current.resetAt <= Date.now()) {
-    loginAttempts.delete(key);
-    return false;
-  }
-  return current.count >= 8;
+  return loginRetryAfterMs(req, identifier) > 0;
 }
 function recordLoginFailure(req, identifier) {
   const key = loginLimitKey(req, identifier);
@@ -823,8 +864,51 @@ function recordLoginFailure(req, identifier) {
     count: current?.resetAt > Date.now() ? current.count + 1 : 1,
     resetAt: current?.resetAt > Date.now()
       ? current.resetAt
-      : Date.now() + 15 * 60_000,
+      : Date.now() + LOGIN_LOCKOUT_MS,
   });
+}
+function registerBlocked(req) {
+  const key = clientIp(req);
+  const current = registerAttempts.get(key);
+  if (!current || current.resetAt <= Date.now()) {
+    registerAttempts.delete(key);
+    return false;
+  }
+  return current.count >= REGISTER_MAX_PER_HOUR;
+}
+function recordRegisterAttempt(req) {
+  const key = clientIp(req);
+  const current = registerAttempts.get(key);
+  registerAttempts.set(key, {
+    count: current?.resetAt > Date.now() ? current.count + 1 : 1,
+    resetAt: current?.resetAt > Date.now()
+      ? current.resetAt
+      : Date.now() + 60 * 60_000,
+  });
+}
+function rateLimitHeaders(ms) {
+  return {
+    "Retry-After": String(Math.ceil(ms / 1000)),
+    "X-Content-Type-Options": "nosniff",
+  };
+}
+// Política de senha: mínimo 10 / máximo 128, sem senhas notoriamente fracas.
+const COMMON_PASSWORDS = new Set([
+  "123456", "12345678", "123456789", "1234567890", "12345", "1234567",
+  "qwerty", "abc123", "password", "password1", "123123", "000000",
+  "654321", "senha", "senha123", "sesh", "demo123", "teste123",
+]);
+function passwordError(password, { username = "", email = "" } = {}) {
+  if (typeof password !== "string") return "A senha precisa ter pelo menos 10 caracteres.";
+  if (password.length < 10) return "A senha precisa ter pelo menos 10 caracteres.";
+  if (password.length > 128) return "A senha deve ter no máximo 128 caracteres.";
+  const lowered = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lowered)) return "Essa senha é muito comum. Escolha outra senha.";
+  const name = String(username || "").toLowerCase();
+  const mailUser = String(email || "").toLowerCase().split("@")[0];
+  if (name && name.length >= 3 && lowered.includes(name)) return "A senha não pode conter seu nome de usuário.";
+  if (mailUser && mailUser.length >= 3 && lowered.includes(mailUser)) return "A senha não pode conter seu e-mail.";
+  return null;
 }
 const sessionHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 async function createSession(userId) {
@@ -1156,9 +1240,28 @@ async function handler(req, res) {
   )
     return json(res, 403, { error: "Origem da requisicao nao permitida." });
   try {
+    // Liveness probe: sem detalhes de versão/stack (evita fingerprinting).
+    // GET e HEAD explícitos; qualquer outro método recebe 405.
     if (url.pathname === "/api/health") {
-      if (pgClient) await pgClient.query("SELECT 1");
-      return json(res, 200, { ok: true, version: APP_VERSION, storage: pgClient ? "postgresql" : "local" });
+      if (req.method !== "GET" && req.method !== "HEAD")
+        return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET" });
+      if (req.method === "GET" && pgClient) await pgClient.query("SELECT 1");
+      return json(req, res, 200, { ok: true });
+    }
+    // Higiene: arquivos de descoberta e segurança com respostas próprias,
+    // nunca o fallback da SPA.
+    if (url.pathname === "/.well-known/security.txt" && (req.method === "GET" || req.method === "HEAD")) {
+      const contact = RESEND_FROM_EMAIL || "https://github.com/minatinint-wq/projetodiscord";
+      const txt = `Contact: mailto:${contact}\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: pt-BR, en\n`;
+      res.writeHead(200, { ...securityHeaders(), "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
+      if (req.method === "HEAD") return res.end();
+      return res.end(txt);
+    }
+    if (url.pathname === "/robots.txt" && (req.method === "GET" || req.method === "HEAD")) {
+      const txt = "User-agent: *\nDisallow: /api/\nDisallow: /admin\n";
+      res.writeHead(200, { ...securityHeaders(), "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=86400" });
+      if (req.method === "HEAD") return res.end();
+      return res.end(txt);
     }
     if (url.pathname === "/api/auth/verify-email" && req.method === "GET") {
       const token = String(url.searchParams.get("token") || "");
@@ -1175,6 +1278,10 @@ async function handler(req, res) {
       return res.end();
     }
     if (url.pathname === "/api/auth/register" && req.method === "POST") {
+      if (registerBlocked(req))
+        return json(req, res, 429, {
+          error: "Muitas contas criadas desta rede. Aguarde uma hora e tente novamente.",
+        }, rateLimitHeaders(60 * 60_000));
       const input = await body(req);
       const username = String(input.username || "")
         .trim()
@@ -1185,11 +1292,12 @@ async function handler(req, res) {
         .toLowerCase();
       const phone = String(input.phone || "").trim();
       const phoneDigits = phone.replace(/\D/g, "");
-      if (!username || String(input.password || "").length < 6)
+      if (!username)
         return json(res, 400, {
-          error:
-            "Usuário e senha com pelo menos 6 caracteres são obrigatórios.",
+          error: "Usuário é obrigatório.",
         });
+      const passError = passwordError(input.password, { username, email });
+      if (passError) return json(res, 400, { error: passError });
       const minimumUsernameLength = minimumUsernameLengthFor({ email }, username);
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
@@ -1228,10 +1336,12 @@ async function handler(req, res) {
       };
       user.publicId = allocatePublicId(user);
       database.users.push(user);
-      const token = await createSession(user.id);
-      setSessionCookie(res, token);
+      recordRegisterAttempt(req);
+      const session = await createSession(user.id);
+      setSessionCookie(res, session);
       // Registration must never wait for an external email provider.
-      return json(res, 201, { token, user: sessionUser(user), verificationRequired: false, verificationEmailSent: false });
+      // Sessão via cookie httpOnly; o token não volta no corpo (anti-XSS).
+      return json(res, 201, { user: sessionUser(user), verificationRequired: false, verificationEmailSent: false });
     }
     if (url.pathname === "/api/auth/login" && req.method === "POST") {
       const input = await body(req);
@@ -1239,10 +1349,12 @@ async function handler(req, res) {
       const handle = rawIdentifier.match(/^@?([a-z0-9_.-]{1,20})(?:#(\d{4}))?$/);
       const identifier = handle ? handle[1] : rawIdentifier;
       const suppliedTag = handle?.[2];
-      if (loginBlocked(req, identifier))
-        return json(res, 429, {
+      if (loginBlocked(req, identifier)) {
+        const retryMs = loginRetryAfterMs(req, identifier);
+        return json(req, res, 429, {
           error: "Muitas tentativas. Aguarde 15 minutos e tente novamente.",
-        });
+        }, rateLimitHeaders(retryMs));
+      }
       const user = database.users.find(
         (item) =>
           (String(item.username).toLowerCase() === identifier && (!suppliedTag || userTag(item) === suppliedTag)) ||
@@ -1254,11 +1366,27 @@ async function handler(req, res) {
         return json(res, 401, { error: "Usuário ou senha incorretos. Entre com @usuário, ID público ou e-mail de cadastro (não o nome de exibição)." });
       }
       loginAttempts.delete(loginLimitKey(req, identifier));
-      const token = await createSession(user.id);
-      setSessionCookie(res, token);
-      return json(res, 200, { token, user: sessionUser(user) });
+      const loginSession = await createSession(user.id);
+      setSessionCookie(res, loginSession);
+      // Sessão via cookie httpOnly; sem token no corpo (anti-XSS).
+      // O cabeçalho Authorization continua aceito na leitura para
+      // compatibilidade com clientes antigos.
+      return json(res, 200, { user: sessionUser(user) });
     }
-    if (req.method === "GET" && !url.pathname.startsWith("/api/")) {
+    // Arquivos estáticos + fallback da SPA (GET e HEAD).
+    // Dotfiles e sondas sensíveis (/.git, /.env, ...) recebem 404 e
+    // nunca o index.html — evita mascarar scanner e vazar existência.
+    if ((req.method === "GET" || req.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      const lower = url.pathname.toLowerCase();
+      const sensitive = lower === "/.env" || lower.startsWith("/.env.") ||
+        lower === "/.git" || lower.startsWith("/.git/") ||
+        lower.includes("/.git/") || lower.endsWith(".bak") || lower.endsWith(".swp") ||
+        lower === "/.ds_store" || lower.endsWith("npm-debug.log");
+      if (url.pathname.split("/").some((seg) => seg.startsWith(".")) || sensitive) {
+        res.writeHead(404, { ...securityHeaders(), "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+        if (req.method === "HEAD") return res.end();
+        return res.end("Nao encontrado.");
+      }
       const distDir = path.join(__dirname, "dist");
       const resolved = path.resolve(
         path.join(distDir, decodeURIComponent(url.pathname)),
@@ -1269,6 +1397,7 @@ async function handler(req, res) {
       ) {
         try {
           const data = await fs.readFile(resolved);
+          const ext = path.extname(resolved).toLowerCase();
           const types = {
             ".html": "text/html; charset=utf-8",
             ".js": "text/javascript",
@@ -1283,22 +1412,37 @@ async function handler(req, res) {
             ".jpeg": "image/jpeg",
             ".woff2": "font/woff2",
           };
+          // Assets com hash no nome podem ser imutáveis; HTML nunca.
+          const cache = ext === ".html" || url.pathname === "/"
+            ? "no-cache"
+            : (resolved.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
           res.writeHead(200, {
             ...securityHeaders(),
             "Content-Type":
-              types[path.extname(resolved).toLowerCase()] ||
+              types[ext] ||
               "application/octet-stream",
+            "Cache-Control": cache,
           });
+          if (req.method === "HEAD") return res.end();
           return res.end(data);
         } catch {
           /* cai para o index.html (SPA) */
+        }
+        // SPA fallback só para rotas sem extensão (rotas do app).
+        // Caminhos com extensão desconhecida -> 404, não 200.
+        if (path.extname(url.pathname)) {
+          res.writeHead(404, { ...securityHeaders(), "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+          if (req.method === "HEAD") return res.end();
+          return res.end("Nao encontrado.");
         }
         try {
           const index = await fs.readFile(path.join(distDir, "index.html"));
           res.writeHead(200, {
             ...securityHeaders(),
             "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache",
           });
+          if (req.method === "HEAD") return res.end();
           return res.end(index);
         } catch {
           /* dist ainda não existe */
@@ -1484,9 +1628,10 @@ async function handler(req, res) {
         }
       }
       if (input.password !== undefined) {
-        if (String(input.password).length < 6)
+        const passError = passwordError(String(input.password), { username: user.username, email: user.email });
+        if (passError)
           return json(res, 400, {
-            error: "A nova senha precisa ter pelo menos 6 caracteres.",
+            error: passError,
           });
         user.password = hashPassword(String(input.password));
       }
@@ -2504,6 +2649,24 @@ async function handler(req, res) {
       notifyUser(friendship.addresseeId, { type: "friends.updated" });
       return json(res, 200, { ok: true });
     }
+    // Método errado em rota conhecida -> 405 (em vez de 404 genérico).
+    const knownMethods = {
+      "/api/auth/login": ["POST"],
+      "/api/auth/register": ["POST"],
+      "/api/auth/logout": ["POST"],
+      "/api/auth/me": ["GET", "PATCH"],
+      "/api/auth/ws-ticket": ["POST"],
+      "/api/auth/resend-verification": ["POST"],
+      "/api/subscriptions/plans": ["GET"],
+      "/api/subscriptions/me": ["GET"],
+      "/api/catalog": ["GET"],
+      "/api/games": ["GET"],
+      "/api/servers": ["GET", "POST"],
+      "/api/friends": ["GET", "POST"],
+    };
+    const allowed = knownMethods[url.pathname];
+    if (allowed && !allowed.includes(req.method))
+      return json(req, res, 405, { error: "Método não permitido." }, { Allow: allowed.join(", ") });
     return json(res, 404, { error: "Rota não encontrada." });
   } catch (error) {
     const status = Number(error.status) || 500;

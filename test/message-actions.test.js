@@ -22,16 +22,23 @@ async function waitForServer() {
   throw new Error("O servidor de teste não iniciou.");
 }
 
-async function request(pathname, method = "GET", input, token) {
+function sessionCookie(response) {
+  const setCookie = response.headers.get("set-cookie") || "";
+  const match = setCookie.match(/sesh_session=[^;]*/);
+  return match ? match[0] : "";
+}
+
+async function request(pathname, method = "GET", input, auth) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(auth ? { Cookie: auth } : {}),
     },
     ...(input === undefined ? {} : { body: JSON.stringify(input) }),
   });
-  return { status: response.status, payload: await response.json() };
+  const payload = await response.json();
+  return { status: response.status, payload, cookie: sessionCookie(response) || auth || "" };
 }
 
 before(async () => {
@@ -60,7 +67,7 @@ after(async () => {
 test("ações de mensagem respeitam autoria, permissões e persistência", async () => {
   const ownerLogin = await request("/api/auth/login", "POST", { username: "demo", password: "demo123" });
   assert.equal(ownerLogin.status, 200);
-  const ownerToken = ownerLogin.payload.token;
+  const ownerToken = ownerLogin.cookie;
   const created = await request("/api/servers", "POST", { name: "Ações de mensagem" }, ownerToken);
   assert.equal(created.status, 201);
   const server = created.payload.server;
@@ -70,10 +77,10 @@ test("ações de mensagem respeitam autoria, permissões e persistência", async
     username: "mensageiro",
     displayName: "Mensageiro",
     email: "mensageiro@sesh.local",
-    password: "teste123",
+    password: "Rio-Bravo-24680",
   });
   assert.equal(member.status, 201);
-  const memberToken = member.payload.token;
+  const memberToken = member.cookie;
   assert.equal((await request(`/api/servers/${server.inviteCode}/join`, "POST", {}, memberToken)).status, 200);
 
   const sent = await request(`/api/channels/${channel.id}/messages`, "POST", { content: "Mensagem original" }, ownerToken);

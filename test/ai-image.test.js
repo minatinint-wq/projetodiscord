@@ -36,11 +36,19 @@ async function waitForApp() {
 }
 
 async function request(pathname, options = {}) {
+  const { cookie, ...rest } = options;
   const response = await fetch(`${baseUrl}${pathname}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...rest,
+    headers: {
+      "Content-Type": "application/json",
+      ...(cookie ? { Cookie: cookie } : {}),
+      ...(rest.headers || {}),
+    },
   });
-  return { response, payload: await response.json() };
+  const payload = await response.json();
+  const setCookie = response.headers.get("set-cookie") || "";
+  const jar = (setCookie.match(/sesh_session=[^;]*/) || [])[0] || cookie || "";
+  return { response, payload, cookie: jar };
 }
 
 before(async () => {
@@ -149,7 +157,7 @@ test("geração fica no servidor, exige administrador e não persiste para outro
     method: "POST",
     body: JSON.stringify({ username: "demo", password: "demo123" }),
   });
-  const ownerAuth = { Authorization: `Bearer ${ownerLogin.payload.token}` };
+  const ownerAuth = { cookie: ownerLogin.cookie };
   const created = await request("/api/servers", {
     method: "POST", headers: ownerAuth, body: JSON.stringify({ name: "IA privada" }),
   });
@@ -159,10 +167,10 @@ test("geração fica no servidor, exige administrador e não persiste para outro
   const memberRegistration = await request("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({
-      username: "membroia", displayName: "Membro IA", email: "membroia@sesh.local", password: "teste123",
+      username: "membroia", displayName: "Membro IA", email: "membroia@sesh.local", password: "Atlas-Verde-78901",
     }),
   });
-  const memberAuth = { Authorization: `Bearer ${memberRegistration.payload.token}` };
+  const memberAuth = { cookie: memberRegistration.cookie };
   await request(`/api/servers/${server.inviteCode}/join`, { method: "POST", headers: memberAuth });
 
   const ownerResult = await request(`/api/channels/${channelId}/messages`, {
