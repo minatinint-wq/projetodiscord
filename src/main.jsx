@@ -1,7 +1,6 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_CATALOG } from "../game-catalog.js";
-import { nameplateSrc } from "../nameplates.js";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -4846,16 +4845,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         </div>
         {voiceConnected && (
           <div className="voice-status">
-            <div className="voice-status-info">
+            <button type="button" className="voice-status-info" title="Ver qualidade da conexão" onClick={() => setVoiceConnectionPanel(value => !value)}>
               <span className="voice-status-title">
                 <Volume2 size={13} /> Voz conectada
               </span>
               <strong>{voiceChannel?.name}</strong>
-            </div>
-            <button title="Desconectar da chamada" onClick={leaveVoice}>
-              <PhoneOff size={15} />
             </button>
             <button className="voice-status-metrics" title="Qualidade da conexão" onClick={() => setVoiceConnectionPanel(value => !value)}>ms</button>
+            <button className="voice-status-leave" title="Desconectar da chamada" onClick={leaveVoice}>
+              <PhoneOff size={15} />
+            </button>
             {voiceConnectionPanel && <section className="voice-connection-panel" role="dialog" aria-label="Qualidade da conexão">
               <header><strong>Conexão</strong><button type="button" onClick={() => setVoiceConnectionPanel(false)} aria-label="Fechar">×</button></header>
               <p>Ping médio: <b>{voiceLatency.samples ? voiceLatency.average : "…"} ms</b></p>
@@ -5391,14 +5390,13 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       onClick={(event) => openProfile(event, member.id)}
                       onContextMenu={(event) => openMemberMenu(event, member)}
                     >
-                      {nameplateSrc(member.profilePlate) && <video className="member-nameplate-backdrop" src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata" aria-hidden="true"/>}
                       <span className="avatar-dot-wrap">
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
                       <div>
                         <strong>
-                          <StyledName user={member}/>
+                          <StyledName user={member} withPlate/>
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
