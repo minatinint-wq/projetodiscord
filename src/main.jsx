@@ -987,7 +987,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <header><span>VISÃO GERAL</span><h2>Perfil do servidor</h2><p>Escolha como sua comunidade aparece para todos os membros.</p></header>
             <div className="server-settings-preview" style={{ ...bannerStyleValue(form.banner), "--server-accent": form.accentColor }}>
               <div className="server-settings-icon">{form.icon?.startsWith?.("data:image/") ? <img src={form.icon} alt="" /> : <span>{String(form.icon || form.name || "S").slice(0, 2)}</span>}</div>
-              <div><strong>{form.name || "Nome do servidor"}</strong>{form.tag && <span>{form.tag}</span>}</div>
+              <div><strong>{form.name || "Nome do servidor"}</strong>{form.tag && <span className="server-settings-server-tag" style={{ "--server-tag-color": form.accentColor || "#c93642" }}>{form.tag}</span>}</div>
             </div>
             <div className="server-overview-fields">
               <label>Nome do servidor<input required maxLength="80" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
@@ -4722,7 +4722,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         >
           <span>{selectedServer.name}</span>
           {selectedServer.tag && (
-            <span className="workspace-server-tag">{selectedServer.tag}</span>
+            <span className="workspace-server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>
           )}
           <div className="header-tools">
             <button title="Copiar convite do servidor" onClick={() => copyInvite()}>

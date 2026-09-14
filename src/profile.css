@@ -160,7 +160,7 @@ html[data-reduced-motion=true] .identity-card .profile-effect-layer,html[data-re
 .premium-avatar-frame-scene-infernal-dragon,.premium-avatar-frame-scene-ember-crown{filter:drop-shadow(0 0 7px #ff3f1d8a)}.premium-avatar-frame-scene-steel-wolf{filter:drop-shadow(0 0 6px #5da9ff7a)}.premium-avatar-frame-scene-sakura-halo{filter:drop-shadow(0 0 6px #ff9bc76b)}.premium-avatar-frame-scene-cyber-pulse{filter:drop-shadow(0 0 6px #41eaff75)}
 
 .premium-profile-overlay{overflow:hidden!important}
-.premium-overlay-art{width:100%;height:100%;object-fit:contain;object-position:center;image-rendering:auto;will-change:filter,opacity,transform}
+.premium-overlay-art{width:100%;height:100%;object-fit:fill;object-position:center;image-rendering:auto;will-change:filter,opacity,transform}
 .premium-overlay-art-base{animation:premium-overlay-detail calc(5.8s*var(--profile-effect-speed,1)) cubic-bezier(.42,0,.58,1) infinite}
 .premium-overlay-art-aura{opacity:.18;filter:blur(2px) brightness(1.7) saturate(1.25);animation:premium-overlay-aura calc(4.2s*var(--profile-effect-speed,1)) ease-in-out infinite}
 .premium-overlay-art-scan{opacity:.72;filter:brightness(1.65) saturate(1.22);mask-image:linear-gradient(108deg,transparent 33%,#000 47%,#000 52%,transparent 66%);mask-size:340% 100%;animation:premium-art-scan calc(5s*var(--profile-effect-speed,1)) cubic-bezier(.45,0,.55,1) infinite}
@@ -210,7 +210,7 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .premium-avatar-shell-small .premium-avatar-frame-motion{display:none}
 .premium-overlay-art-base{animation:none;filter:none}
 .premium-overlay-motion{z-index:4;opacity:.9;filter:none;image-rendering:auto}
-.identity-dialog>.premium-profile-overlay .premium-overlay-motion{display:block;width:100%;height:100%;opacity:.62;object-fit:contain;object-position:center}
+.identity-dialog>.premium-profile-overlay .premium-overlay-motion{display:block;width:100%;height:100%;opacity:.62;object-fit:fill;object-position:center}
 .premium-banner{animation:none;background-size:cover!important}
 .premium-banner-motion{position:absolute;z-index:3;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none;image-rendering:auto;mix-blend-mode:screen}
 
