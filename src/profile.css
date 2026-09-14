@@ -39,8 +39,7 @@ html[data-reduced-motion=true] .profile-overlay,html[data-reduced-motion=true] .
 .identity-dialog:has(.identity-side>.identity-card[data-profile-frame]:not([data-profile-frame="none"])){grid-template-columns:344px minmax(0,1fr)}
 .identity-dialog:has(.identity-side>.identity-card[data-profile-frame]:not([data-profile-frame="none"])) .identity-side{padding:28px}
 .identity-side>.identity-card[data-profile-frame]:not([data-profile-frame="none"]){margin-top:var(--profile-frame-top-space);margin-bottom:clamp(38px,14%,56px)}
-.identity-card{--profile-frame-top-offset:100px;--profile-frame-top-space:124px;position:relative;isolation:isolate;overflow:visible;border:1px solid color-mix(in srgb,var(--profile-accent,#9485fa) 32%,transparent);border-radius:15px;background:linear-gradient(160deg,color-mix(in srgb,var(--profile-accent,#9485fa) 10%,#17181e),#15161c);box-shadow:0 8px 26px #0003}
-.identity-card:is([data-profile-frame="dark-roses-black"],[data-profile-frame="dark-roses-white"],[data-profile-frame="dark-roses-twilight"],[data-profile-frame="dark-roses-blue"]){--profile-frame-top-offset:64px;--profile-frame-top-space:88px}
+.identity-card{--profile-frame-top-offset:64px;--profile-frame-top-space:88px;position:relative;isolation:isolate;overflow:visible;border:1px solid color-mix(in srgb,var(--profile-accent,#9485fa) 32%,transparent);border-radius:15px;background:linear-gradient(160deg,color-mix(in srgb,var(--profile-accent,#9485fa) 10%,#17181e),#15161c);box-shadow:0 8px 26px #0003}
 .identity-banner{height:132px;overflow:hidden;border-radius:14px 14px 0 0;background-position:center;background-size:cover;border-bottom:1px solid #ffffff10}
 .identity-card-body{position:relative;z-index:2;padding:0 18px 18px;overflow-wrap:anywhere}
 .identity-avatar{position:relative;width:76px;height:76px;margin-top:-34px;margin-bottom:16px}
