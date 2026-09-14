@@ -71,6 +71,7 @@ import { microphone, mediaError } from "./media";
 import "./styles.css";
 import "./refinement.css";
 import "./profile.css";
+import "./profile-effects.css";
 
 const EmojiArtwork = React.lazy(() => import("./EmojiArtwork"));
 
@@ -165,12 +166,16 @@ function ProfileEffectLayer({ effect }) {
       className={`profile-effect-layer profile-effect-${effect}`}
       aria-hidden="true"
     >
-      {Array.from({ length: 14 }, (_, index) => (
+      {Array.from({ length: 18 }, (_, index) => (
         <i
           key={index}
           style={{
             "--effect-x": `${(index * 37) % 96}%`,
             "--effect-delay": `${-(index % 7) * 0.42}s`,
+            "--effect-y": `${(index * 53 + 11) % 92}%`,
+            "--effect-angle": `${(index * 47) % 360}deg`,
+            "--effect-order": index,
+            "--effect-drift": `${((index % 5) - 2) * 12}px`,
             "--effect-size": `${3 + (index % 4) * 2}px`,
           }}
         />

@@ -7,6 +7,12 @@ export const PROFILE_EFFECTS = [
  ["lightning","Tempestade"],["fireflies","Vagalumes"],["sakura","Pétalas de cerejeira"],
  ["snow","Neve"],["matrix","Chuva digital"],["bubbles","Bolhas"],["prism","Prisma"],
  ["meteors","Meteoros"],["butterflies","Borboletas"],["diamonds","Diamantes"],
+ ["neon_rain","Chuva neon"],["stardust","Poeira estelar"],["eclipse","Eclipse astral"],
+ ["moon_petals","Pétalas lunares"],["glitch_scan","Varredura glitch"],["crystal_shards","Fragmentos de cristal"],
+ ["void_rifts","Fendas do vazio"],["golden_runes","Runas douradas"],["ocean_caustics","Reflexos oceânicos"],
+ ["rose_storm","Tempestade de rosas"],["spirit_orbs","Orbes espirituais"],["holo_stream","Fluxo holográfico"],
+ ["shadow_tendrils","Sombras vivas"],["comet_trails","Rastros de cometa"],["enchanted_leaves","Folhas encantadas"],
+ ["arcane_frost","Geada arcana"],
 ];
 export const AVATAR_FRAMES = [
  ["none","Sem moldura"],["snowglobe","Globo de neve"],["fire","Fogo"],["glitch","Glitch"],

@@ -1,0 +1,383 @@
+/* Expanded profile-effect collection. All artwork is generated locally by CSS layers. */
+.profile-effect-neon_rain,
+.profile-effect-stardust,
+.profile-effect-eclipse,
+.profile-effect-moon_petals,
+.profile-effect-glitch_scan,
+.profile-effect-crystal_shards,
+.profile-effect-void_rifts,
+.profile-effect-golden_runes,
+.profile-effect-ocean_caustics,
+.profile-effect-rose_storm,
+.profile-effect-spirit_orbs,
+.profile-effect-holo_stream,
+.profile-effect-shadow_tendrils,
+.profile-effect-comet_trails,
+.profile-effect-enchanted_leaves,
+.profile-effect-arcane_frost {
+  isolation: isolate;
+}
+
+.profile-effect-neon_rain::before,
+.profile-effect-stardust::before,
+.profile-effect-eclipse::before,
+.profile-effect-eclipse::after,
+.profile-effect-glitch_scan::before,
+.profile-effect-glitch_scan::after,
+.profile-effect-void_rifts::before,
+.profile-effect-void_rifts::after,
+.profile-effect-ocean_caustics::before,
+.profile-effect-ocean_caustics::after,
+.profile-effect-holo_stream::before,
+.profile-effect-holo_stream::after,
+.profile-effect-shadow_tendrils::before,
+.profile-effect-shadow_tendrils::after,
+.profile-effect-arcane_frost::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.profile-effect-neon_rain {
+  background: linear-gradient(180deg, #05172842, #170a2436);
+  mix-blend-mode: screen;
+}
+.profile-effect-neon_rain::before {
+  background: repeating-linear-gradient(90deg, transparent 0 23px, #54eaff0a 24px, transparent 25px 48px);
+  animation: sesh-fx-grid 7s linear infinite;
+}
+.profile-effect-neon_rain i {
+  top: -64px;
+  bottom: auto;
+  width: 2px;
+  height: calc(34px + var(--effect-size) * 4);
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, #50eaff 45%, #d05cff);
+  box-shadow: 0 0 8px #51eaff, 0 0 18px #b34dff88;
+  animation: sesh-fx-rain calc(3.2s * var(--profile-effect-speed, 1)) linear infinite;
+  animation-delay: var(--effect-delay);
+}
+.profile-effect-neon_rain i:nth-child(3n) { animation-duration: calc(4.1s * var(--profile-effect-speed, 1)); }
+
+.profile-effect-stardust {
+  background: radial-gradient(circle at 84% 18%, #b8a5ff20, transparent 32%), radial-gradient(circle at 12% 82%, #6fdfff16, transparent 36%);
+}
+.profile-effect-stardust::before {
+  inset: -35%;
+  background: conic-gradient(from 30deg, transparent, #8ecbff12, transparent 28%, #e1b9ff14, transparent 56%);
+  animation: sesh-fx-spin calc(18s * var(--profile-effect-speed, 1)) linear infinite;
+}
+.profile-effect-stardust i {
+  top: var(--effect-y);
+  bottom: auto;
+  clip-path: polygon(50% 0, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0 50%, 39% 37%);
+  border-radius: 0;
+  color: #f3edff;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  animation: sesh-fx-twinkle calc(3.4s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+
+.profile-effect-eclipse {
+  background: radial-gradient(circle at 78% 18%, #7553ff20, transparent 31%), linear-gradient(145deg, transparent 45%, #351c6622);
+}
+.profile-effect-eclipse::before {
+  inset: auto 8% auto auto;
+  top: 7%;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: #090a13;
+  box-shadow: 0 0 0 2px #b29cff88, 0 0 18px #8c6cff, 0 0 56px #7147ff8c, inset -8px -5px 18px #5140a544;
+  animation: sesh-fx-eclipse calc(5s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+}
+.profile-effect-eclipse::after {
+  inset: -28%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 37%, #a98cff22 44%, transparent 52% 82%, #62d9ff14 90%, transparent);
+  animation: sesh-fx-spin calc(22s * var(--profile-effect-speed, 1)) linear infinite;
+}
+.profile-effect-eclipse i {
+  top: var(--effect-y);
+  bottom: auto;
+  background: #dfd8ff;
+  box-shadow: 0 0 8px #a98cff;
+  animation: sesh-fx-orbit calc(8s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+
+.profile-effect-moon_petals i,
+.profile-effect-rose_storm i,
+.profile-effect-enchanted_leaves i {
+  top: -24px;
+  bottom: auto;
+  width: calc(var(--effect-size) * 1.8);
+  height: var(--effect-size);
+  border-radius: 90% 8% 90% 8%;
+  animation: sesh-fx-petal calc(7.5s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+.profile-effect-moon_petals {
+  background: radial-gradient(circle at 12% 14%, #719bff22, transparent 34%);
+}
+.profile-effect-moon_petals i { background: linear-gradient(135deg, #dbe7ff, #789cff); box-shadow: 0 0 10px #719bff88; }
+.profile-effect-rose_storm {
+  background: radial-gradient(circle at 85% 88%, #ff477e24, transparent 38%);
+}
+.profile-effect-rose_storm i { background: linear-gradient(135deg, #ffd1df, #ff477e); box-shadow: 0 0 10px #ff4f8288; }
+.profile-effect-enchanted_leaves {
+  background: radial-gradient(circle at 12% 82%, #70f3ad1c, transparent 42%);
+}
+.profile-effect-enchanted_leaves i {
+  background: linear-gradient(135deg, #d8ffd9, #48d991);
+  box-shadow: 0 0 10px #53e69a88;
+  border-radius: 100% 0 100% 0;
+}
+
+.profile-effect-glitch_scan {
+  background: linear-gradient(90deg, #ff2c8b0b, transparent 35%, #42eaff0d);
+}
+.profile-effect-glitch_scan::before {
+  background: repeating-linear-gradient(0deg, transparent 0 5px, #ffffff08 6px, transparent 7px);
+  mix-blend-mode: screen;
+  animation: sesh-fx-scan calc(3s * var(--profile-effect-speed, 1)) linear infinite;
+}
+.profile-effect-glitch_scan::after {
+  inset: 0 -6px;
+  border-left: 4px solid #ff2e8a44;
+  border-right: 4px solid #47e8ff44;
+  filter: blur(1px);
+  animation: sesh-fx-glitch calc(2.3s * var(--profile-effect-speed, 1)) steps(1) infinite;
+}
+.profile-effect-glitch_scan i {
+  top: var(--effect-y);
+  bottom: auto;
+  width: calc(8px + var(--effect-size) * 2);
+  height: 2px;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: -4px 0 #ff2d8a, 4px 0 #42eaff;
+  animation: sesh-fx-glitch-block calc(2.1s * var(--profile-effect-speed, 1)) steps(2) infinite;
+  animation-delay: var(--effect-delay);
+}
+
+.profile-effect-crystal_shards {
+  background: linear-gradient(145deg, #8bf2ff12, transparent 46%, #b47bff18);
+}
+.profile-effect-crystal_shards i,
+.profile-effect-arcane_frost i {
+  top: var(--effect-y);
+  bottom: auto;
+  width: calc(var(--effect-size) * 1.3);
+  height: calc(var(--effect-size) * 2.5);
+  border-radius: 1px;
+  clip-path: polygon(50% 0, 100% 34%, 72% 100%, 18% 82%, 0 30%);
+  background: linear-gradient(135deg, #ffffff, #85e8ff 48%, #936dff);
+  box-shadow: 0 0 12px #79dfff99;
+  animation: sesh-fx-shard calc(6.2s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+.profile-effect-arcane_frost {
+  box-shadow: inset 0 0 34px #87dbff30;
+}
+.profile-effect-arcane_frost::before {
+  background:
+    linear-gradient(135deg, #bdeaff33, transparent 18%) top left / 42% 42% no-repeat,
+    linear-gradient(315deg, #dff7ff30, transparent 22%) bottom right / 48% 48% no-repeat;
+  filter: drop-shadow(0 0 8px #8cddff66);
+  animation: sesh-fx-frost calc(5.6s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+}
+.profile-effect-arcane_frost i { background: linear-gradient(135deg, #fff, #a9eaff 58%, #7d8fff); }
+
+.profile-effect-void_rifts {
+  background: radial-gradient(ellipse at 50% 50%, transparent 34%, #6b20be16 72%, #0900123d);
+}
+.profile-effect-void_rifts::before,
+.profile-effect-void_rifts::after {
+  inset: 7% auto 7% -10px;
+  width: 24px;
+  border-radius: 45%;
+  background: linear-gradient(90deg, transparent, #d472ff 62%, #fff 72%, transparent);
+  filter: blur(2px) drop-shadow(0 0 12px #9e39ff);
+  clip-path: polygon(34% 0, 68% 12%, 35% 25%, 72% 39%, 38% 51%, 75% 66%, 30% 80%, 62% 100%, 0 86%, 22% 68%, 0 49%, 24% 31%, 0 14%);
+  animation: sesh-fx-rift calc(4.8s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+}
+.profile-effect-void_rifts::after {
+  left: auto;
+  right: -10px;
+  transform: scaleX(-1);
+  animation-delay: -2.4s;
+}
+.profile-effect-void_rifts i {
+  top: var(--effect-y);
+  bottom: auto;
+  background: #d68cff;
+  box-shadow: 0 0 14px #9d40ff;
+  animation: sesh-fx-void calc(5.8s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+
+.profile-effect-golden_runes {
+  background: radial-gradient(circle at 50% 60%, #e8a93012, transparent 56%);
+}
+.profile-effect-golden_runes i {
+  top: var(--effect-y);
+  bottom: auto;
+  width: calc(var(--effect-size) * 1.8);
+  height: calc(var(--effect-size) * 1.8);
+  border: 1px solid #ffd77a;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: 0 0 8px #ffb62e, inset 0 0 6px #ffcf6266;
+  transform: rotate(var(--effect-angle));
+  animation: sesh-fx-rune calc(5.4s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+.profile-effect-golden_runes i::before,
+.profile-effect-golden_runes i::after {
+  content: "";
+  position: absolute;
+  inset: 45% -35%;
+  height: 1px;
+  background: #ffe7a6;
+  box-shadow: 0 0 5px #ffbf3c;
+}
+.profile-effect-golden_runes i::after { transform: rotate(90deg); }
+
+.profile-effect-ocean_caustics {
+  background: linear-gradient(180deg, #35d9ff0d, #045b8f22);
+}
+.profile-effect-ocean_caustics::before {
+  inset: -18%;
+  background: repeating-radial-gradient(ellipse at 20% 20%, transparent 0 18px, #8bf6ff16 20px 22px, transparent 24px 42px);
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  animation: sesh-fx-caustic calc(9s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+}
+.profile-effect-ocean_caustics::after {
+  background: linear-gradient(180deg, transparent 60%, #1ca6d824);
+}
+.profile-effect-ocean_caustics i,
+.profile-effect-spirit_orbs i {
+  bottom: -20px;
+  border: 1px solid #b5f5ff;
+  background: radial-gradient(circle at 35% 30%, #fff, #62dce888 28%, transparent 72%);
+  box-shadow: 0 0 13px #49ddeb99;
+  animation: sesh-fx-orb calc(7.2s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+.profile-effect-spirit_orbs {
+  background: radial-gradient(circle at 50% 55%, #7affc116, transparent 60%);
+}
+.profile-effect-spirit_orbs i {
+  width: calc(var(--effect-size) * 1.8);
+  height: calc(var(--effect-size) * 1.8);
+  border-color: #cbffe5;
+  background: radial-gradient(circle at 35% 30%, #fff, #76f6bb99 25%, transparent 70%);
+  box-shadow: 0 0 15px #53e8a8;
+}
+
+.profile-effect-holo_stream {
+  background: linear-gradient(135deg, #5c7aff12, transparent 44%, #ff5bd418);
+}
+.profile-effect-holo_stream::before {
+  background: repeating-linear-gradient(0deg, transparent 0 7px, #8fe9ff0c 8px, transparent 9px);
+  animation: sesh-fx-scan calc(4.5s * var(--profile-effect-speed, 1)) linear infinite reverse;
+}
+.profile-effect-holo_stream::after {
+  inset: -45%;
+  background: conic-gradient(from 120deg, transparent, #48e9ff18, transparent 22%, #d657ff1a, transparent 47%);
+  mix-blend-mode: screen;
+  animation: sesh-fx-spin calc(14s * var(--profile-effect-speed, 1)) linear infinite;
+}
+.profile-effect-holo_stream i {
+  top: var(--effect-y);
+  bottom: auto;
+  width: calc(14px + var(--effect-size) * 2);
+  height: 1px;
+  border-radius: 0;
+  background: linear-gradient(90deg, transparent, #8feaff, #dc62ff, transparent);
+  box-shadow: 0 0 9px #73dfff;
+  animation: sesh-fx-holo calc(4s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+  animation-delay: var(--effect-delay);
+}
+
+.profile-effect-shadow_tendrils {
+  background: radial-gradient(circle at 50% 40%, transparent 40%, #03010655);
+}
+.profile-effect-shadow_tendrils::before,
+.profile-effect-shadow_tendrils::after {
+  inset: auto auto -22% -18%;
+  width: 78%;
+  height: 62%;
+  border-radius: 45% 55% 42% 58%;
+  background: radial-gradient(ellipse at 60% 40%, #6b2a8855, #09030e 68%, transparent 70%);
+  filter: blur(12px);
+  transform-origin: bottom left;
+  animation: sesh-fx-tendril calc(7s * var(--profile-effect-speed, 1)) ease-in-out infinite;
+}
+.profile-effect-shadow_tendrils::after {
+  left: auto;
+  right: -22%;
+  transform-origin: bottom right;
+  animation-delay: -3.5s;
+}
+.profile-effect-shadow_tendrils i { display: none; }
+
+.profile-effect-comet_trails {
+  background: radial-gradient(circle at 15% 10%, #96c9ff1b, transparent 40%);
+}
+.profile-effect-comet_trails i {
+  top: -70px;
+  bottom: auto;
+  width: 3px;
+  height: calc(44px + var(--effect-size) * 4);
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, #a8d8ff 72%, #fff);
+  box-shadow: 0 0 10px #7fbcff;
+  transform: rotate(-38deg);
+  animation: sesh-fx-comet calc(5.2s * var(--profile-effect-speed, 1)) linear infinite;
+  animation-delay: var(--effect-delay);
+}
+
+@keyframes sesh-fx-grid { to { background-position: 48px 0; } }
+@keyframes sesh-fx-rain { 0% { transform: translateY(-70px); opacity: 0; } 12% { opacity: .9; } 100% { transform: translateY(620px); opacity: 0; } }
+@keyframes sesh-fx-spin { to { transform: rotate(360deg); } }
+@keyframes sesh-fx-twinkle { 0%,100% { opacity: .12; transform: scale(.45) rotate(0); } 48% { opacity: 1; transform: scale(1.35) rotate(45deg); } }
+@keyframes sesh-fx-eclipse { 0%,100% { transform: scale(.96); filter: brightness(.85); } 50% { transform: scale(1.04); filter: brightness(1.25); } }
+@keyframes sesh-fx-orbit { 0%,100% { opacity: .1; transform: translate3d(-10px,8px,0) scale(.5); } 45% { opacity: .85; } 60% { transform: translate3d(18px,-18px,0) scale(1.2); } }
+@keyframes sesh-fx-petal { 0% { opacity: 0; transform: translate3d(0,-24px,0) rotate(var(--effect-angle)); } 12% { opacity: .9; } 100% { opacity: 0; transform: translate3d(var(--effect-drift),620px,0) rotate(calc(var(--effect-angle) + 420deg)); } }
+@keyframes sesh-fx-scan { from { background-position: 0 -120px; } to { background-position: 0 120px; } }
+@keyframes sesh-fx-glitch { 0%,88%,100% { transform: translateX(0); opacity: .35; } 90% { transform: translateX(6px); opacity: .8; } 93% { transform: translateX(-4px); } }
+@keyframes sesh-fx-glitch-block { 0%,80%,100% { opacity: 0; transform: translateX(0); } 83% { opacity: .9; transform: translateX(18px); } 90% { opacity: .55; transform: translateX(-12px); } }
+@keyframes sesh-fx-shard { 0%,100% { opacity: .08; transform: translate3d(-5px,12px,0) rotate(var(--effect-angle)) scale(.7); } 45% { opacity: .9; transform: translate3d(8px,-14px,0) rotate(calc(var(--effect-angle) + 80deg)) scale(1.15); } }
+@keyframes sesh-fx-frost { 0%,100% { opacity: .38; filter: brightness(.85); } 50% { opacity: .9; filter: brightness(1.35); } }
+@keyframes sesh-fx-rift { 0%,100% { opacity: .35; filter: blur(3px) brightness(.8); } 48% { opacity: .95; filter: blur(1px) brightness(1.35); } }
+@keyframes sesh-fx-void { 0%,100% { opacity: 0; transform: translateX(-8px) scale(.5); } 45% { opacity: .8; transform: translateX(12px) scale(1.2); } }
+@keyframes sesh-fx-rune { 0%,100% { opacity: .12; transform: rotate(var(--effect-angle)) scale(.6); } 50% { opacity: .92; transform: rotate(calc(var(--effect-angle) + 90deg)) scale(1.05); } }
+@keyframes sesh-fx-caustic { 0%,100% { transform: translate3d(-3%,-2%,0) rotate(-2deg) scale(1); } 50% { transform: translate3d(5%,4%,0) rotate(3deg) scale(1.12); } }
+@keyframes sesh-fx-orb { 0% { opacity: 0; transform: translate3d(0,20px,0) scale(.45); } 18%,72% { opacity: .85; } 100% { opacity: 0; transform: translate3d(var(--effect-drift),-600px,0) scale(1.15); } }
+@keyframes sesh-fx-holo { 0%,100% { opacity: .08; transform: translateX(-24px) scaleX(.55); } 50% { opacity: .9; transform: translateX(22px) scaleX(1.35); } }
+@keyframes sesh-fx-tendril { 0%,100% { transform: rotate(-7deg) scale(.92); opacity: .45; } 50% { transform: rotate(8deg) scale(1.16); opacity: .82; } }
+@keyframes sesh-fx-comet { 0% { opacity: 0; transform: translate3d(-90px,-80px,0) rotate(-38deg); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate3d(390px,650px,0) rotate(-38deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-effect-neon_rain::before,
+  .profile-effect-stardust::before,
+  .profile-effect-eclipse::before,
+  .profile-effect-eclipse::after,
+  .profile-effect-glitch_scan::before,
+  .profile-effect-glitch_scan::after,
+  .profile-effect-void_rifts::before,
+  .profile-effect-void_rifts::after,
+  .profile-effect-ocean_caustics::before,
+  .profile-effect-holo_stream::before,
+  .profile-effect-holo_stream::after,
+  .profile-effect-shadow_tendrils::before,
+  .profile-effect-shadow_tendrils::after,
+  .profile-effect-arcane_frost::before {
+    animation: none !important;
+  }
+}
