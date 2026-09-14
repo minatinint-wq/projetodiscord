@@ -21,12 +21,25 @@ export default function DirectMessages({user,currentUser,onClose,onOpenProfile,o
  const input=useRef(null),bottom=useRef(null),busyRef=useRef(false),readId=useRef(0);
  const [reading,setReading]=useState(false);
  const drop=useFileDrop(files=>attachFiles(files));
- const merge=message=>setMessages(current=>current.some(m=>m.id===message.id)?current:[...current,message]);
+  const merge=message=>setMessages(current=>current.some(m=>m.id===message.id)?current:[...current,message]);
+  function fillAttachments(list){
+   const pending=(list||[]).filter(m=>m?.attachment?.ref);
+   if(!pending.length)return;
+   (async()=>{
+    for(let i=0;i<pending.length;i+=6){
+     const batch=pending.slice(i,i+6);
+     const settled=await Promise.allSettled(batch.map(m=>api.directMessage(user.id,m.id)));
+     const full={};
+     settled.forEach(r=>{if(r.status==="fulfilled"&&r.value?.message?.id)full[r.value.message.id]=r.value.message;});
+     if(Object.keys(full).length)setMessages(current=>current.map(m=>m.attachment?.ref&&full[m.id]?full[m.id]:m));
+    }
+   })().catch(()=>{});
+  }
  useEffect(()=>{
   let active=true;readId.current++;setReading(false);setLoading(true);setMessages([]);setDraft("");setAttachment(null);setError("");
   const receive=({detail})=>{if([detail.authorId,detail.recipientId].includes(user.id)&&[detail.authorId,detail.recipientId].includes(currentUser.id))merge(detail);};
   window.addEventListener("sesh:direct-message",receive);
-  api.directMessages(user.id).then(result=>{if(active)setMessages(current=>[...new Map([...result.messages,...current].map(m=>[m.id,m])).values()].sort((a,b)=>a.createdAt.localeCompare(b.createdAt)));}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
+   api.directMessages(user.id).then(result=>{if(active){setMessages(current=>[...new Map([...result.messages,...current].map(m=>[m.id,m])).values()].sort((a,b)=>a.createdAt.localeCompare(b.createdAt)));fillAttachments(result.messages);}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;readId.current++;window.removeEventListener("sesh:direct-message",receive);};
  },[user.id,currentUser.id]);
  useEffect(()=>{bottom.current?.scrollIntoView({block:"end"});},[messages.length]);

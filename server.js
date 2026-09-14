@@ -536,31 +536,45 @@ async function loadDatabase() {
     `Sesh: ${database.users.length} usuário(s) carregados do armazenamento ${DATABASE_URL ? "PostgreSQL" : "local"}.`,
   );
 }
-async function persistDatabase() {
-  const snapshot = structuredClone(database);
+async function persistDatabase(keys = null) {
+  // No caminho PG grava só as coleções sujas (padrão: tudo). No arquivo
+  // local a regravaçao é integral, mas sem structuredClone: JSON.stringify
+  // é síncrono (atômico na thread), então o clone profundo de MBs de
+  // base64 era custo puro a cada mensagem.
   if (pgClient) {
+    const targets = Array.isArray(keys) && keys.length
+      ? [...new Set(keys.filter((key) => COLLECTIONS.includes(key)))]
+      : [...COLLECTIONS];
+    if (!targets.length) return;
+    const params = [];
+    const rows = targets.map((key, index) => {
+      params.push(key, JSON.stringify(database[key] || []));
+      return `($${2 * index + 1}, $${2 * index + 2}::jsonb)`;
+    });
     await pgClient.query("BEGIN");
     try {
-    for (const key of COLLECTIONS) {
       await pgClient.query(
-        "INSERT INTO app_state (key, value) VALUES ($1, $2::jsonb) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-        [key, JSON.stringify(snapshot[key] || [])],
+        `INSERT INTO app_state (key, value) VALUES ${rows.join(",")} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        params,
       );
-    }
-    await pgClient.query("COMMIT");
+      await pgClient.query("COMMIT");
     } catch (error) { await pgClient.query("ROLLBACK"); throw error; }
     return;
   }
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
-  await fs.writeFile(`${dataFile}.tmp`, encodeDatabase(snapshot), "utf8");
+  await fs.writeFile(`${dataFile}.tmp`, encodeDatabase(database), "utf8");
   await fs.rename(`${dataFile}.tmp`, dataFile);
 }
 // Agrupa mutações que chegam enquanto uma gravação já está em andamento.
 // Sem isso, cada mensagem aguardava uma gravação completa do estado inteiro
 // atrás de todas as anteriores — um gargalo perceptível no chat.
+// saveDatabase("messages") restringe (no PG) às coleções sujas.
 let saveInProgress = false;
 let saveRequested = false;
-function saveDatabase() {
+let pendingKeys = [];
+function saveDatabase(...keys) {
+  if (!keys.length) pendingKeys = null;
+  else if (pendingKeys !== null) pendingKeys = [...new Set([...pendingKeys, ...keys])];
   saveRequested = true;
   if (saveInProgress) return saveQueue;
 
@@ -568,12 +582,27 @@ function saveDatabase() {
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     while (saveRequested) {
       saveRequested = false;
-      await persistDatabase();
+      const batch = pendingKeys;
+      pendingKeys = [];
+      await persistDatabase(batch);
     }
   }).finally(() => {
     saveInProgress = false;
   });
   return saveQueue;
+}
+// Histórico leve: com ?attachments=refs a listagem troca o anexo (base64 de
+// até 3 MB por mensagem!) por um descritor; o cliente busca o conteúdo sob
+// demanda. Sem o parâmetro, comportamento antigo (compatibilidade).
+function attachmentRef(message) {
+  const attachment = message.attachment;
+  if (!attachment) return null;
+  if (typeof attachment === "string") return { ref: true, kind: "image" };
+  return { ref: true, kind: "file", name: attachment.name, size: attachment.size };
+}
+function stripAttachments(message) {
+  if (!message.attachment) return message;
+  return { ...message, attachment: attachmentRef(message) };
 }
 function securityHeaders() {
   return {
@@ -2280,7 +2309,7 @@ async function handler(req, res) {
         ? reaction.userIds.filter((userId) => userId !== user.id)
         : [...reaction.userIds, user.id];
       message.reactions = message.reactions.filter((item) => item.userIds?.length);
-      await saveDatabase();
+      await saveDatabase("messages");
       const output = decorateMessage(message);
       broadcast(channel.id, { type: "message.updated", message: output });
       return json(res, 200, { message: output });
@@ -2302,7 +2331,7 @@ async function handler(req, res) {
       if (previous) {
         previous.reason = reason || previous.reason;
         previous.updatedAt = now();
-        await saveDatabase();
+        await saveDatabase("messageReports");
         return json(res, 200, { ok: true, reportId: previous.id });
       }
       const report = {
@@ -2315,7 +2344,7 @@ async function handler(req, res) {
         createdAt: now(),
       };
       database.messageReports.push(report);
-      await saveDatabase();
+      await saveDatabase("messageReports");
       return json(res, 201, { ok: true, reportId: report.id });
     }
     if (messageMatch && req.method === "PATCH") {
@@ -2344,7 +2373,7 @@ async function handler(req, res) {
         message.pinnedAt = input.pinned ? now() : null;
         message.pinnedBy = input.pinned ? user.id : null;
       }
-      await saveDatabase();
+      await saveDatabase("messages");
       const output = decorateMessage(message);
       broadcast(channel.id, { type: "message.updated", message: output });
       return json(res, 200, { message: output });
@@ -2360,7 +2389,7 @@ async function handler(req, res) {
       if (message.authorId !== user.id && !hasServerPermission(user, server, "manageMessages"))
         return json(res, 403, { error: "Seu cargo não pode excluir esta mensagem." });
       database.messages = database.messages.filter((item) => item.id !== message.id);
-      await saveDatabase();
+      await saveDatabase("messages");
       broadcast(channel.id, { type: "message.deleted", channelId: channel.id, messageId: message.id });
       return json(res, 200, { ok: true, messageId: message.id });
     }
@@ -2405,12 +2434,27 @@ async function handler(req, res) {
       const limit = Number.isFinite(requestedLimit)
         ? Math.max(1, Math.min(Math.trunc(requestedLimit), 200))
         : 100;
+      const light = url.searchParams.get("attachments") === "refs";
+      const rows = database.messages
+        .filter((message) => message.channelId === channel.id)
+        .slice(-limit);
       return json(res, 200, {
-        messages: database.messages
-          .filter((message) => message.channelId === channel.id)
-          .slice(-limit)
-          .map(decorateMessage),
+        messages: rows.map((message) => {
+          const output = decorateMessage(message);
+          return light ? stripAttachments(output) : output;
+        }),
       });
+    }
+    // Busca individual (completa, com anexo): usada pelo cliente para
+    // preencher sob demanda após listagem leve (?attachments=refs).
+    if (messageMatch && req.method === "GET") {
+      const channel = channelForUser(user, messageMatch[1]);
+      const message = channel && database.messages.find(
+        (item) => item.id === messageMatch[2] && item.channelId === channel.id,
+      );
+      if (!channel || !message)
+        return json(res, 404, { error: "Mensagem não encontrada." });
+      return json(res, 200, { message: decorateMessage(message) });
     }
     if (channelMatch && req.method === "POST") {
       const channel = channelForUser(user, channelMatch[1]);
@@ -2529,10 +2573,24 @@ async function handler(req, res) {
           channelName: channel.name,
           message: output,
         });
-      await saveDatabase();
+      await saveDatabase("messages");
       return json(res, 201, { message: output });
     }
     const dmMatch = url.pathname.match(/^\/api\/direct\/([^/]+)\/messages$/);
+    const dmSingleMatch = url.pathname.match(/^\/api\/direct\/([^/]+)\/messages\/([^/]+)$/);
+    if (dmSingleMatch && req.method === "GET") {
+      const recipient = database.users.find((item) => item.id === dmSingleMatch[1]);
+      const friendship = database.friendships.some((item) => item.status === "accepted" &&
+        [item.requesterId, item.addresseeId].includes(user.id) &&
+        [item.requesterId, item.addresseeId].includes(recipient?.id));
+      if (!recipient || recipient.id === user.id || !friendship)
+        return json(res, 403, { error: "Adicione e aceite esta pessoa como amiga para conversar." });
+      const message = database.directMessages.find((item) => item.id === dmSingleMatch[2] &&
+        ((item.authorId === user.id && item.recipientId === recipient.id) ||
+         (item.authorId === recipient.id && item.recipientId === user.id)));
+      if (!message) return json(res, 404, { error: "Mensagem não encontrada." });
+      return json(res, 200, { message: decorateMessage(message) });
+    }
     if (dmMatch && ["GET", "POST"].includes(req.method)) {
       const recipient = database.users.find((item) => item.id === dmMatch[1]);
       const friendship = database.friendships.some((item) => item.status === "accepted" &&
@@ -2541,10 +2599,16 @@ async function handler(req, res) {
       if (!recipient || recipient.id === user.id || !friendship)
         return json(res, 403, { error: "Adicione e aceite esta pessoa como amiga para conversar." });
       if (req.method === "GET") {
+        const light = url.searchParams.get("attachments") === "refs";
         const messages = database.directMessages.filter((item) =>
           (item.authorId === user.id && item.recipientId === recipient.id) ||
           (item.authorId === recipient.id && item.recipientId === user.id));
-        return json(res, 200, { messages: messages.slice(-100).map(decorateMessage) });
+        return json(res, 200, {
+          messages: messages.slice(-100).map((message) => {
+            const output = decorateMessage(message);
+            return light ? stripAttachments(output) : output;
+          }),
+        });
       }
       if (recipient.preferences?.allowDirectMessages === false)
         return json(res, 403, { error: "Esta pessoa pausou o recebimento de mensagens diretas." });
@@ -2558,7 +2622,7 @@ async function handler(req, res) {
       const output = decorateMessage(message);
       notifyUser(recipient.id, { type: "direct.created", message: output });
       notifyUser(user.id, { type: "direct.created", message: output });
-      await saveDatabase();
+      await saveDatabase("directMessages");
       return json(res, 201, { message: output });
     }
     if (url.pathname === "/api/friends" && req.method === "GET") {
@@ -2627,7 +2691,7 @@ async function handler(req, res) {
         status: "pending",
         createdAt: now(),
       });
-      await saveDatabase();
+      await saveDatabase("friendships");
       notifyUser(target.id, { type: "friends.updated" });
       notifyUser(user.id, { type: "friends.updated" });
       return json(res, 201, { ok: true });
@@ -2645,7 +2709,7 @@ async function handler(req, res) {
       if (!friendship)
         return json(res, 404, { error: "Solicitação não encontrada." });
       friendship.status = "accepted";
-      await saveDatabase();
+      await saveDatabase("friendships");
       notifyUser(friendship.requesterId, { type: "friends.updated" });
       notifyUser(friendship.addresseeId, { type: "friends.updated" });
       return json(res, 200, { ok: true });
@@ -2660,7 +2724,7 @@ async function handler(req, res) {
       database.friendships = database.friendships.filter(
         (item) => item !== friendship,
       );
-      await saveDatabase();
+      await saveDatabase("friendships");
       notifyUser(friendship.requesterId, { type: "friends.updated" });
       notifyUser(friendship.addresseeId, { type: "friends.updated" });
       return json(res, 200, { ok: true });

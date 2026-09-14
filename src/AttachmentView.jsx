@@ -6,8 +6,8 @@ export default function AttachmentView({attachment,preview=false,alt="Imagem env
  const [url,setUrl]=useState("");
  const [revealed,setRevealed]=useState(false);
  const [expanded,setExpanded]=useState(false);
- useEffect(()=>{
-  if(!attachment||typeof attachment==="string"){setUrl("");return;}
+  useEffect(()=>{
+   if(!attachment||typeof attachment==="string"||attachment.ref){setUrl("");return;}
   const bytes=Uint8Array.from(atob(attachment.data.split(",")[1]),c=>c.charCodeAt(0));
   const link=URL.createObjectURL(new Blob([bytes],{type:"application/octet-stream"}));
   setUrl(link);return()=>URL.revokeObjectURL(link);
@@ -19,7 +19,8 @@ export default function AttachmentView({attachment,preview=false,alt="Imagem env
   window.addEventListener("keydown",close);
   return()=>window.removeEventListener("keydown",close);
  },[expanded]);
- if(!attachment)return null;
+  if(!attachment)return null;
+  if(attachment.ref)return <div className="attachment-loading" role="status">{attachment.kind==="file"&&attachment.name?`Carregando ${attachment.name}…`:"Carregando imagem…"}</div>;
  if(typeof attachment==="string"){
   const openImage=()=>{if(!preview&&(!nsfw||revealed))setExpanded(true);};
   const onImageKeyDown=event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openImage();}};

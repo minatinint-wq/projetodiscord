@@ -120,9 +120,12 @@ export const api = {
     }),
   deleteChannel: (channelId) =>
     request(`/api/channels/${channelId}`, { method: "DELETE" }),
-  directMessages: (userId) => request(`/api/direct/${userId}/messages`),
+  directMessages: (userId) => request(`/api/direct/${userId}/messages?attachments=refs`),
+  directMessage: (userId, messageId) => request(`/api/direct/${userId}/messages/${messageId}`),
   sendDirectMessage: (userId, input) => request(`/api/direct/${userId}/messages`, { method: "POST", body: JSON.stringify(input) }),
-  messages: (channelId) => request(`/api/channels/${channelId}/messages`),
+  // Histórico leve: texto na hora, anexos (base64 pesado) sob demanda.
+  messages: (channelId) => request(`/api/channels/${channelId}/messages?limit=100&attachments=refs`),
+  message: (channelId, messageId) => request(`/api/channels/${channelId}/messages/${messageId}`),
   sendMessage: (channelId, input) =>
     request(`/api/channels/${channelId}/messages`, {
       method: "POST",

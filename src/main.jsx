@@ -1940,12 +1940,31 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
       if (!active) return;
       setMessages(result.messages);
+      fillAttachments(selectedChannel.id, result.messages);
       const messageId = window.location.hash.match(/^#message-(.+)$/)?.[1];
       if (messageId) requestAnimationFrame(() => document.getElementById(`message-${messageId}`)?.scrollIntoView({ block: "center" }));
     })
       .catch(error => { if(active) setNotice(error.message); });
     return () => { active=false; };
   }, [selectedChannel?.id]);
+  // Completa anexos em segundo plano após listagem leve (?attachments=refs).
+  // Só substitui quem ainda está como referência (não pisa em edição nova).
+  function fillAttachments(channelId, list) {
+    const pending = (list || []).filter((message) => message?.attachment?.ref);
+    if (!pending.length) return;
+    (async () => {
+      for (let i = 0; i < pending.length; i += 6) {
+        const batch = pending.slice(i, i + 6);
+        const settled = await Promise.allSettled(batch.map((message) => api.message(channelId, message.id)));
+        const full = {};
+        settled.forEach((result) => {
+          if (result.status === "fulfilled" && result.value?.message?.id) full[result.value.message.id] = result.value.message;
+        });
+        if (Object.keys(full).length && selectedChannelRef.current?.id === channelId)
+          setMessages((current) => current.map((message) => message.attachment?.ref && full[message.id] ? full[message.id] : message));
+      }
+    })().catch(() => {});
+  }
   const socketHandlerRef = useRef();
   socketHandlerRef.current = async (event) => {
       if (event.type === "connection.status") {
@@ -1956,7 +1975,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           setNotice("Conectado novamente.");
           api.friends().then(setFriendsData).catch(() => {});
           if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
-            if(selectedChannelRef.current?.id === selectedChannel.id) setMessages(result.messages);
+            if(selectedChannelRef.current?.id === selectedChannel.id) {
+              setMessages(result.messages);
+              fillAttachments(selectedChannel.id, result.messages);
+            }
           }).catch(error => setNotice(error.message));
         }
       }
@@ -4742,7 +4764,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     if (channel.type === "text")
                       api
                         .messages(channel.id)
-                        .then((result) => setMessages(result.messages));
+                        .then((result) => { setMessages(result.messages); fillAttachments(channel.id, result.messages); });
                     if (
                       channel.type === "voice" &&
                       voiceConnected &&

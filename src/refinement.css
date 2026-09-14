@@ -183,3 +183,5 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .emoji-message .emoji-img{width:1.12em;height:1.12em;vertical-align:-0.18em}
 .message-reference .emoji-img{width:1.2em;height:1.2em}
 .dm-message .emoji-img{width:1.28em;height:1.28em}
+.messages-list>article.message,.direct-messages>article.dm-message{content-visibility:auto;contain-intrinsic-size:auto 140px}
+.attachment-loading{font-size:12px;color:#979fb6;padding:10px 12px;border:1px dashed #3a3d47;border-radius:8px}
