@@ -45,6 +45,10 @@ test("cadastro entra sem Resend e aceita @ único, e-mail e ID público",async()
 });
 test("perfil é atômico e imagem estática persiste",async()=>{
  assert.equal((await req("/api/auth/me","PATCH",{username:"abc"},guest.token)).status,400);
+ const markup='<img src=x onerror="alert(document.cookie)">';
+ const rejectedName=await req("/api/auth/me","PATCH",{displayName:markup},guest.token);
+ assert.equal(rejectedName.status,400);assert.match(rejectedName.error,/não use tags/i);
+ assert.equal((await req("/api/auth/me","GET",undefined,guest.token)).user.displayName,"Visitante");
  assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
  const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);
  assert.equal(failed.status,400);const result=await req("/api/auth/me","GET",undefined,guest.token);

@@ -99,6 +99,19 @@ test("login limita tentativas e responde com Retry-After", async () => {
 });
 
 test("cadastro exige senha forte e não devolve token no corpo", async () => {
+  const markupName = await raw("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      username: "nomemalicioso",
+      displayName: '<img src=x onerror="alert(document.cookie)">',
+      email: "nomemalicioso@sesh.local",
+      password: "Vela-Azul-2026",
+    }),
+  });
+  assert.equal(markupName.response.status, 400);
+  assert.match(markupName.payload.error, /não use tags/i);
+
   const weak = await raw("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

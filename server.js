@@ -721,7 +721,8 @@ function publicUser(user) {
     publicId: user.publicId || generatedPublicId(user),
     username: user.username,
     tag: userTag(user),
-    displayName: user.displayName,
+    // Values created before the current validation are also made harmless here.
+    displayName: safeDisplayName(user.displayName, user.username),
     createdAt: user.createdAt || null,
     avatarColor: user.avatarColor,
     avatar: user.avatar || null,
@@ -1004,6 +1005,22 @@ function passwordError(password, { username = "", email = "" } = {}) {
   if (name && name.length >= 3 && lowered.includes(name)) return "A senha não pode conter seu nome de usuário.";
   if (mailUser && mailUser.length >= 3 && lowered.includes(mailUser)) return "A senha não pode conter seu e-mail.";
   return null;
+}
+function displayNameError(value) {
+  if (typeof value !== "string" || !value.trim()) return "Nome de exibição é obrigatório.";
+  if (value.trim().length > 80) return "O nome de exibição deve ter no máximo 80 caracteres.";
+  if (/[<>]/.test(value) || /[\u0000-\u001f\u007f]/.test(value))
+    return "Nome de exibição inválido: não use tags ou caracteres de controle.";
+  return null;
+}
+function safeDisplayName(value, fallback = "Usuário") {
+  const cleaned = String(value || "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[<>\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+  return cleaned || String(fallback || "Usuário").trim().slice(0, 80) || "Usuário";
 }
 const sessionHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 async function createSession(userId) {
@@ -1407,6 +1424,8 @@ async function handler(req, res) {
         return json(res, 400, {
           error: "Usuário é obrigatório.",
         });
+      const invalidDisplayName = displayNameError(displayName);
+      if (invalidDisplayName) return json(res, 400, { error: invalidDisplayName });
       const passError = passwordError(input.password, { username, email });
       if (passError) return json(res, 400, { error: passError });
       const minimumUsernameLength = minimumUsernameLengthFor({ email }, username);
@@ -1706,8 +1725,8 @@ async function handler(req, res) {
         input.username !== undefined
           ? String(input.username).trim().toLowerCase()
           : user.username;
-      if (!displayName)
-        return json(res, 400, { error: "Nome de exibição é obrigatório." });
+      const invalidDisplayName = displayNameError(displayName);
+      if (invalidDisplayName) return json(res, 400, { error: invalidDisplayName });
       const minimumUsernameLength = minimumUsernameLengthFor(user, username);
       if (!new RegExp(`^[a-z0-9_.-]{${minimumUsernameLength},20}$`).test(username))
         return json(res, 400, {
