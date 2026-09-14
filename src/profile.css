@@ -7,7 +7,7 @@
 .identity-main h1,.identity-card h2,.identity-status,.identity-favorite strong{color:var(--profile-ink)}
 .identity-main .identity-games article{background:color-mix(in srgb,var(--profile-surface) 80%,#000)}
 .identity-main .identity-tabs button[aria-pressed=true]{color:var(--profile-ink)!important;border-color:var(--profile-accent)}
-.profile-overlay{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden;color:var(--profile-accent,#ad9bff);opacity:var(--profile-effect-opacity,.7);border-radius:inherit}
+.profile-overlay{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden;color:var(--profile-accent,#ad9bff);opacity:var(--profile-effect-opacity,.7);border-radius:inherit}
 .overlay-art{position:absolute;inset:0;width:100%;height:100%;overflow:visible;stroke:currentColor;stroke-width:1.4;fill:currentColor;filter:drop-shadow(0 0 6px currentColor)}
 .overlay-orbital .overlay-art{animation:overlay-orbit calc(10s * var(--profile-effect-speed,1)) ease-in-out infinite;transform-origin:50% 20%}
 .overlay-runes .overlay-art{animation:overlay-breathe calc(5s * var(--profile-effect-speed,1)) ease-in-out infinite}
@@ -127,6 +127,7 @@ html[data-reduced-motion=true] .identity-card .profile-effect-layer,html[data-re
 
 /* premium-motion-v2: layered artwork + theme-specific high-DPI canvas */
 .premium-avatar-frame-scene{position:absolute;z-index:3;left:50%;top:50%;width:148%;height:148%;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--profile-accent,#8fa9ff) 55%,transparent));animation:premium-frame-presence calc(4.8s*var(--profile-effect-speed,1)) cubic-bezier(.45,0,.55,1) infinite}
+.premium-avatar-frame-fallback{position:absolute;inset:5%;border:3px double hsl(var(--frame-hue) 88% 72%);border-radius:50%;box-shadow:0 0 0 3px hsl(var(--frame-hue) 88% 62% / .28),0 0 16px hsl(var(--frame-hue) 88% 62% / .62);background:conic-gradient(from 30deg,transparent 0 18%,hsl(var(--frame-hue) 88% 72% / .45) 25%,transparent 33% 65%,hsl(var(--frame-hue) 88% 72% / .35) 73%,transparent 82%)}
 .premium-avatar-frame-scene .premium-avatar-frame{width:100%;height:100%;filter:none;will-change:filter,opacity,transform}
 .premium-avatar-frame-base{animation:premium-frame-detail calc(4.8s*var(--profile-effect-speed,1)) cubic-bezier(.45,0,.55,1) infinite}
 .premium-avatar-frame-aura{opacity:.22;filter:blur(1.5px) brightness(1.7)!important;animation:premium-frame-aura calc(3.4s*var(--profile-effect-speed,1)) ease-in-out infinite}

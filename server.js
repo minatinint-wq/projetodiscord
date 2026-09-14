@@ -460,6 +460,9 @@ async function loadDatabase() {
     await pgClient.query(
       "CREATE TABLE IF NOT EXISTS app_state (key text primary key, value jsonb not null)",
     );
+    await pgClient.query(
+      "CREATE TABLE IF NOT EXISTS avatar_decorations (id text primary key, content_type text not null default 'image/png', bytes bytea not null, updated_at timestamptz not null default now())",
+    );
     const { rows } = await pgClient.query("SELECT key, value FROM app_state");
     const loaded = {};
     for (const row of rows) loaded[row.key] = row.value;
@@ -1293,6 +1296,19 @@ async function handler(req, res) {
         return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET" });
       if (req.method === "GET" && pgClient) await pgClient.query("SELECT 1");
       return json(req, res, 200, { ok: true });
+    }
+    const decorationMatch = url.pathname.match(/^\/api\/avatar-decorations\/([a-z0-9_]+)\.png$/i);
+    if (decorationMatch) {
+      if (req.method !== "GET" && req.method !== "HEAD")
+        return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET, HEAD" });
+      if (!pgClient) return json(req, res, 404, { error: "Moldura não encontrada." });
+      const { rows } = await pgClient.query(
+        "SELECT content_type, bytes FROM avatar_decorations WHERE id = $1",
+        [decorationMatch[1]],
+      );
+      if (!rows[0]) return json(req, res, 404, { error: "Moldura não encontrada." });
+      res.writeHead(200, { ...securityHeaders(), "Content-Type": rows[0].content_type, "Cache-Control": "public, max-age=31536000, immutable" });
+      return req.method === "HEAD" ? res.end() : res.end(rows[0].bytes);
     }
     // Higiene: arquivos de descoberta e segurança com respostas próprias,
     // nunca o fallback da SPA.

@@ -1,9 +1,9 @@
 import { REMOTE_AVATAR_DECORATIONS } from "../avatar-decorations"
 
-// Base de onde saem os PNGs das molduras. Troque pela sua CDN após subir o
-// pacote avatar_upload/ (637 arquivos, id = nome do arquivo):
-// VITE_AVATAR_DECORATION_CDN=https://seu-cdn.exemplo.com/decorations/
-const REMOTE_FRAME_BASE = String(import.meta.env.VITE_AVATAR_DECORATION_CDN || "https://img.avatardecoration.com/decorations/").replace(/\/?$/, "/")
+// Todas as molduras fazem parte do pacote público. Uma CDN própria pode
+// substituí-las no build, mas nunca usamos uma origem de terceiros como
+// fallback: isso deixava o catálogo cheio de opções vazias.
+const REMOTE_FRAME_BASE = String(import.meta.env.VITE_AVATAR_DECORATION_CDN || "/api/avatar-decorations/").replace(/\/?$/, "/")
 
 export const PREMIUM_FRAME_ART = {
   ...Object.fromEntries(REMOTE_AVATAR_DECORATIONS.map(([id]) => [id, REMOTE_FRAME_BASE + id + ".png"])),

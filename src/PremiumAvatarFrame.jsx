@@ -7,13 +7,14 @@ export default function PremiumAvatarFrame({ frame, animated = true }) {
   React.useEffect(() => setFailed(false), [frame]);
   const src = PREMIUM_FRAME_ART[frame]
   const motion = PREMIUM_FRAME_MOTION[frame]
-  // Arquivo ainda fora da CDN (404) ou erro de rede: some a moldura em vez
-  // de exibir ícone quebrado por cima do avatar.
-  if (!src || failed) return null
+  const hue = [...frame].reduce((total, char) => (total * 31 + char.charCodeAt(0)) % 360, 0)
+  if (!src) return null
   const hide = () => setFailed(true);
   return <>
     <span className={"premium-avatar-frame-scene premium-avatar-frame-scene-" + frame} aria-hidden="true">
-      {PREMIUM_FRAME_APNG.has(frame)
+      {failed
+        ? <span className="premium-avatar-frame-fallback" style={{"--frame-hue":hue}} />
+        : PREMIUM_FRAME_APNG.has(frame)
         ? <img className={"premium-avatar-frame premium-avatar-frame-apng premium-avatar-frame-" + frame} src={src} alt="" loading="lazy" decoding="async" onError={hide} />
         : <>
           <img className={"premium-avatar-frame premium-avatar-frame-base premium-avatar-frame-" + frame} src={src} alt="" onError={hide} />
