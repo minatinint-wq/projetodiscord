@@ -1,6 +1,7 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_CATALOG } from "../game-catalog.js";
+import { nameplateSrc } from "../nameplates.js";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -5394,9 +5395,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
-                      <div>
+                      <div className={nameplateSrc(member.profilePlate) ? "member-info member-info-nameplate" : "member-info"}>
+                        {nameplateSrc(member.profilePlate) && <video className="member-nameplate-art" src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata" aria-hidden="true"/>}
                         <strong>
-                          <StyledName user={member} withPlate/>
+                          <StyledName user={member}/>
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>
