@@ -56,7 +56,7 @@ export default function EmojiPicker({ onSelect }) {
               width="100%"
               height={420}
               theme="dark"
-              emojiStyle="apple"
+              emojiStyle="native"
               lazyLoadEmojis
               searchPlaceholder="Buscar emoji"
               searchClearButtonLabel="Limpar busca"
