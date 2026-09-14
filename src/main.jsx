@@ -1,6 +1,7 @@
 /* @refresh reset */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_CATALOG } from "../game-catalog.js";
+import { nameplateSrc } from "../nameplates.js";
 import { createRoot } from "react-dom/client";
 import {
   Bell,
@@ -1024,12 +1025,12 @@ function ProfileGames({user}) {
   const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).filter(Boolean);
   return games.length ? <div className="profile-game-chips">{games.map(game=><a key={game.id} href={game.iconSource} target="_blank" rel="noopener noreferrer" title={"Fonte da imagem de "+game.name}><GameIcon game={game}/>{game.name}</a>)}</div> : <span>{user.favoriteGame}</span>;
 }
-function MemberProfilePopover({ data, currentUser, position, onClose, onRetry, onEdit, onMessage, onAddFriend, onFull, Avatar, ProfileEffectLayer, renderBadges, presence, isFriend }) {
+function MemberProfilePopover({ data, currentUser, position, onClose, onRetry, onEdit, onMessage, onAddFriend, onFull, Avatar, ProfileEffectLayer, renderBadges, presence, isFriend, serverRole }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const user = data?.user;
   return <aside className="member-profile-popover" style={{ left: position.x, top: position.y }} role="dialog" aria-label={user ? "Resumo de " + user.displayName : "Resumo do perfil"} onClick={event => event.stopPropagation()}>
     {!user ? <div className="member-profile-popover-loading">{data?.error ? <><p>{data.error}</p><button onClick={onRetry}>Tentar novamente</button></> : <p>Carregando perfil…</p>}</div> : <>
-      <ProfileCard user={user} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={renderBadges} presence={presence}/>
+      <ProfileCard user={{...user,serverRole:serverRole||user.serverRole}} Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={renderBadges} presence={presence}/>
       <div className="member-profile-popover-actions">
         {user.id === currentUser.id
           ? <button type="button" onClick={onEdit}>Editar perfil</button>
@@ -3501,7 +3502,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           onFull={() => setProfileView(current => current ? {...current, mode:"full"} : current)}
           Avatar={Avatar} ProfileEffectLayer={ProfileEffectLayer} renderBadges={ProfileBadges}
           presence={presenceFor(profileView.userId)}
-          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}/>
+          isFriend={friendsData.friends.some(user => user.id === profileView.userId)}
+          serverRole={members.find(user => user.id === profileView.userId)?.serverRole}/>
       : null;
   const overlays = (
     <>
@@ -5372,13 +5374,14 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       onClick={(event) => openProfile(event, member.id)}
                       onContextMenu={(event) => openMemberMenu(event, member)}
                     >
+                      {nameplateSrc(member.profilePlate) && <video className="member-nameplate-backdrop" src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata" aria-hidden="true"/>}
                       <span className="avatar-dot-wrap">
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
                       <div>
                         <strong>
-                          <StyledName user={member} withPlate/>
+                          <StyledName user={member}/>
                           {member.id === selectedServer.ownerId && <Crown className="member-owner-crown" size={13} strokeWidth={2.4} aria-label="Dono do servidor"/>}
                           {selectedServer.tag && <span className="server-tag" style={{ "--server-tag-color": selectedServer.accentColor || "#c93642" }}>{selectedServer.tag}</span>}
                         </strong>

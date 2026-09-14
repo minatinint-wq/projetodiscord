@@ -6684,6 +6684,7 @@ body[data-profile-plate="neon"] .profile-card {
 @media (max-width: 650px) { .role-config-backdrop { padding: 8px; } .role-config-modal { width: 100%; max-height: calc(100vh - 16px); padding: 18px; } .role-config-tabs { gap: 15px; } .role-list-actions .role-move { display: none; } }
 .member-role-group { margin: 0 0 12px; }
 .member-role-group-title { padding: 6px 14px; color: var(--role-group-color, #b5bac1); font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.member{overflow:hidden;isolation:isolate}.member-nameplate-backdrop{position:absolute;z-index:-1;inset:0;width:100%;height:100%;object-fit:cover;opacity:.88;pointer-events:none}.member:has(.member-nameplate-backdrop)>:not(.member-nameplate-backdrop){position:relative;z-index:1}.member:has(.member-nameplate-backdrop){border-radius:8px;box-shadow:inset 0 0 0 1px #ffffff12}
 .member-owner-crown{display:inline-block;margin-left:5px;color:#f4c96b;filter:drop-shadow(0 0 4px #d89a2d66);vertical-align:-2px}
 
 /* Espaço de configurações: cada assunto ganha uma tela, sem formulário gigante. */

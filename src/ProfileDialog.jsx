@@ -9,6 +9,7 @@ export default function ProfileDialog({data,currentUser,onClose,onRetry,onEdit,o
  const [tab,setTab]=useState("profile"),root=useRef(null);
  useEffect(()=>{const previous=document.activeElement;root.current?.querySelector("button")?.focus();return()=>previous?.isConnected&&previous.focus();},[]);
  const user=data?.user,own=user?.id===currentUser.id;
+ const userWithRole=user?{...user,serverRole:serverRole||user.serverRole}:user;
  const games=(user?.gameInterests||[]).map(id=>GAME_CATALOG.find(g=>g.id===id)).filter(Boolean);
  const common=games.filter(game=>currentUser.gameInterests?.includes(game.id));
  function keyDown(event){
@@ -24,13 +25,13 @@ export default function ProfileDialog({data,currentUser,onClose,onRetry,onEdit,o
  <ProfileOverlay effect={user?.profileOverlay}/>
  <button className="identity-close" onClick={onClose} aria-label="Fechar perfil"><X size={20}/></button>
  {!user?<div className="identity-loading">{data?.error?<><h2>Não foi possível abrir o perfil</h2><p role="alert">{data.error}</p><button className="prompt-confirm" onClick={onRetry}>Tentar novamente</button></>:<p role="status">Carregando perfil…</p>}</div>:<>
- <aside className="identity-side"><ProfileCard {...{user,Avatar,ProfileEffectLayer,renderBadges,presence}}/>
+ <aside className="identity-side"><ProfileCard {...{user:userWithRole,Avatar,ProfileEffectLayer,renderBadges,presence}}/>
  <div className="identity-actions">{own?<button onClick={onEdit}><PenLine size={16}/>Editar perfil</button>:isFriend?<button onClick={()=>onMessage(user)}><MessageSquare size={16}/>Mensagem</button>:<button onClick={()=>onAddFriend(user)}><UserPlus size={16}/>Adicionar amigo</button>}</div></aside>
- <main className="identity-main"><header><span className="eyebrow">CONHEÇA QUEM ESTÁ DO OUTRO LADO</span><h1><StyledName user={user} withPlate/></h1><p>Conexões começam com interesses em comum.</p></header>
+ <main className="identity-main"><header><span className="eyebrow">CONHEÇA QUEM ESTÁ DO OUTRO LADO</span><h1><StyledName user={userWithRole} withPlate/></h1><p>Conexões começam com interesses em comum.</p></header>
  <nav className="identity-tabs" aria-label="Abas do perfil">{[["profile","Perfil"],["activity","Atividade"],["wishlist","Lista de desejos"]].map(([id,label])=><button key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
  <div className="identity-tab-content">
  {tab==="profile"&&<><section className="identity-section"><h3>SOBRE MIM</h3><p className="identity-full-bio">{user.bio||"Este perfil ainda não tem uma biografia."}</p></section>
- {!!serverRole&&<section className="identity-section"><h3>CARGO NESTA COMUNIDADE</h3><span className="identity-role" style={{"--role-color":serverRole.color}}><i/>{serverRole.name}</span></section>}
+ {!!serverRole&&<section className="identity-section"><h3>CARGO NESTA COMUNIDADE</h3><span className={"identity-role role-style-"+(serverRole.style||"solid")} style={{"--role-color":serverRole.color,"--member-role-color":serverRole.color}}>{serverRole.icon?<img src={serverRole.icon} alt=""/>:<i/>}<span className="role-effect-text">{serverRole.name}</span><small>Função no servidor</small></span></section>}
  {!own&&!!common.length&&<section className="identity-section"><h3>VOCÊS TÊM {common.length} JOGO{common.length===1?"":"S"} EM COMUM</h3><div className="identity-games">{common.map(game=><article key={game.id}><GameIcon game={game}/><strong>{game.name}</strong><Heart size={14}/></article>)}</div></section>}
  <section className="identity-section"><h3><Gamepad2 size={15}/>JOGOS DE INTERESSE <span>{games.length}</span></h3>{games.length?<div className="identity-games">{games.map(game=><article key={game.id}><GameIcon game={game}/><strong>{game.name}</strong></article>)}</div>:<div className="identity-empty"><Gamepad2/><p>{own?"Adicione seus jogos no editor de perfil.":"Nenhum jogo escolhido por enquanto."}</p>{own&&<button onClick={onEdit}>Escolher jogos</button>}</div>}</section></>}
  {tab==="activity"&&<><section className="identity-section"><h3>STATUS PERSONALIZADO</h3>{user.activityText?<div className="identity-activity"><Sparkles/><p>{user.activityText}</p></div>:<div className="identity-empty"><Sparkles/><p>Nenhum status personalizado no momento.</p></div>}</section>
