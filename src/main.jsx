@@ -70,11 +70,13 @@ import "./styles.css";
 import "./refinement.css";
 import "./profile.css";
 
+const EmojiArtwork = React.lazy(() => import("./EmojiArtwork"));
+
 function LibraryEmoji({ emoji, size = 20 }) {
   return (
-    <span className="emoji-native" aria-hidden="true" style={{ fontSize: size }}>
-      {emoji}
-    </span>
+    <React.Suspense fallback={<span className="emoji-artwork-fallback" aria-hidden="true">{emoji}</span>}>
+      <EmojiArtwork emoji={emoji} size={size} />
+    </React.Suspense>
   );
 }
 

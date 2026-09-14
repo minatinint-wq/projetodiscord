@@ -179,4 +179,3 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
 .profile-game-chips a{display:inline-flex;gap:6px;align-items:center;color:inherit;text-decoration:none;background:#282930;padding:6px 8px;border-radius:8px;font-size:12px}
 .member-game .game-icon{width:16px;height:16px}
 .server-settings-nav button:disabled,.role-edit:disabled,.role-move:disabled,.role-remove:disabled{opacity:.4;cursor:not-allowed}
-.emoji-native{display:inline-flex;line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji","Android Emoji",sans-serif}
