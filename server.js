@@ -523,6 +523,14 @@ async function loadDatabase() {
       // transient database disconnect from becoming an uncaught process crash.
       console.error("Conexão PostgreSQL ociosa foi descartada:", error.message);
     });
+    pgClient.on("connect", (client) => {
+      // Keep a listener attached to every physical client. pg-pool temporarily
+      // swaps its own idle listener while checking connections in and out; a
+      // second socket error in that transition must not become unhandled.
+      client.on("error", (error) => {
+        console.error("Conexão PostgreSQL interna foi descartada:", error.message);
+      });
+    });
     await pgQueryWithRetry(
       "CREATE TABLE IF NOT EXISTS app_state (key text primary key, value jsonb not null)",
     );
