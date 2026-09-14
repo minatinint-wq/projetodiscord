@@ -1723,9 +1723,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   useEffect(() => {
     if (!profileView) return;
     let active = true;
-    setProfileData("loading");
+    // Paint instantâneo com os dados que já temos em cache (membro, amigo
+    // ou eu mesmo — todos trazem badges). O fetch abaixo só atualiza em
+    // segundo plano. Sem isso o popover ficava preso no "Carregando…".
+    const cachedUser =
+      (profileView.userId === currentUser.id && currentUser) ||
+      members.find((member) => member.id === profileView.userId) ||
+      friendsData.friends.find((person) => person.id === profileView.userId) ||
+      null;
+    setProfileData(cachedUser ? { user: cachedUser, voice: null } : "loading");
     api.profile(profileView.userId).then(result => { if (active) setProfileData(result); })
-      .catch(err => { if (active) { setNotice(err.message); setProfileData({error: err.message}); } });
+      .catch(err => { if (active) { setNotice(err.message); setProfileData(current => current?.user ? current : {error: err.message}); } });
     const onKey = event => { if (event.key === "Escape") setProfileView(null); };
     window.addEventListener("keydown", onKey);
     return () => { active = false; window.removeEventListener("keydown", onKey); };
