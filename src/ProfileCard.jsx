@@ -11,7 +11,7 @@ export default function ProfileCard({user,Avatar,ProfileEffectLayer,renderBadges
  const games=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).filter(Boolean);
  const bannerStyle=bannerPresentation(user),premiumBanner=PREMIUM_BANNER_IDS.has(user.bannerPreset);
  const role=user.serverRole;
- return <section className="identity-card" style={profilePresentation(user)} data-effect={user.profileEffect||"none"}>
+ return <section className="identity-card" style={profilePresentation(user)} data-effect={user.profileEffect||"none"} data-profile-frame={user.profileFrame||"none"}>
   <div className={"identity-banner "+(premiumBanner?"premium-banner premium-banner-"+user.bannerPreset:"")} style={bannerStyle}>{premiumBanner&&<AnimatedCosmetic className="premium-banner-motion" src={PREMIUM_BANNER_MOTION[user.bannerPreset]} width={720} height={240}/>}</div>
   <ProfileEffectLayer effect={user.profileEffect}/>
   <ProfileOverlay effect={user.profileOverlay}/>
