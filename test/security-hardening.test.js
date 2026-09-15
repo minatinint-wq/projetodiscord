@@ -189,3 +189,9 @@ test("higiene: security.txt, robots.txt e dotfiles com 404", async () => {
     assert.equal(blocked.response.status, 404);
   }
 });
+
+test("link do app copiado com ponto final volta para a rota válida", async () => {
+  const response = await fetch(`${baseUrl}/app.?server=convite`, { redirect: "manual" });
+  assert.equal(response.status, 308);
+  assert.equal(response.headers.get("location"), "/app?server=convite");
+});

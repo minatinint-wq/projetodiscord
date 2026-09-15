@@ -1605,6 +1605,16 @@ async function handler(req, res) {
     // Dotfiles e sondas sensíveis (/.git, /.env, ...) recebem 404 e
     // nunca o index.html — evita mascarar scanner e vazar existência.
     if ((req.method === "GET" || req.method === "HEAD") && !url.pathname.startsWith("/api/")) {
+      // Links copiados de mensagens às vezes absorvem o ponto final da frase.
+      // Corrija apenas a rota conhecida do app; não normalize caminhos de arquivos.
+      if (url.pathname === "/app.") {
+        res.writeHead(308, {
+          ...securityHeaders(),
+          Location: `/app${url.search}`,
+          "Cache-Control": "no-store",
+        });
+        return res.end();
+      }
       const lower = url.pathname.toLowerCase();
       const sensitive = lower === "/.env" || lower.startsWith("/.env.") ||
         lower === "/.git" || lower.startsWith("/.git/") ||

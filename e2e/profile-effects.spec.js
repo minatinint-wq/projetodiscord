@@ -34,8 +34,7 @@ test("sobreposição e cores aparecem na prévia e no perfil após salvar",async
  await editor.getByLabel("Cor de fundo",{exact:true}).fill("#080c30");
  await editor.getByLabel("Cor de destaque",{exact:true}).fill("#81bcff");
  await expect(editor.locator(".identity-card .premium-overlay-lunar-orbit")).toBeVisible();
- await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor.getByRole("status")).toContainText("Tudo salvo");
- await editor.getByLabel("Fechar perfil",{exact:true}).click();
+ await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor).toBeHidden();
  await page.getByTitle("Abrir meu perfil",{exact:true}).click();await page.getByRole("button",{name:"Ver perfil completo"}).click();
  await expect(page.locator(".identity-dialog>.premium-overlay-lunar-orbit")).toBeVisible();
  await expect(page.locator(".identity-dialog")).toHaveCSS("--profile-surface","#080c30");
@@ -101,8 +100,7 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   const fireScale=fireCardBox.width/fireLayout.containerWidth;
   expect(Math.abs((fireBottomBox.y+fireBottomBox.height)-(fireCardBox.y+fireCardBox.height+fireLayout.overflowBottom*fireScale))).toBeLessThanOrEqual(2);
   await editor.getByRole("button",{name:"Salvar alterações"}).click();
-  await expect(editor.getByRole("status")).toContainText("Tudo salvo");
-  await editor.getByLabel("Fechar perfil",{exact:true}).click();
+  await expect(editor).toBeHidden();
   await page.getByTitle("Abrir meu perfil",{exact:true}).click();
   const quick=page.locator(".quick-profile");
   const quickCard=quick.locator(".identity-card");

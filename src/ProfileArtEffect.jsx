@@ -21,6 +21,7 @@ export default function ProfileArtEffect({ effect, preview = false }) {
       alt=""
       draggable="false"
       decoding="async"
+      loading={preview ? "lazy" : "eager"}
     />
   </span>;
 }

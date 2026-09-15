@@ -19,14 +19,14 @@ export default function ProfileEditor({user,onClose,onSave,Avatar,ProfileEffectL
   const [plateQuery,setPlateQuery]=useState("");
   const [frameQuery,setFrameQuery]=useState("");
   const [framePage,setFramePage]=useState(0);
-  const FRAME_PAGE_SIZE=48;
+  const FRAME_PAGE_SIZE=18;
   const frameOptions=AVATAR_FRAMES.filter(([id,label])=>id==="none"||(id+" "+label).toLowerCase().includes(frameQuery.toLowerCase()));
   const framePages=Math.max(1,Math.ceil(frameOptions.length/FRAME_PAGE_SIZE));
   const framePageSafe=Math.min(framePage,framePages-1);
   const frameShown=frameOptions.slice(framePageSafe*FRAME_PAGE_SIZE,framePageSafe*FRAME_PAGE_SIZE+FRAME_PAGE_SIZE);
   const plateOptions=[["default","Padrão"],...NAMEPLATES.filter(([id,label])=>(id+" "+label).toLowerCase().includes(plateQuery.toLowerCase()))];
   const [platePage,setPlatePage]=useState(0);
-  const PLATE_PAGE_SIZE=48;
+  const PLATE_PAGE_SIZE=18;
   const platePages=Math.max(1,Math.ceil(plateOptions.length/PLATE_PAGE_SIZE));
   const platePageSafe=Math.min(platePage,platePages-1);
   const plateShown=plateOptions.slice(platePageSafe*PLATE_PAGE_SIZE,platePageSafe*PLATE_PAGE_SIZE+PLATE_PAGE_SIZE);
@@ -40,7 +40,7 @@ export default function ProfileEditor({user,onClose,onSave,Avatar,ProfileEffectL
  const update=(key,value)=>setForm(current=>({...current,[key]:value}));
  async function save(){
   if(busy||reading)return;setBusy(true);setError("");
-  try{await onSave(form);initial.current=JSON.stringify(form);}catch(e){setError(e.message);}finally{setBusy(false);}
+  try{await onSave(form);initial.current=JSON.stringify(form);onClose();}catch(e){setError(e.message);}finally{setBusy(false);}
  }
  async function imageFile(key,event){
   const file=event.target.files?.[0];event.target.value="";if(!file)return;setError("");

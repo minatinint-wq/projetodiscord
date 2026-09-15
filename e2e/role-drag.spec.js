@@ -11,7 +11,7 @@ test("arrastar cargos salva a hierarquia e reorganiza a lateral", async ({ page,
       data: {
         username: "drag" + suffix,
         email: "drag" + suffix + "@sesh.test",
-        password: "test1234",
+        password: "Roles-Test-9753",
         displayName: "Membro arrastado",
       },
     });

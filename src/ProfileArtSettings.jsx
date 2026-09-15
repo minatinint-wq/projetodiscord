@@ -5,7 +5,10 @@ import { PROFILE_FRAMES } from "../profile-frames";
 import ProfileArtEffect from "./ProfileArtEffect";
 import ProfileFrameEffect from "./ProfileFrameEffect";
 
-const PAGE_SIZE = 24;
+// APNGs are expensive to decode even when their cards are below the fold.
+// Keep each mounted page deliberately small so changing tabs stays instant.
+const EFFECT_PAGE_SIZE = 9;
+const FRAME_PAGE_SIZE = 12;
 
 function Pager({ page, pages, setPage, count, label }) {
   if (pages <= 1) return <div className="pager"><span className="pager-count">{count} {label}</span></div>;
@@ -24,8 +27,8 @@ export default function ProfileArtSettings({ form, nitro, update }) {
   const [framePage, setFramePage] = useState(0);
   const effects = useMemo(() => PROFILE_ART_EFFECTS.filter(([id, label]) => id === "none" || `${id} ${label}`.toLowerCase().includes(effectQuery.toLowerCase())), [effectQuery]);
   const frames = useMemo(() => PROFILE_FRAMES.filter(([id, label]) => id === "none" || `${id} ${label}`.toLowerCase().includes(frameQuery.toLowerCase())), [frameQuery]);
-  const effectPages = Math.max(1, Math.ceil(effects.length / PAGE_SIZE));
-  const framePages = Math.max(1, Math.ceil(frames.length / PAGE_SIZE));
+  const effectPages = Math.max(1, Math.ceil(effects.length / EFFECT_PAGE_SIZE));
+  const framePages = Math.max(1, Math.ceil(frames.length / FRAME_PAGE_SIZE));
   const safeEffectPage = Math.min(effectPage, effectPages - 1);
   const safeFramePage = Math.min(framePage, framePages - 1);
 
@@ -35,7 +38,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
       <p>A arte APNG cobre banner, avatar e conteúdo, preserva a animação original e respeita os limites do cartão. Efeitos dinâmicos podem sortear outra composição a cada abertura. A escolha requer Nitro, mas todos enxergam o efeito equipado.</p>
       <label className="settings-search"><Search size={18}/><input value={effectQuery} onChange={(event) => { setEffectQuery(event.target.value); setEffectPage(0); }} placeholder={`Buscar entre ${PROFILE_ART_EFFECTS.length - 1} efeitos`}/></label>
       <div className="profile-art-grid">
-        {effects.slice(safeEffectPage * PAGE_SIZE, safeEffectPage * PAGE_SIZE + PAGE_SIZE).map(([value, label, , format]) => {
+        {effects.slice(safeEffectPage * EFFECT_PAGE_SIZE, safeEffectPage * EFFECT_PAGE_SIZE + EFFECT_PAGE_SIZE).map(([value, label, , format]) => {
           const locked = value !== "none" && !nitro;
           const selected = (form.profileArtEffect || "none") === value;
           return <button type="button" key={value} disabled={locked} title={locked ? `${label} · Nitro` : label} className={`profile-art-choice ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => !locked && update("profileArtEffect", value)}>
@@ -54,7 +57,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
       <p>Camadas decorativas próprias do cartão de perfil. Elas contornam a arte completa e extrapolam a borda, sem virar moldura de avatar nem placa de identificação.</p>
       <label className="settings-search"><Search size={18}/><input value={frameQuery} onChange={(event) => { setFrameQuery(event.target.value); setFramePage(0); }} placeholder={`Buscar entre ${PROFILE_FRAMES.length - 1} molduras`}/></label>
       <div className="profile-frame-grid">
-        {frames.slice(safeFramePage * PAGE_SIZE, safeFramePage * PAGE_SIZE + PAGE_SIZE).map(([value, label]) => {
+        {frames.slice(safeFramePage * FRAME_PAGE_SIZE, safeFramePage * FRAME_PAGE_SIZE + FRAME_PAGE_SIZE).map(([value, label]) => {
           const locked = value !== "none" && !nitro;
           const selected = (form.profileFrame || "none") === value;
           return <button type="button" key={value} disabled={locked} title={locked ? `${label} · Nitro` : label} className={`profile-frame-choice ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => !locked && update("profileFrame", value)}>

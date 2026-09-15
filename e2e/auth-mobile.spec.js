@@ -12,7 +12,7 @@ test("cadastro mobile orienta o usuário e funciona sem AbortSignal.timeout", as
   await page.getByLabel("Nome de exibição").fill("Conta iPhone");
   await page.getByLabel("Nome de usuário").fill("conta@example.com");
   await page.getByLabel("E-mail", { exact: true }).fill("short@sesh.test");
-  await page.getByLabel("Senha", { exact: true }).fill("teste1234");
+  await page.getByLabel("Senha", { exact: true }).fill("Mobile-Test-9753");
   await page.getByRole("button", { name: "Criar conta", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("sem @");
 

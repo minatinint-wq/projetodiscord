@@ -5,7 +5,7 @@ test("clique direito de administrador não derruba a tela e identifica o membro"
  const server=(await(await page.request.post("/api/servers",{data:{name:"Menus de teste"}})).json()).server;
  const peer=await browser.newContext();
  try{
-  const account=(await(await peer.request.post("http://127.0.0.1:34170/api/auth/register",{data:{username:"menuguest",email:"menuguest@sesh.test",password:"test1234",displayName:"Jogador menu"}})).json()).user;
+  const account=(await(await peer.request.post("http://127.0.0.1:34170/api/auth/register",{data:{username:"menuguest",email:"menuguest@sesh.test",password:"Menu-Test-9753",displayName:"Jogador menu"}})).json()).user;
   await peer.request.post("http://127.0.0.1:34170/api/servers/"+server.inviteCode+"/join",{data:{}});
   await page.goto("/app");await page.getByTitle("Menus de teste",{exact:true}).click();
   const row=page.locator(".member[data-member-id='"+account.id+"']");await expect(row).toBeVisible();

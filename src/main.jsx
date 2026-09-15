@@ -82,6 +82,19 @@ function LibraryEmoji({ emoji, size = 20 }) {
   );
 }
 
+function playLateralNameplate(event) {
+  if (document.documentElement.dataset.reducedMotion === "true" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const video = event.currentTarget.querySelector("video[data-hover-nameplate]");
+  video?.play().catch(() => {});
+}
+
+function resetLateralNameplate(event) {
+  const video = event.currentTarget.querySelector("video[data-hover-nameplate]");
+  if (!video) return;
+  video.pause();
+  try { if (video.readyState >= 1) video.currentTime = 0; } catch { /* a mídia ainda não carregou */ }
+}
+
 const colors = ["purple", "orange", "green", "blue"];
 const PROFILE_NAME_COLORS = [
   "#f1f3f5",
@@ -4367,6 +4380,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                   className={"home-dm-row" + (nameplateSrc(person.profilePlate) ? " has-nameplate" : "")}
                   key={person.id}
                   onClick={() => { setHomeTab(`dm:${person.id}`); setMobileNav(false); }}
+                  onMouseEnter={playLateralNameplate}
+                  onMouseLeave={resetLateralNameplate}
+                  onFocus={playLateralNameplate}
+                  onBlur={resetLateralNameplate}
                 >
                   <span className="avatar-dot-wrap">
                     <Avatar
@@ -4378,7 +4395,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       className={`presence-dot presence-${person.presence}`}
                     />
                   </span>
-                  {nameplateSrc(person.profilePlate) && <span className="home-dm-nameplate" aria-hidden="true"><video src={nameplateSrc(person.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
+                  {nameplateSrc(person.profilePlate) && <span className="home-dm-nameplate" aria-hidden="true"><video data-hover-nameplate src={nameplateSrc(person.profilePlate)} loop muted playsInline preload="metadata"/></span>}
                   <span className="home-dm-name"><StyledName user={person}/></span>
                 </button>
               ))
@@ -5445,14 +5462,17 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       style={{ "--member-role-color": member.serverRole?.color || "#8f96a3" }}
                       key={member.id}
                       data-member-id={member.id}
+                      data-profile-plate={member.profilePlate || "default"}
                       onClick={(event) => openProfile(event, member.id)}
                       onContextMenu={(event) => openMemberMenu(event, member)}
+                      onMouseEnter={playLateralNameplate}
+                      onMouseLeave={resetLateralNameplate}
                     >
                       <span className="avatar-dot-wrap">
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
-                      {nameplateSrc(member.profilePlate) && <span className="member-nameplate-surface" aria-hidden="true"><video src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
+                      {nameplateSrc(member.profilePlate) && <span className="member-nameplate-surface" aria-hidden="true"><video data-hover-nameplate src={nameplateSrc(member.profilePlate)} loop muted playsInline preload="metadata"/></span>}
                       <div className={nameplateSrc(member.profilePlate) ? "member-info member-info-nameplate" : "member-info"}>
                         <strong>
                           <StyledName user={member}/>

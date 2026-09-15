@@ -4,7 +4,7 @@ test.beforeEach(async({page})=>{
  expect(response.ok()).toBeTruthy();await page.goto("/app");
  await expect(page.getByTitle("Configurações",{exact:true})).toBeVisible();
 });
-test("perfil salva avatar, banner e efeitos sem fechar",{tag:"@profile"},async({page})=>{
+test("perfil salva avatar, banner e efeitos e fecha ao concluir",{tag:"@profile"},async({page})=>{
  const errors=[];page.on("pageerror",e=>errors.push(e.message));
  await page.getByTitle("Configurações",{exact:true}).click();
  await page.getByRole("button",{name:"Editar perfil e conta"}).click();
@@ -13,16 +13,28 @@ test("perfil salva avatar, banner e efeitos sem fechar",{tag:"@profile"},async({
  await editor.locator('input[type=file]').nth(0).setInputFiles({name:"avatar.png",mimeType:"image/png",buffer:png});
  await editor.locator('input[type=file]').nth(1).setInputFiles({name:"banner.png",mimeType:"image/png",buffer:png});
  await editor.getByRole("button",{name:"Salvar alterações"}).click();
- await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+ await expect(editor).toBeHidden();
+ await page.getByTitle("Configurações",{exact:true}).click();
+ await page.getByRole("button",{name:"Editar perfil e conta"}).click();
  await expect(editor).toBeVisible();
  const me=await(await page.request.get("/api/auth/me")).json();
  expect(me.user.avatar).toContain("data:image/png");expect(me.user.banner).toContain("data:image/png");
  await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
  await editor.getByRole("button",{name:"Vagalumes",exact:true}).click();
  await editor.getByRole("button",{name:"Salvar alterações"}).click();
- await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+ await expect(editor).toBeHidden();
  await page.screenshot({path:"test-results/profile-studio.png",fullPage:true});
  expect(errors).toEqual([]);
+});
+test("artes animadas carregam uma página leve por vez",async({page})=>{
+ await page.getByTitle("Configurações",{exact:true}).click();
+ await page.getByRole("button",{name:"Editar perfil e conta"}).click();
+ const editor=page.getByRole("dialog",{name:"Editar perfil",exact:true});
+ await editor.getByRole("button",{name:"Artes animadas",exact:true}).click();
+ const effects=editor.locator(".profile-art-settings").first();
+ await expect(effects.locator(".profile-art-choice")).toHaveCount(9);
+ await effects.getByRole("button",{name:"2",exact:true}).click();
+ await expect(effects.locator(".profile-art-choice")).toHaveCount(9);
 });
 test("microfone mede áudio real e libera captura",async({page})=>{
  await page.getByTitle("Configurações",{exact:true}).click();
@@ -58,10 +70,60 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  await page.getByLabel("Fechar configurações",{exact:true}).click();
  await expect(page.locator(".member-sidebar .member").first()).toHaveAttribute("data-member-id",result.server.ownerId);
  await expect(page.locator(".member-owner-group .member-role-group-title")).toContainText("Guardiões");
+ await page.locator(".member-sidebar .member").first().click();
+ const profileRole=page.locator(".member-profile-popover .profile-role-badge");
+ await expect(profileRole).toBeVisible();
+ await expect(profileRole).toContainText("Guardiões");
+ await expect(profileRole).toHaveCSS("border-radius","999px");
+ await profileRole.hover();
+ await expect(profileRole).not.toHaveCSS("transform","none");
+ await page.screenshot({path:"test-results/profile-role-harmony.png"});
  const server=await(await page.request.get("/api/servers/"+result.server.id)).json();
  expect(server.server.roles.some(role=>role.name==="Guardiões"&&role.style==="dark_wave")).toBeTruthy();
  expect(server.members.find(member=>member.id===result.server.ownerId).roleId).toBe(server.server.roles.find(role=>role.name==="Guardiões").id);
  await page.screenshot({path:"test-results/roles.png",fullPage:true});
+});
+test("placa lateral fica estática e anima somente durante a interação",async({page,browser})=>{
+ const me=(await(await page.request.get("/api/auth/me")).json()).user;
+ const admin=await browser.newContext();
+ try{
+  await admin.request.post("http://127.0.0.1:34170/api/auth/login",{data:{username:"browser-admin@sesh.test",password:"browser-admin-test-only"}});
+  expect((await admin.request.patch("http://127.0.0.1:34170/api/users/"+me.id+"/badges",{data:{badges:["nitro_classic"]}})).ok()).toBeTruthy();
+  const updatedProfile=await page.request.patch("/api/auth/me",{data:{profilePlate:"brazil"}});
+  expect(updatedProfile.ok()).toBeTruthy();
+  expect((await updatedProfile.json()).user.profilePlate).toBe("brazil");
+  const result=await(await page.request.post("/api/servers",{data:{name:"Comunidade placa hover"}})).json();
+  const serverState=await(await page.request.get("/api/servers/"+result.server.id)).json();
+  expect(serverState.members.find(member=>member.id===result.server.ownerId).profilePlate).toBe("brazil");
+  const memberResponse=page.waitForResponse(response=>response.url().endsWith("/api/servers/"+result.server.id)&&response.request().method()==="GET");
+  await page.goto("/app?server="+result.server.id);
+  const renderedServer=await(await memberResponse).json();
+  expect(renderedServer.members.find(member=>member.id===result.server.ownerId).profilePlate).toBe("brazil");
+  await expect(page.getByTitle("Comunidade placa hover",{exact:true})).toBeVisible();
+  const member=page.locator('.member-sidebar .member[data-member-id="'+result.server.ownerId+'"]');
+  await expect(member).toBeVisible();
+  await expect(member).toHaveAttribute("data-profile-plate","brazil");
+  const video=member.locator("video[data-hover-nameplate]");
+  await expect(video).toBeVisible();
+  await expect.poll(()=>video.evaluate(node=>node.paused)).toBe(true);
+  await member.hover();
+  await expect.poll(()=>video.evaluate(node=>!node.paused)).toBe(true);
+  await page.locator(".channel-header").hover();
+  await expect.poll(()=>video.evaluate(node=>node.paused&&node.currentTime<.08)).toBe(true);
+ }finally{await admin.close();}
+});
+test("menu de menções mantém cada resultado em sua própria linha",async({page})=>{
+ await page.request.post("/api/servers",{data:{name:"Comunidade menções"}});
+ await page.reload();
+ await page.getByTitle("Comunidade menções",{exact:true}).click();
+ const composer=page.getByRole("textbox",{name:/Conversar em #/});
+ await composer.fill("@");
+ const options=page.locator(".mention-suggestion");
+ await expect(options.first()).toBeVisible();
+ const boxes=await options.evaluateAll(nodes=>nodes.map(node=>{const rect=node.getBoundingClientRect();return {top:rect.top,bottom:rect.bottom,height:rect.height};}));
+ expect(boxes.length).toBeGreaterThanOrEqual(2);
+ expect(boxes.every(box=>box.height>=46)).toBeTruthy();
+ expect(boxes.slice(1).every((box,index)=>box.top>=boxes[index].bottom-1)).toBeTruthy();
 });
 test("emoji picker insere e envia mensagem",async({page})=>{
  await page.request.post("/api/servers",{data:{name:"Comunidade emoji"}});
@@ -75,5 +137,5 @@ test("emoji picker insere e envia mensagem",async({page})=>{
  await page.getByRole("button",{name:"rosto risonho",exact:true}).click();
  await expect(page.locator(".composer input:not([type=file])")).toHaveValue("😀");
  await page.locator(".send-button").click();
- await expect(page.locator(".emoji-message").filter({hasText:"😀"})).toBeVisible();
+ await expect(page.locator('.emoji-message img[alt="😀"]')).toBeVisible();
 });

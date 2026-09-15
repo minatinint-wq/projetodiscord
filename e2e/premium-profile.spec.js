@@ -30,7 +30,7 @@ test("Nitro aplica banner, moldura e sobreposição premium com animações inte
     await expect(bannerMotion).toBeVisible()
     await expect(bannerMotion).toHaveAttribute("data-animated-cosmetic",/cosmetics-animated\/banners\/steel-wolf\.sprite\.webp\?v=6$/)
     await editor.getByRole("button", { name: "Salvar alterações" }).click()
-    await expect(editor.getByRole("status")).toContainText("Tudo salvo")
+    await expect(editor).toBeHidden()
     const saved = (await (await page.request.get("/api/auth/me")).json()).user
     expect(saved.avatarFrame).toBe("glitch")
     expect(saved.profileOverlay).toBe("steel-wolf")

@@ -8,7 +8,7 @@ test("mute e deafen aparecem para as outras pessoas da call", async ({ page, bro
   const peer = await context.newPage();
   try {
     const registered = await context.request.post("http://127.0.0.1:34170/api/auth/register", {
-      data: { username: "voicepeer", email: "voicepeer@sesh.test", password: "test1234", displayName: "Amiga da call" },
+      data: { username: "voicepeer", email: "voicepeer@sesh.test", password: "Voice-Test-9753", displayName: "Amiga da call" },
     });
     expect(registered.ok()).toBeTruthy();
     await context.request.post(`http://127.0.0.1:34170/api/servers/${community.inviteCode}/join`, { data: {} });

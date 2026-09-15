@@ -8,7 +8,7 @@ async function drop(page,target,name,mime,bytes){
  await target.dispatchEvent("dragenter",{dataTransfer:data});await target.dispatchEvent("drop",{dataTransfer:data});await data.dispose();
 }
 test("GIF concedido manualmente aparece no banner e persiste após recarregar",async({page,browser})=>{
- const member=(await(await page.request.post("/api/auth/register",{data:{username:"gifmember",email:"gifmember@sesh.test",password:"test1234",displayName:"Perfil animado"}})).json()).user;
+ const member=(await(await page.request.post("/api/auth/register",{data:{username:"gifmember",email:"gifmember@sesh.test",password:"Gif-Test-9753",displayName:"Perfil animado"}})).json()).user;
  const admin=await browser.newContext();
  try{
   await admin.request.post(base+"/api/auth/login",{data:{username:"browser-admin@sesh.test",password:"browser-admin-test-only"}});
@@ -19,7 +19,7 @@ test("GIF concedido manualmente aparece no banner e persiste após recarregar",a
   await expect(editor.locator(".identity-banner")).toHaveCSS("background-image",/data:image\/gif;base64/);
   await expect.poll(()=>editor.locator(".identity-banner").evaluate(async element=>{const src=element.style.backgroundImage.slice(5,-2);const img=new Image();img.src=src;try{await img.decode();return img.naturalWidth;}catch{return 0;}})).toBeGreaterThan(0);
   await editor.getByLabel("Posição vertical do banner").fill("70");
-  await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor.getByRole("status")).toContainText("Tudo salvo");
+  await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor).toBeHidden();
   const me=(await(await page.request.get("/api/auth/me")).json()).user;expect(me.banner).toBe("data:image/gif;base64,"+gif.toString("base64"));expect(me.bannerPositionY).toBe(70);
   await page.reload();await page.getByTitle("Abrir meu perfil",{exact:true}).click();await page.getByRole("button",{name:"Ver perfil completo"}).click();
   await expect(page.locator(".identity-dialog .identity-banner")).toHaveCSS("background-image",/data:image\/gif;base64/);
