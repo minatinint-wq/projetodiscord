@@ -38,7 +38,7 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
 });
 
 test("profile frame catalog keeps every product separate and uses layered Discord PNGs", () => {
-  assert.equal(PROFILE_FRAMES.length, 39);
+  assert.equal(PROFILE_FRAMES.length, 60);
   assert.equal(PROFILE_FRAME_IDS.size, PROFILE_FRAMES.length);
   for (const [id, , layers] of PROFILE_FRAMES.slice(1)) {
     assert(layers.length >= 1 && layers.length <= 4, `${id} precisa ter de 1 a 4 camadas`);
@@ -71,5 +71,7 @@ test("profile frame metadata preserves official layer roles", () => {
   assert.deepEqual(profileFrameLayout("fantasy-galaxy-white").layers.map(({ role, edge }) => [role, edge]), [["front", "top"], ["back", "top"]]);
   assert.deepEqual(profileFrameLayout("lord-of-dead-blue").layers.map(({ role, edge }) => [role, edge]), [["front", "top"], ["back", "top"], ["back", "bottom"]]);
   assert.deepEqual(profileFrameLayout("celestial-chart").layers.map(({ role, edge }) => [role, edge]), [["back", "top"], ["front", "top"], ["front", "bottom"]]);
+  assert.deepEqual(profileFrameLayout("tropical-symphony").layers.map(({ role, edge }) => [role, edge]), [["front", "top"], ["front", "bottom"], ["back", "bottom"]]);
+  assert.deepEqual(profileFrameLayout("lofi-landscape").layers.map(({ role, edge }) => [role, edge]), [["back", "top"]]);
 });
 
