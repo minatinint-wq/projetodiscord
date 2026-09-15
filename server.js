@@ -631,21 +631,33 @@ async function persistDatabase(keys = null) {
       params.push(key, JSON.stringify(database[key] || []));
       return `($${2 * index + 1}, $${2 * index + 2}::jsonb)`;
     });
-    const transaction = await pgClient.connect();
-    try {
-      await transaction.query("BEGIN");
-      await transaction.query(
-        `INSERT INTO app_state (key, value) VALUES ${rows.join(",")} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-        params,
-      );
-      await transaction.query("COMMIT");
-    } catch (error) {
-      try { await transaction.query("ROLLBACK"); } catch { /* connection already gone */ }
-      throw error;
-    } finally {
-      transaction.release();
+    let lastError;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      let transaction;
+      let discardConnection = false;
+      try {
+        transaction = await pgClient.connect();
+        await transaction.query("BEGIN");
+        await transaction.query(
+          `INSERT INTO app_state (key, value) VALUES ${rows.join(",")} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          params,
+        );
+        await transaction.query("COMMIT");
+        return;
+      } catch (error) {
+        lastError = error;
+        discardConnection = true;
+        if (transaction) {
+          try { await transaction.query("ROLLBACK"); } catch { /* connection already gone */ }
+        }
+        if (attempt + 1 >= 4) break;
+        console.warn(`Gravação PostgreSQL interrompida; nova tentativa ${attempt + 2}/4.`);
+        await wait(250 * 2 ** attempt);
+      } finally {
+        transaction?.release(discardConnection);
+      }
     }
-    return;
+    throw lastError;
   }
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
   await fs.writeFile(`${dataFile}.tmp`, encodeDatabase(database), "utf8");
