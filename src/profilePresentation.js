@@ -16,7 +16,10 @@ export const BANNER_PRESETS = [
 ];
 export const PROFILE_THEMES=[["default","Original","#9485fa"],["purple","Violeta","#b097ff"],["pink","Rosa","#f5a5ce"],["blue","Azul","#88b6fa"],["green","Jade","#80d1b0"],["red","Rubi","#eb8c9b"],["midnight","Noturno","#9baac9"],["sunset","Solar","#eeb681"],["ocean","Marinho","#81d9dc"],["aurora","Aurora","#b7b1f5"]];
 export function bannerPresentation(user){
- const background=user.banner?.startsWith("data:image/") ? "url("+user.banner+")" : user.banner||BANNER_PRESETS.find(([id])=>id===(user.bannerPreset||"aurora"))?.[2]||BANNER_PRESETS[0][2];
+ const customBanner=typeof user.banner==="string"?user.banner:"";
+ const background=customBanner
+  ? (customBanner.startsWith("data:image/")||customBanner.startsWith("/api/users/") ? `url(${JSON.stringify(customBanner)})` : customBanner)
+  : BANNER_PRESETS.find(([id])=>id===(user.bannerPreset||"aurora"))?.[2]||BANNER_PRESETS[0][2];
  return {backgroundImage:background.startsWith("#")?"none":background,backgroundColor:background.startsWith("#")?background:undefined,backgroundSize:"cover",backgroundPosition:(user.bannerPositionX??50)+"% "+(user.bannerPositionY??50)+"%"};
 }
 export function profilePresentation(user){

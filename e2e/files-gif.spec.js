@@ -20,9 +20,10 @@ test("GIF concedido manualmente aparece no banner e persiste após recarregar",a
   await expect.poll(()=>editor.locator(".identity-banner").evaluate(async element=>{const src=element.style.backgroundImage.slice(5,-2);const img=new Image();img.src=src;try{await img.decode();return img.naturalWidth;}catch{return 0;}})).toBeGreaterThan(0);
   await editor.getByLabel("Posição vertical do banner").fill("70");
   await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor).toBeHidden();
-  const me=(await(await page.request.get("/api/auth/me")).json()).user;expect(me.banner).toBe("data:image/gif;base64,"+gif.toString("base64"));expect(me.bannerPositionY).toBe(70);
+  const me=(await(await page.request.get("/api/auth/me")).json()).user;expect(me.banner).toMatch(/^\/api\/users\/.+\/media\/banner\?v=/);expect(me.bannerPositionY).toBe(70);
+  const persisted=await page.request.get(me.banner);expect(persisted.ok()).toBeTruthy();expect(Buffer.from(await persisted.body())).toEqual(gif);
   await page.reload();await page.getByTitle("Abrir meu perfil",{exact:true}).click();await page.getByRole("button",{name:"Ver perfil completo"}).click();
-  await expect(page.locator(".identity-dialog .identity-banner")).toHaveCSS("background-image",/data:image\/gif;base64/);
+  await expect(page.locator(".identity-dialog .identity-banner")).toHaveCSS("background-image",/\/api\/users\/.+\/media\/banner/);
   await expect(page.locator(".identity-dialog .identity-banner")).toHaveCSS("background-position","50% 70%");
  }finally{await admin.close();}
 });

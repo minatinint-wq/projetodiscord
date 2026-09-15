@@ -295,3 +295,4 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .pager>button:disabled{opacity:.35;cursor:default}
 .pager>button.pager-current{border-color:#8c7cf0;color:#fff}
 .pager-count{margin-left:auto;font-size:11px;color:#979fb6}
+.pager-gap{display:grid;min-width:20px;height:30px;place-items:center;color:#777d91;font-size:12px}

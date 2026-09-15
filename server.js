@@ -609,7 +609,11 @@ async function loadDatabase() {
       ? [...new Set([...badges, "criador"])]
       : badges.filter((badge) => badge !== "criador");
   }
-  await saveDatabase();
+  // No PostgreSQL, o restante do estado acabou de ser lido e não precisa ser
+  // serializado novamente. Persistir só usuários evita duplicar em memória
+  // históricos e anexos grandes durante cada inicialização.
+  if (pgClient) await saveDatabase("users");
+  else await saveDatabase();
   console.log(
     `Sesh: ${database.users.length} usuário(s) carregados do armazenamento ${DATABASE_URL ? "PostgreSQL" : "local"}.`,
   );
@@ -789,6 +793,27 @@ function profileMediaPayload(value) {
     bytes: Buffer.from(match[2], "base64"),
   };
 }
+
+function parseSingleByteRange(header, size) {
+  if (!header) return null;
+  const match = String(header).match(/^bytes=(\d*)-(\d*)$/i);
+  if (!match || size <= 0) return false;
+  let start;
+  let end;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return false;
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : size - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= size || end < start)
+      return false;
+    end = Math.min(end, size - 1);
+  }
+  return { start, end };
+}
 function publicUser(user) {
   const publicBadges = badgesForUser(user);
   return {
@@ -909,10 +934,10 @@ async function issueEmailVerification(user) {
 function sessionUser(user) {
   return {
     ...publicUser(user),
-    // A própria conta recebe os valores editáveis. Nas respostas públicas,
-    // data URLs viram links curtos para não se repetirem em cada mensagem.
-    avatar: user.avatar || null,
-    banner: user.banner || null,
+    // Até a própria conta usa URLs curtas. Reenviar vários MB de base64 no
+    // login e em /auth/me causava picos de heap sob acessos simultâneos.
+    avatar: publicProfileMedia(user, "avatar"),
+    banner: publicProfileMedia(user, "banner"),
     email: user.email || "",
     emailVerified: Boolean(user.emailVerifiedAt),
     isCreator: isCreator(user),
@@ -1119,16 +1144,14 @@ function safeDisplayName(value, fallback = "Usuário") {
   return cleaned || safeFallback;
 }
 const sessionHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
-async function createSession(userId) {
+async function createSession(userId, collections = ["sessions"]) {
   const token = id();
   const tokenHash = sessionHash(token);
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
   sessions.set(token, userId);
   database.sessions = database.sessions.filter((record) => Number(record.expiresAt) > Date.now()).slice(-4999);
   database.sessions.push({ tokenHash, userId, expiresAt, createdAt: now() });
-  // O cadastro chama esta função logo após inserir o usuário; a gravação
-  // integral mantém usuário e sessão atômicos nesse fluxo.
-  await saveDatabase();
+  await saveDatabase(...collections);
   return token;
 }
 async function revokeSession(token) {
@@ -1499,7 +1522,7 @@ async function handler(req, res) {
       if (!target) return json(res, 404, { error: "Conta não encontrada." });
       target.emailVerifiedAt = now();
       database.emailVerifications = database.emailVerifications.filter((item) => item.userId !== target.id);
-      await saveDatabase();
+      await saveDatabase("users", "emailVerifications");
       res.writeHead(302, { Location: "/app?email_verified=1" });
       return res.end();
     }
@@ -1565,7 +1588,7 @@ async function handler(req, res) {
       user.publicId = allocatePublicId(user);
       database.users.push(user);
       recordRegisterAttempt(req);
-      const session = await createSession(user.id);
+      const session = await createSession(user.id, ["users", "sessions"]);
       setSessionCookie(res, session);
       // Registration must never wait for an external email provider.
       // Sessão via cookie httpOnly; o token não volta no corpo (anti-XSS).
@@ -1650,21 +1673,39 @@ async function handler(req, res) {
             ".jpg": "image/jpeg",
             ".jpeg": "image/jpeg",
             ".woff2": "font/woff2",
+            ".webm": "video/webm",
+            ".mp4": "video/mp4",
+            ".mp3": "audio/mpeg",
           };
           // Assets com hash no nome podem ser imutáveis; HTML nunca.
+          const immutableMedia = /^\/(?:nameplates|profile-art|profile-frames|cosmetics-)/.test(url.pathname);
           const cache = ext === ".html" || url.pathname === "/"
             ? "no-cache"
-            : (resolved.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
-          res.writeHead(200, {
+            : (resolved.includes(`${path.sep}assets${path.sep}`) || immutableMedia ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+          const range = parseSingleByteRange(req.headers.range, stat.size);
+          if (range === false) {
+            res.writeHead(416, {
+              ...securityHeaders(),
+              "Content-Range": `bytes */${stat.size}`,
+              "Accept-Ranges": "bytes",
+              "Cache-Control": cache,
+            });
+            return res.end();
+          }
+          const start = range?.start ?? 0;
+          const end = range?.end ?? stat.size - 1;
+          res.writeHead(range ? 206 : 200, {
             ...securityHeaders(),
             "Content-Type":
               types[ext] ||
               "application/octet-stream",
-            "Content-Length": stat.size,
+            "Content-Length": Math.max(0, end - start + 1),
+            "Accept-Ranges": "bytes",
+            ...(range ? { "Content-Range": `bytes ${start}-${end}/${stat.size}` } : {}),
             "Cache-Control": cache,
           });
           if (req.method === "HEAD") return res.end();
-          const stream = createReadStream(resolved, { highWaterMark: 64 * 1024 });
+          const stream = createReadStream(resolved, { start, end, highWaterMark: 32 * 1024 });
           stream.on("error", () => res.destroy());
           res.on("close", () => stream.destroy());
           stream.pipe(res);
@@ -1767,7 +1808,7 @@ async function handler(req, res) {
         subscription.status = input.status;
         subscription.updatedAt = now();
       }
-      await saveDatabase();
+      await saveDatabase("subscriptions");
       const output = publicUser(target);
       broadcastAll({ type: "user.updated", user: output });
       return json(res, 200, { subscription, user: output });
@@ -1778,9 +1819,16 @@ async function handler(req, res) {
       });
     if (url.pathname === "/api/games" && req.method === "GET") {
       const query = String(url.searchParams.get("q") || "").trim().toLowerCase();
+      const requestedPage = Number(url.searchParams.get("page") || 1);
+      const requestedLimit = Number(url.searchParams.get("limit") || 24);
+      const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+      const limit = Number.isSafeInteger(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 50)) : 24;
+      const matches = GAME_CATALOG.filter((game) => !query || game.name.toLowerCase().includes(query));
+      const pages = Math.max(1, Math.ceil(matches.length / limit));
+      const safePage = Math.min(page, pages);
       return json(res, 200, {
-        games: GAME_CATALOG.filter((game) => !query || game.name.toLowerCase().includes(query))
-          .slice(0, 400),
+        games: matches.slice((safePage - 1) * limit, safePage * limit),
+        pagination: { page: safePage, pageSize: limit, pages, total: matches.length },
       });
     }
     if (url.pathname === "/api/admin/catalog" && req.method === "GET") {
@@ -1807,7 +1855,7 @@ async function handler(req, res) {
         return json(res, 400, { error: "Moldura inválida." });
       const item = { id: id(), type, name, value, active: true, createdAt: now() };
       database.adminCatalog.push(item);
-      await saveDatabase();
+      await saveDatabase("adminCatalog");
       return json(res, 201, { item });
     }
     const catalogItemMatch = url.pathname.match(new RegExp("^/api/admin/catalog/([^/]+)$"));
@@ -1817,7 +1865,7 @@ async function handler(req, res) {
       const item = database.adminCatalog.find((entry) => entry.id === catalogItemMatch[1]);
       if (!item) return json(res, 404, { error: "Item não encontrado." });
       item.active = false;
-      await saveDatabase();
+      await saveDatabase("adminCatalog");
       return json(res, 200, { ok: true });
     }
     if (url.pathname === "/api/auth/resend-verification" && req.method === "POST") {
@@ -2073,7 +2121,7 @@ async function handler(req, res) {
       user.displayName = displayName;
       user.username = username;
       Object.assign(storedUser, user);
-      await saveDatabase();
+      await saveDatabase("users");
       const output = publicUser(user);
       broadcastAll({ type: "user.updated", user: output });
       broadcastAll({
@@ -2110,7 +2158,7 @@ async function handler(req, res) {
       if (!target) return json(res, 404, { error: "Usuário não encontrado." });
       const input = await body(req);
       target.badges = sanitizeBadges(target, input.badges);
-      await saveDatabase();
+      await saveDatabase("users");
       const output = publicUser(target);
       broadcastAll({ type: "user.updated", user: output });
       return json(res, 200, { user: output });
@@ -2202,7 +2250,7 @@ async function handler(req, res) {
         createdAt: now(),
         editedAt: null,
       });
-      await saveDatabase();
+      await saveDatabase("servers", "channels", "memberships", "messages");
       return json(res, 201, { server: decorateServer(server, user) });
     }
     const serverRootMatch = url.pathname.match(/^\/api\/servers\/([^/]+)$/);
@@ -2322,7 +2370,7 @@ async function handler(req, res) {
         membership.roleId = roleId;
         membership.role = membership.userId === server.ownerId ? "owner" : roleId === "member" ? "member" : "custom";
       }
-      await saveDatabase();
+      await saveDatabase("servers", "memberships");
       broadcastServer(server.id, {
         type: "server.updated",
         serverId: server.id,
@@ -2384,7 +2432,7 @@ async function handler(req, res) {
         target.voiceMutedAt = target.voiceMuted ? now() : null;
         target.voiceMutedBy = target.voiceMuted ? user.id : null;
       }
-      await saveDatabase();
+      await saveDatabase("memberships");
       if (target.voiceMuted) {
         for (const channel of database.channels.filter(channel => channel.serverId === server.id && channel.type === "voice")) {
           const room = voiceRooms.get(channel.id);
@@ -2427,7 +2475,7 @@ async function handler(req, res) {
         (membership) =>
           !(membership.serverId === server.id && membership.userId === user.id),
       );
-      await saveDatabase();
+      await saveDatabase("memberships");
       return json(res, 200, { ok: true, serverId: server.id });
     }
     if (serverMatch && req.method === "POST") {
@@ -2449,7 +2497,7 @@ async function handler(req, res) {
         createdAt: now(),
       };
       database.channels.push(channel);
-      await saveDatabase();
+      await saveDatabase("channels");
       broadcastServer(server.id, {
         type: "channel.created",
         serverId: server.id,
@@ -2470,7 +2518,7 @@ async function handler(req, res) {
       database.messages = database.messages.filter(
         (item) => item.channelId !== channel.id,
       );
-      await saveDatabase();
+      await saveDatabase("channels", "messages");
       broadcastServer(server.id, {
         type: "channel.deleted",
         serverId: server.id,
@@ -2496,7 +2544,7 @@ async function handler(req, res) {
         channel.name = name;
       }
       if (input.topic !== undefined) channel.topic = String(input.topic);
-      await saveDatabase();
+      await saveDatabase("channels");
       broadcastServer(server.id, {
         type: "channel.updated",
         serverId: server.id,
@@ -2911,7 +2959,7 @@ async function handler(req, res) {
           return json(res, 409, { error: "Vocês já são amigos." });
         if (existing.requesterId === target.id) {
           existing.status = "accepted";
-          await saveDatabase();
+          await saveDatabase("friendships");
           notifyUser(target.id, { type: "friends.updated" });
           notifyUser(user.id, { type: "friends.updated" });
           return json(res, 200, { ok: true, accepted: true });

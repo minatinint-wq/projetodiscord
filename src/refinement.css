@@ -278,3 +278,8 @@ html[data-reduced-motion=true] *,html[data-reduced-motion=true] *::before,html[d
  .direct-profile h3{margin:22px 0 8px;color:#8c9099;font-size:10px;letter-spacing:.055em;text-transform:uppercase}
  .direct-profile p{color:#b8bbc3;line-height:1.5}.direct-profile-link{margin-top:18px;padding:11px;border-radius:7px;background:#27292f}.direct-profile-link:hover{background:#303239}
 }
+
+.member-nameplate-surface .viewport-nameplate-video,
+.home-dm-nameplate .viewport-nameplate-video{position:absolute;inset:0;display:block}
+.member-nameplate-surface .viewport-nameplate-video>video,
+.home-dm-nameplate .viewport-nameplate-video>video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;object-position:center;opacity:.96}

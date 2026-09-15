@@ -176,7 +176,7 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   });
   assert.equal(customizedProfile.response.status, 200);
   assert.equal(customizedProfile.payload.user.favoriteGame, "Jogo de teste");
-  assert.match(customizedProfile.payload.user.avatar, /^data:image\/png/);
+  assert.match(customizedProfile.payload.user.avatar, /^\/api\/users\/.+\/media\/avatar\?v=[a-f0-9]{12}$/);
   assert.equal(customizedProfile.payload.user.profileEffect, "glow");
   const badgePromotion = await request("/api/auth/me", {
     method: "PATCH",

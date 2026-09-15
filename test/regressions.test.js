@@ -55,7 +55,7 @@ test("perfil é atômico e imagem estática persiste",async()=>{
  assert.equal((await req("/api/auth/me","PATCH",{avatar:png,banner:png},guest.token)).status,200);
  const failed=await req("/api/auth/me","PATCH",{bio:"nao deve salvar",banner:"invalid"},guest.token);
  assert.equal(failed.status,400);const result=await req("/api/auth/me","GET",undefined,guest.token);
- assert.equal(result.user.bio,"");assert.equal(result.user.banner,png);assert.equal(result.user.avatar,png);
+ assert.equal(result.user.bio,"");assert.match(result.user.banner,/^\/api\/users\/.+\/media\/banner\?v=/);assert.match(result.user.avatar,/^\/api\/users\/.+\/media\/avatar\?v=/);
  assert.equal((await req("/api/auth/me","PATCH",null,guest.token)).status,400);
 });
 test("GIF exige Nitro ativo no backend",async()=>{
@@ -64,7 +64,7 @@ test("GIF exige Nitro ativo no backend",async()=>{
 
  const granted=await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"active"},admin.token);
  assert.equal(granted.status,200);
- const result=await req("/api/auth/me","PATCH",{avatar:gif,banner:gif},guest.token);assert.equal(result.status,200);assert.equal(result.user.avatar,gif);
+ const result=await req("/api/auth/me","PATCH",{avatar:gif,banner:gif},guest.token);assert.equal(result.status,200);assert.match(result.user.avatar,/^\/api\/users\/.+\/media\/avatar\?v=/);
 });
 test("e-mail não permite assumir privilégio administrativo",async()=>{
  const result=await req("/api/auth/me","PATCH",{email:"test-admin@sesh.local"},guest.token);assert.equal(result.status,403);
@@ -96,7 +96,7 @@ test("banner animado mantém bytes e enquadramento com Nitro",async()=>{
  const admin=await req("/api/auth/login","POST",{username:"test-admin@sesh.local",password:"test-admin-password"});
  await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"active"},admin.token);
  const result=await req("/api/auth/me","PATCH",{banner:gif,bannerPositionX:25,bannerPositionY:80,effectSpeed:"slow",effectIntensity:"subtle",profileEffect:"butterflies"},guest.token);
- assert.equal(result.status,200);assert.equal(result.user.banner,gif);assert.equal(result.user.bannerPositionY,80);
+ assert.equal(result.status,200);assert.match(result.user.banner,/^\/api\/users\/.+\/media\/banner\?v=/);assert.equal(result.user.bannerPositionY,80);
  const profile=await req("/api/users/"+guest.user.id,"GET",undefined,owner.token);
  assert.match(profile.user.banner,/^\/api\/users\/.+\/media\/banner\?v=[a-f0-9]{12}$/);assert.equal(profile.user.bannerPositionX,25);assert(profile.user.badges.includes("nitro_classic"));
  const media=await fetch(url+profile.user.banner,{headers:{Cookie:owner.token}});assert.equal(media.status,200);assert.deepEqual(Buffer.from(await media.arrayBuffer()),Buffer.from(gif.split(",")[1],"base64"));
@@ -105,7 +105,10 @@ test("banner animado mantém bytes e enquadramento com Nitro",async()=>{
  await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"canceled"},admin.token);
 });
 test("favorito acompanha seleção e limpa quando remove jogos",async()=>{
- const games=(await req("/api/games","GET",undefined,guest.token)).games;
+ const firstPage=await req("/api/games","GET",undefined,guest.token),games=firstPage.games;
+ assert.equal(games.length,24);assert.equal(firstPage.pagination.total,400);assert.equal(firstPage.pagination.pages,17);
+ const secondPage=await req("/api/games?page=2&limit=24","GET",undefined,guest.token);
+ assert.equal(secondPage.games.length,24);assert.notEqual(secondPage.games[0].id,games[0].id);
  const result=await req("/api/auth/me","PATCH",{favoriteGame:"valor antigo",gameInterests:[games[0].id,games[1].id]},guest.token);
  assert.equal(result.user.favoriteGame,games[0].name);
  assert.deepEqual((await req("/api/users/"+guest.user.id,"GET",undefined,owner.token)).user.gameInterests,[games[0].id,games[1].id]);

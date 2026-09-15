@@ -57,7 +57,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
   catalog: () => request("/api/catalog"),
-  games: (query = "") => request(`/api/games?q=${encodeURIComponent(query)}`),
+  games: (query = "", page = 1, limit = 24) => request(`/api/games?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
   adminCatalog: () => request("/api/admin/catalog"),
   createCatalogItem: (input) =>
     request("/api/admin/catalog", {

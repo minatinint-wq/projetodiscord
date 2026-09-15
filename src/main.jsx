@@ -82,6 +82,34 @@ function LibraryEmoji({ emoji, size = 20 }) {
   );
 }
 
+function ViewportNameplate({ src }) {
+  const hostRef = useRef(null);
+  const videoRef = useRef(null);
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { rootMargin: "80px 0px" },
+    );
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !visible) return undefined;
+    video.play().catch(() => {});
+    return undefined;
+  }, [visible, src]);
+  return <span ref={hostRef} className="viewport-nameplate-video">
+    <video ref={videoRef} data-animated-nameplate={src} src={visible ? src : undefined} autoPlay={visible} loop muted playsInline preload={visible ? "metadata" : "none"}/>
+  </span>;
+}
+
 const colors = ["purple", "orange", "green", "blue"];
 const PROFILE_NAME_COLORS = [
   "#f1f3f5",
@@ -4378,7 +4406,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                       className={`presence-dot presence-${person.presence}`}
                     />
                   </span>
-                  {nameplateSrc(person.profilePlate) && <span className="home-dm-nameplate" aria-hidden="true"><video src={nameplateSrc(person.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
+                  {nameplateSrc(person.profilePlate) && <span className="home-dm-nameplate" aria-hidden="true"><ViewportNameplate src={nameplateSrc(person.profilePlate)}/></span>}
                   <span className="home-dm-name"><StyledName user={person}/></span>
                 </button>
               ))
@@ -5453,7 +5481,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         <Avatar user={member} color={member.avatarColor || "purple"} small />
                         <span className={`presence-dot presence-${presenceFor(member.id)}`} />
                       </span>
-                      {nameplateSrc(member.profilePlate) && <span className="member-nameplate-surface" aria-hidden="true"><video src={nameplateSrc(member.profilePlate)} autoPlay loop muted playsInline preload="metadata"/></span>}
+                      {nameplateSrc(member.profilePlate) && <span className="member-nameplate-surface" aria-hidden="true"><ViewportNameplate src={nameplateSrc(member.profilePlate)}/></span>}
                       <div className={nameplateSrc(member.profilePlate) ? "member-info member-info-nameplate" : "member-info"}>
                         <strong>
                           <StyledName user={member}/>

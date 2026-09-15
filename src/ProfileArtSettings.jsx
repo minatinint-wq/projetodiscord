@@ -7,14 +7,28 @@ import ProfileFrameEffect from "./ProfileFrameEffect";
 
 // APNGs are expensive to decode even when their cards are below the fold.
 // Keep each mounted page deliberately small so changing tabs stays instant.
-const EFFECT_PAGE_SIZE = 9;
-const FRAME_PAGE_SIZE = 12;
+const EFFECT_PAGE_SIZE = 6;
+const FRAME_PAGE_SIZE = 8;
+
+function visiblePageItems(page, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, index) => index);
+  const indexes = new Set([0, pages - 1, page - 1, page, page + 1]);
+  const visible = [...indexes].filter((index) => index >= 0 && index < pages).sort((a, b) => a - b);
+  const items = [];
+  visible.forEach((index, position) => {
+    if (position && index - visible[position - 1] > 1) items.push(`gap-${index}`);
+    items.push(index);
+  });
+  return items;
+}
 
 function Pager({ page, pages, setPage, count, label }) {
   if (pages <= 1) return <div className="pager"><span className="pager-count">{count} {label}</span></div>;
   return <div className="pager" role="navigation" aria-label={`Páginas de ${label}`}>
     <button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} aria-label="Página anterior">‹</button>
-    {Array.from({ length: pages }, (_, index) => <button type="button" key={index} aria-pressed={index === page} className={index === page ? "pager-current" : ""} onClick={() => setPage(index)}>{index + 1}</button>)}
+    {visiblePageItems(page, pages).map((item) => typeof item === "number"
+      ? <button type="button" key={item} aria-pressed={item === page} className={item === page ? "pager-current" : ""} onClick={() => setPage(item)}>{item + 1}</button>
+      : <span className="pager-gap" aria-hidden="true" key={item}>…</span>)}
     <button type="button" disabled={page >= pages - 1} onClick={() => setPage((value) => Math.min(pages - 1, value + 1))} aria-label="Próxima página">›</button>
     <span className="pager-count">{count} {label}</span>
   </div>;

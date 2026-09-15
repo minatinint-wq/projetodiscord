@@ -18,7 +18,7 @@ test("perfil salva avatar, banner e efeitos e fecha ao concluir",{tag:"@profile"
  await page.getByRole("button",{name:"Editar perfil e conta"}).click();
  await expect(editor).toBeVisible();
  const me=await(await page.request.get("/api/auth/me")).json();
- expect(me.user.avatar).toContain("data:image/png");expect(me.user.banner).toContain("data:image/png");
+ expect(me.user.avatar).toMatch(/^\/api\/users\/.+\/media\/avatar\?v=/);expect(me.user.banner).toMatch(/^\/api\/users\/.+\/media\/banner\?v=/);
  await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
  await editor.getByRole("button",{name:"Vagalumes",exact:true}).click();
  await editor.getByRole("button",{name:"Salvar alterações"}).click();
@@ -32,9 +32,24 @@ test("artes animadas carregam uma página leve por vez",async({page})=>{
  const editor=page.getByRole("dialog",{name:"Editar perfil",exact:true});
  await editor.getByRole("button",{name:"Artes animadas",exact:true}).click();
  const effects=editor.locator(".profile-art-settings").first();
- await expect(effects.locator(".profile-art-choice")).toHaveCount(9);
+ await expect(effects.locator(".profile-art-choice")).toHaveCount(6);
  await effects.getByRole("button",{name:"2",exact:true}).click();
- await expect(effects.locator(".profile-art-choice")).toHaveCount(9);
+ await expect(effects.locator(".profile-art-choice")).toHaveCount(6);
+ const frames=editor.locator(".profile-art-settings").nth(1);
+ await expect(frames.locator(".profile-frame-choice")).toHaveCount(8);
+ await editor.getByRole("button",{name:"Jogos de interesse",exact:true}).click();
+ await expect(editor.locator(".games-gallery>button")).toHaveCount(24);
+ await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
+ await expect(editor.locator(".studio-grid-avatar-frame .studio-choice")).toHaveCount(9);
+ await expect(editor.locator(".nameplate-grid .nameplate-choice")).toHaveCount(9);
+});
+test("backend entrega animações em partes cacheáveis",async({page})=>{
+ const response=await page.request.get("/nameplates/brazil.webm",{headers:{Range:"bytes=0-1023"}});
+ expect(response.status()).toBe(206);
+ expect(response.headers()["content-range"]).toMatch(/^bytes 0-1023\//);
+ expect(response.headers()["accept-ranges"]).toBe("bytes");
+ expect(response.headers()["cache-control"]).toContain("immutable");
+ expect((await response.body()).byteLength).toBe(1024);
 });
 test("microfone mede áudio real e libera captura",async({page})=>{
  await page.getByTitle("Configurações",{exact:true}).click();
