@@ -2308,10 +2308,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   function playUiSound(kind) {
     if (localStorage.getItem("sesh_ui_sounds") === "off" || localStorage.getItem("sesh_sound_enabled") === "false") return;
-    if (kind === "connect") {
+    if (kind === "connect" || kind === "disconnect") {
       try {
-        const sound = new Audio("/sounds/call-enter.mp3");
-        sound.volume = 0.6;
+        const sound = new Audio(kind === "connect" ? "/sounds/call-enter.mp3" : "/sounds/call-exit.mp3");
+        sound.volume = 0.4;
         sound.preload = "auto";
         uiSoundRef.current = sound;
         sound.addEventListener("ended", () => {
