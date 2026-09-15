@@ -83,7 +83,7 @@ test("cargo criado permanece após salvar e reabrir",async({page})=>{
  expect(server.members.find(member=>member.id===result.server.ownerId).roleId).toBe(server.server.roles.find(role=>role.name==="Guardiões").id);
  await page.screenshot({path:"test-results/roles.png",fullPage:true});
 });
-test("placa lateral fica estática e anima somente durante a interação",async({page,browser})=>{
+test("placa lateral permanece animada no servidor",async({page,browser})=>{
  const me=(await(await page.request.get("/api/auth/me")).json()).user;
  const admin=await browser.newContext();
  try{
@@ -103,13 +103,11 @@ test("placa lateral fica estática e anima somente durante a interação",async(
   const member=page.locator('.member-sidebar .member[data-member-id="'+result.server.ownerId+'"]');
   await expect(member).toBeVisible();
   await expect(member).toHaveAttribute("data-profile-plate","brazil");
-  const video=member.locator("video[data-hover-nameplate]");
+  const video=member.locator(".member-nameplate-surface video");
   await expect(video).toBeVisible();
-  await expect.poll(()=>video.evaluate(node=>node.paused)).toBe(true);
-  await member.hover();
   await expect.poll(()=>video.evaluate(node=>!node.paused)).toBe(true);
   await page.locator(".channel-header").hover();
-  await expect.poll(()=>video.evaluate(node=>node.paused&&node.currentTime<.08)).toBe(true);
+  await expect.poll(()=>video.evaluate(node=>!node.paused)).toBe(true);
  }finally{await admin.close();}
 });
 test("menu de menções mantém cada resultado em sua própria linha",async({page})=>{
