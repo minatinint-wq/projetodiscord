@@ -5,7 +5,7 @@ import { PROFILE_ART_EFFECTS, PROFILE_ART_IDS, profileArtFormat, profileArtSrc, 
 import { PROFILE_FRAMES, PROFILE_FRAME_IDS, profileFrameLayout, profileFrameLayers, profileFrameVariables } from "../profile-frames.js";
 
 test("profile art catalog exposes APNGs and approved Discord references", () => {
-  assert(PROFILE_ART_EFFECTS.length >= 38);
+  assert(PROFILE_ART_EFFECTS.length >= 51);
   assert.equal(PROFILE_ART_IDS.size, PROFILE_ART_EFFECTS.length);
   for (const [id, , source, format] of PROFILE_ART_EFFECTS.slice(1)) {
     const src = profileArtSrc(id);
@@ -30,6 +30,7 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
     }
   }
   assert.equal(profileArtVariantCount("mothman"), 4);
+  assert.equal(profileArtVariantCount("abundant-roses-red"), 2);
   assert.equal(profileArtSrc("mothman", 4), profileArtSrc("mothman", 0));
   assert.equal(profileArtSrc("none"), null);
   assert.equal(profileArtSrc("unknown"), null);

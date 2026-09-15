@@ -47,6 +47,21 @@ export const PROFILE_ART_EFFECTS = [
   ["death-head-moth", "Mariposa-caveira", "https://cdn.discordapp.com/media/v1/collectibles-shop/cc1d801ab6767150f3450eb2003adab63e6ed9655ef67e19e9d09e91d3132743", "apng"],
   ["moonlight-crystals", "Cristais do Luar", "https://cdn.discordapp.com/assets/content/5231cca365b1d39335d55cabaf0f94c1892d7ccf1af302ebf809c138e2448039", "apng"],
   ["neon-splendor-ruby", "Brilho Neon (Rubi)", "https://cdn.discordapp.com/media/v1/collectibles-shop/0a034e447378eebf752642ebadf5fb5794973682f6592eeaf7a81f399f42152a", "apng"],
+  ["magic-hearts", "Corações Mágicos", "https://cdn.discordapp.com/assets/content/6f7444d87e28d7ce011398eee37f637c597d1cf1bad2e90580dbad8b6eba3ca4", "apng"],
+  ["hallelujah-mountains", "Montanhas da Aleluia", "https://cdn.discordapp.com/assets/content/e1b8a19f2eb61f8e5331a05d8960f11805df76ec363bdc752c1a0c4764d48f63", "apng"],
+  ["confectionery-challenge", "Desafio de Confeitaria", "https://cdn.discordapp.com/assets/content/be4ed5003cc22f4bbf43aa54fd60496f9305369073a24ef462f5f3da8a64fe3c", "apng"],
+  ["hopeful-beginnings", "Começos Cheios de Esperança", "https://cdn.discordapp.com/assets/content/96113b6d1649b9cfaf75b2f71999e1f2d9f79cd24864fd1db246b6eaf608e307", "apng"],
+  ["titan-vs-astro", "Titan vs. Astro", "https://cdn.discordapp.com/assets/content/6d1bee2c384ec2959fd405360cd4a7aa75d336b041fed455f2d2a8a639807a1a", "apng"],
+  ["ekko-hoverboard", "Acrobacias no Aeroplanador do Ekko", "https://cdn.discordapp.com/assets/content/f6bc6d0ed774dbe2b1534ee5720dee70d8446a00fee037e4911e58393486fb6b", "apng"],
+  ["zombie-slime-midnight", "Gosma de Zumbi (Meia-noite)", "https://cdn.discordapp.com/assets/content/2f52434264e92212f33da01803de9fc196058612cb0a165fb35bf0ea28adc43b", "apng"],
+  ["drifting-bear", "Urso à Deriva", "https://cdn.discordapp.com/assets/content/eaf22c2a6a0f8c67583bce32099dad49d08bb3c88bcc39246e01f65143902a28", "apng"],
+  ["sushimania", "Sushimania", "https://cdn.discordapp.com/assets/content/6c2414b14964302bbe3efacbb9bfe92e52cd6838743a3efdbb355ace3b953e99", "apng"],
+  ["tiny-pancakes", "Panquequinhas", "https://cdn.discordapp.com/assets/content/5a68d8d62b6039b70e7e6fec7d26bff2aee02aa7af2a722a47235a07265903cc", "apng"],
+  ["abundant-roses-red", "Rosas em Abundância (Vermelho)", [
+    "https://cdn.discordapp.com/assets/content/bd610a27fcaf4b724f2bcfb1eb0b4ac134a72cc2865ea0ce4a4810b0adce1abb",
+    "https://cdn.discordapp.com/assets/content/88c7274a44188ba96ea57d633d304dd51402f896a7f90db63912d1d3ca1ef6ed",
+  ], "apng"],
+  ["yoru-dimensional-rift", "Fenda Dimensional do Yoru", "https://cdn.discordapp.com/assets/content/92ceb8fdfbf0f13d0610d7423daee5577d50b7e5457dae42a8972981486ad655", "apng"],
 ];
 
 export const PROFILE_ART_IDS = new Set(PROFILE_ART_EFFECTS.map(([id]) => id));
