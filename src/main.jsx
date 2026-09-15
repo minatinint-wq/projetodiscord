@@ -1599,6 +1599,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return [...special, ...roles, ...people].slice(0, 8);
   }, [mentionQuery, members, selectedServer?.roles, currentUser.id]);
   const voiceActiveRef = useRef(false);
+  const pendingVoiceConnectSoundRef = useRef(null);
+  const uiSoundRef = useRef(null);
   const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
   const [homeTab, setHomeTab] = useState("online");
   const [friendQuery, setFriendQuery] = useState("");
@@ -2001,6 +2003,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       if (event.type === "voice.media.denied")
         setNotice(event.reason || "Seu cargo não pode usar este recurso de voz.");
       if (event.type === "voice.denied") {
+        pendingVoiceConnectSoundRef.current = null;
         setNotice(event.reason || "Não foi possível entrar na call.");
         leaveVoice();
       }
@@ -2137,6 +2140,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         }));
       if (event.type === "voice.participants") {
         if (event.channelId !== voiceChannel?.id) return;
+        if (
+          pendingVoiceConnectSoundRef.current === event.channelId &&
+          event.participants.some((participant) => participant.id === currentUser.id)
+        ) {
+          pendingVoiceConnectSoundRef.current = null;
+          playUiSound("connect");
+        }
         setVoiceParticipants(event.participants);
         if (!voiceActiveRef.current) return;
         for (const participant of event.participants)
@@ -2298,6 +2308,21 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   function playUiSound(kind) {
     if (localStorage.getItem("sesh_ui_sounds") === "off" || localStorage.getItem("sesh_sound_enabled") === "false") return;
+    if (kind === "connect") {
+      try {
+        const sound = new Audio("/sounds/call-enter.mp3");
+        sound.volume = 0.6;
+        sound.preload = "auto";
+        uiSoundRef.current = sound;
+        sound.addEventListener("ended", () => {
+          if (uiSoundRef.current === sound) uiSoundRef.current = null;
+        }, { once: true });
+        sound.play().catch(() => {
+          if (uiSoundRef.current === sound) uiSoundRef.current = null;
+        });
+      } catch {}
+      return;
+    }
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
     try {
@@ -2346,12 +2371,13 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     attachAnalyser(currentUser.id, localStreamRef.current);
     setVoiceChannel(target);
     setVoiceConnected(true);
+    pendingVoiceConnectSoundRef.current = target.id;
     socketRef.current?.send({ type: "voice.join", channelId: target.id });
     startSpeakingLoop();
-    playUiSound("connect");
   }
   function leaveVoice() {
     if (!voiceActiveRef.current) return;
+    pendingVoiceConnectSoundRef.current = null;
     playUiSound("disconnect");
     if (voiceChannel) socketRef.current?.send({ type: "voice.leave", channelId: voiceChannel.id });
     peersRef.current.forEach((peer) => peer.close());
