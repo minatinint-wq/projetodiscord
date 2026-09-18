@@ -82,6 +82,43 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && location.protocol ==
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
 
+function downsamplePcm(input, inputRate, outputRate = 16_000) {
+  if (inputRate <= outputRate) return new Float32Array(input);
+  const ratio = inputRate / outputRate;
+  const output = new Float32Array(Math.max(1, Math.floor(input.length / ratio)));
+  for (let index = 0; index < output.length; index += 1) {
+    const start = Math.floor(index * ratio);
+    const end = Math.min(input.length, Math.floor((index + 1) * ratio));
+    let sum = 0;
+    for (let cursor = start; cursor < end; cursor += 1) sum += input[cursor];
+    output[index] = sum / Math.max(1, end - start);
+  }
+  return output;
+}
+
+function encodePcm16(samples) {
+  const bytes = new Uint8Array(samples.length * 2);
+  const view = new DataView(bytes.buffer);
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]));
+    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]);
+  return btoa(binary);
+}
+
+function decodePcm16(encoded) {
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  const view = new DataView(bytes.buffer);
+  const output = new Float32Array(Math.floor(bytes.length / 2));
+  for (let index = 0; index < output.length; index += 1)
+    output[index] = view.getInt16(index * 2, true) / 0x8000;
+  return output;
+}
+
 const EmojiArtwork = React.lazy(() => import("./EmojiArtwork"));
 
 function LibraryEmoji({ emoji, size = 20 }) {
@@ -1575,6 +1612,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const locallyMutedUsersRef = useRef(new Set());
   const [voiceStates, setVoiceStates] = useState({});
   const [voiceChannel, setVoiceChannel] = useState(null);
+  const voiceChannelRef = useRef(null);
   const [incomingPrivateCall, setIncomingPrivateCall] = useState(null);
   const [voiceConnectionPanel, setVoiceConnectionPanel] = useState(false);
   const [voiceLatency, setVoiceLatency] = useState({ last: 0, average: 0, samples: 0 });
@@ -1671,6 +1709,15 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const localStreamRef = useRef(null);
   const audioRefs = useRef(new Map());
   const pendingIceCandidatesRef = useRef(new Map());
+  const relayAudioRef = useRef(false);
+  const relayAudioSourceRef = useRef(null);
+  const relayAudioProcessorRef = useRef(null);
+  const relayAudioGainRef = useRef(null);
+  const relayAudioPlayheadsRef = useRef(new Map());
+  const prefersVoiceRelayRef = useRef(
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+      window.matchMedia?.("(pointer: coarse)")?.matches === true,
+  );
   const [contextMenu, setContextMenu] = useState(null);
   const [messageMenu, setMessageMenu] = useState(null);
   const [serverContextMenu, setServerContextMenu] = useState(null);
@@ -2211,8 +2258,12 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           ...current,
           [event.channelId]: event.participants,
         }));
+      if (event.type === "voice.audio") {
+        await playRelayedAudio(event);
+        return;
+      }
       if (event.type === "voice.participants") {
-        if (event.channelId !== voiceChannel?.id) return;
+        if (event.channelId !== voiceChannelRef.current?.id) return;
         if (
           pendingVoiceConnectSoundRef.current === event.channelId &&
           event.participants.some((participant) => participant.id === currentUser.id)
@@ -2222,6 +2273,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         }
         setVoiceParticipants(event.participants);
         if (!voiceActiveRef.current) return;
+        await syncRelayedAudio(event.participants);
         for (const participant of event.participants)
           if (
             participant.id !== currentUser.id &&
@@ -2300,6 +2352,100 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       window.removeEventListener("keydown", onKey);
     };
   }, [contextMenu, messageMenu, serverContextMenu, badgeMenu]);
+
+  function stopRelayedAudio() {
+    relayAudioRef.current = false;
+    relayAudioProcessorRef.current?.disconnect();
+    relayAudioSourceRef.current?.disconnect();
+    relayAudioGainRef.current?.disconnect();
+    if (relayAudioProcessorRef.current) relayAudioProcessorRef.current.onaudioprocess = null;
+    relayAudioProcessorRef.current = null;
+    relayAudioSourceRef.current = null;
+    relayAudioGainRef.current = null;
+    relayAudioPlayheadsRef.current.clear();
+    audioRefs.current.forEach((audio, userId) => {
+      audio.muted = deafenedRef.current || locallyMutedUsersRef.current.has(userId);
+    });
+  }
+
+  async function startRelayedAudio() {
+    relayAudioRef.current = true;
+    audioRefs.current.forEach((audio) => { audio.muted = true; });
+    if (relayAudioProcessorRef.current || !localStreamRef.current?.getAudioTracks().length) return;
+    try {
+      audioCtxRef.current ||= new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtxRef.current.resume?.();
+      const source = audioCtxRef.current.createMediaStreamSource(localStreamRef.current);
+      const processor = audioCtxRef.current.createScriptProcessor(4096, 1, 1);
+      const silentGain = audioCtxRef.current.createGain();
+      silentGain.gain.value = 0;
+      processor.onaudioprocess = (audioEvent) => {
+        const channel = voiceChannelRef.current;
+        const audioTrack = localStreamRef.current?.getAudioTracks?.()[0];
+        if (!voiceActiveRef.current || !relayAudioRef.current || !channel?.id || !audioTrack?.enabled) return;
+        const pcm = downsamplePcm(
+          audioEvent.inputBuffer.getChannelData(0),
+          audioEvent.inputBuffer.sampleRate,
+        );
+        socketRef.current?.send({
+          type: "voice.audio",
+          channelId: channel.id,
+          sampleRate: 16_000,
+          samples: encodePcm16(pcm),
+        });
+      };
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioCtxRef.current.destination);
+      relayAudioSourceRef.current = source;
+      relayAudioProcessorRef.current = processor;
+      relayAudioGainRef.current = silentGain;
+    } catch {
+      stopRelayedAudio();
+    }
+  }
+
+  async function syncRelayedAudio(participants) {
+    const required = participants.some((participant) => participant.relayAudio);
+    if (required) await startRelayedAudio();
+    else if (relayAudioRef.current) stopRelayedAudio();
+  }
+
+  async function playRelayedAudio(event) {
+    if (
+      !relayAudioRef.current ||
+      !voiceActiveRef.current ||
+      event.channelId !== voiceChannelRef.current?.id ||
+      deafenedRef.current ||
+      locallyMutedUsersRef.current.has(event.fromUserId)
+    ) return;
+    try {
+      const samples = decodePcm16(event.samples);
+      if (!samples.length) return;
+      audioCtxRef.current ||= new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtxRef.current.resume?.();
+      const buffer = audioCtxRef.current.createBuffer(1, samples.length, event.sampleRate);
+      buffer.copyToChannel(samples, 0);
+      const source = audioCtxRef.current.createBufferSource();
+      const gain = audioCtxRef.current.createGain();
+      source.buffer = buffer;
+      gain.gain.value = Number(localStorage.getItem("sesh_output_volume") || 80) / 100;
+      source.connect(gain).connect(audioCtxRef.current.destination);
+      const now = audioCtxRef.current.currentTime;
+      const previous = relayAudioPlayheadsRef.current.get(event.fromUserId) || now;
+      const startAt = previous > now + 0.75 ? now + 0.02 : Math.max(now + 0.02, previous);
+      const endAt = startAt + buffer.duration;
+      relayAudioPlayheadsRef.current.set(event.fromUserId, endAt);
+      source.start(startAt);
+      source.onended = () => {
+        if (relayAudioPlayheadsRef.current.get(event.fromUserId) <= endAt)
+          relayAudioPlayheadsRef.current.delete(event.fromUserId);
+      };
+    } catch {
+      /* pacote de áudio perdido ou navegador suspenso */
+    }
+  }
+
   async function flushPendingIceCandidates(peerId, peer) {
     const candidates = pendingIceCandidatesRef.current.get(peerId) || [];
     pendingIceCandidatesRef.current.delete(peerId);
@@ -2360,7 +2506,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       } else {
         const audio = audioRefs.current.get(targetUserId) || new Audio();
         audio.autoplay = true;
-        audio.muted = deafenedRef.current || locallyMutedUsersRef.current.has(targetUserId);
+        audio.muted = relayAudioRef.current || deafenedRef.current || locallyMutedUsersRef.current.has(targetUserId);
         audio.volume = Number(localStorage.getItem("sesh_output_volume") || 80) / 100;
         audio.srcObject = stream;
         audio.play().catch(() => {});
@@ -2419,6 +2565,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     if (!target || target.type !== "voice") return;
     if (voiceConnected) {
       if (voiceChannel?.id === target.id) return;
+      stopRelayedAudio();
       socketRef.current?.send({
         type: "voice.leave",
         channelId: voiceChannel.id,
@@ -2442,10 +2589,15 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     }
     voiceActiveRef.current = true;
     attachAnalyser(currentUser.id, localStreamRef.current);
+    voiceChannelRef.current = target;
     setVoiceChannel(target);
     setVoiceConnected(true);
     pendingVoiceConnectSoundRef.current = target.id;
-    socketRef.current?.send({ type: "voice.join", channelId: target.id });
+    socketRef.current?.send({
+      type: "voice.join",
+      channelId: target.id,
+      relayAudio: prefersVoiceRelayRef.current,
+    });
     startSpeakingLoop();
   }
   async function startPrivateCall(participantIds, groupId) {
@@ -2472,6 +2624,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   function leaveVoice() {
     if (!voiceActiveRef.current) return;
+    stopRelayedAudio();
     pendingVoiceConnectSoundRef.current = null;
     playUiSound("disconnect");
     if (voiceChannel) socketRef.current?.send({ type: "voice.leave", channelId: voiceChannel.id });
@@ -2490,6 +2643,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     screenTrackRef.current?.stop();
     screenTrackRef.current = null;
     voiceActiveRef.current = false;
+    voiceChannelRef.current = null;
     setVoiceConnected(false);
     setVoiceChannel(null);
     setMuted(false);
@@ -2516,7 +2670,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     const next = !deafened;
     deafenedRef.current = next;
     audioRefs.current.forEach((audio, userId) => {
-      audio.muted = next || locallyMutedUsersRef.current.has(userId);
+      audio.muted = relayAudioRef.current || next || locallyMutedUsersRef.current.has(userId);
     });
     setDeafened(next);
   }
@@ -2526,7 +2680,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     else next.add(userId);
     locallyMutedUsersRef.current = next;
     const audio = audioRefs.current.get(userId);
-    if (audio) audio.muted = deafenedRef.current || next.has(userId);
+    if (audio) audio.muted = relayAudioRef.current || deafenedRef.current || next.has(userId);
     setLocallyMutedUsers(next);
     setBadgeMenu((current) => current?.user?.id === userId
       ? { ...current, locallyMuted: next.has(userId) }

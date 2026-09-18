@@ -1491,6 +1491,7 @@ function voiceParticipants(channelId) {
             deafened: Boolean(media?.deafened),
             camera: Boolean(media?.camera),
             screen: Boolean(media?.screen),
+            relayAudio: Boolean(media?.relayAudio),
           }
         : null;
     })
@@ -3282,7 +3283,13 @@ wss.on("connection", (socket, req) => {
         const wasPresent = room.has(userId);
         const changing = event.type === "voice.join" ? !wasPresent : wasPresent;
         if (event.type === "voice.join")
-          room.set(userId, { muted: false, deafened: false, camera: false, screen: false });
+          room.set(userId, {
+            muted: false,
+            deafened: false,
+            camera: false,
+            screen: false,
+            relayAudio: Boolean(event.relayAudio),
+          });
         else room.delete(userId);
         if (changing) {
           broadcastVoice(roomId, {
@@ -3310,6 +3317,7 @@ wss.on("connection", (socket, req) => {
         if (channel && event.screen && !hasServerPermission(caller, voiceServer, "shareScreen"))
           return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode compartilhar tela neste servidor." }));
         room.set(userId, {
+          ...room.get(userId),
           muted: Boolean(event.muted),
           deafened: Boolean(event.deafened),
           camera: Boolean(event.camera),
@@ -3321,6 +3329,31 @@ wss.on("connection", (socket, req) => {
           participants: voiceParticipants(event.channelId),
         });
         if (channel) broadcastVoiceState(channel);
+      } else if (event.type === "voice.audio") {
+        if (
+          typeof event.channelId !== "string" ||
+          event.channelId.length > 80 ||
+          typeof event.samples !== "string" ||
+          event.samples.length > 24_000 ||
+          !/^[A-Za-z0-9+/]+={0,2}$/.test(event.samples) ||
+          !Number.isInteger(event.sampleRate) ||
+          event.sampleRate < 8_000 ||
+          event.sampleRate > 48_000
+        ) return;
+        const room = voiceRooms.get(event.channelId);
+        if (!room?.has(userId) || ![...room.values()].some((media) => media.relayAudio)) return;
+        for (const targetUserId of room.keys()) {
+          if (targetUserId === userId) continue;
+          const target = sockets.get(targetUserId);
+          if (target?.readyState === 1)
+            target.send(JSON.stringify({
+              type: "voice.audio",
+              channelId: event.channelId,
+              fromUserId: userId,
+              sampleRate: event.sampleRate,
+              samples: event.samples,
+            }));
+        }
       } else if (
         ["voice.offer", "voice.answer", "voice.ice"].includes(event.type)
       ) {

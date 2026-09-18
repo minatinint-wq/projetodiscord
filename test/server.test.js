@@ -277,6 +277,32 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   );
   assert.ok(voiceChannel);
 
+  const roleWithVoice = {
+    id: "voice_member",
+    name: "Pode entrar em call",
+    color: "#5865f2",
+    permissions: { connectVoice: true, speakVoice: true },
+  };
+  const rolesWithRestrictedDefault = customizedServer.payload.server.roles.map((role) =>
+    role.id === "member"
+      ? { ...role, permissions: { ...role.permissions, connectVoice: false } }
+      : role,
+  );
+  const assignedVoiceRole = await request(`/api/servers/${created.payload.server.id}`, {
+    method: "PATCH",
+    headers: auth,
+    body: JSON.stringify({
+      roles: [...rolesWithRestrictedDefault, roleWithVoice],
+      memberRoles: { [secondUser.payload.user.id]: roleWithVoice.id },
+    }),
+  });
+  assert.equal(assignedVoiceRole.response.status, 200);
+  const assignedMember = await request(`/api/servers/${created.payload.server.id}`, {
+    headers: secondAuth,
+  });
+  assert.equal(assignedMember.payload.server.actorRoleId, roleWithVoice.id);
+  assert.equal(assignedMember.payload.server.permissions.connectVoice, true);
+
   const ownerSocket = await connectVoice(login.cookie);
   const visitorSocket = await connectVoice(secondUser.cookie);
   try {
@@ -311,13 +337,25 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
       (event) => event.type === "voice.participants" && event.participants.length === 2,
     );
     visitorSocket.send(
-      JSON.stringify({ type: "voice.join", channelId: voiceChannel.id }),
+      JSON.stringify({ type: "voice.join", channelId: voiceChannel.id, relayAudio: true }),
     );
     const room = await roomReady;
     assert.deepEqual(
       room.participants.map((participant) => participant.id),
       [login.payload.user.id, secondUser.payload.user.id],
     );
+    assert.equal(room.participants.find((participant) => participant.id === secondUser.payload.user.id).relayAudio, true);
+    const relayedAudio = waitForSocketEvent(
+      ownerSocket,
+      (event) => event.type === "voice.audio" && event.fromUserId === secondUser.payload.user.id,
+    );
+    visitorSocket.send(JSON.stringify({
+      type: "voice.audio",
+      channelId: voiceChannel.id,
+      sampleRate: 16000,
+      samples: Buffer.from(new Int16Array([0, 100, -100]).buffer).toString("base64"),
+    }));
+    assert.equal((await relayedAudio).sampleRate, 16000);
   } finally {
     ownerSocket.close();
     visitorSocket.close();
