@@ -44,7 +44,7 @@ jobs:
           }
 
       - name: Build Windows installer
-        run: npm run dist:win
+        run: npm run dist:win -- --publish never
 
       - name: Publish complete auto-update release
         shell: pwsh
