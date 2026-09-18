@@ -32,7 +32,9 @@ jobs:
       - name: Set version and create its release tag
         shell: pwsh
         run: |
-          $version = "1.2.${{ github.run_number }}"
+          $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $versionParts = $packageVersion.Split('.')
+          $version = "$($versionParts[0]).$($versionParts[1]).${{ github.run_number }}"
           $tag = "v$version"
           npm version $version --no-git-tag-version --allow-same-version
           if (-not (git ls-remote --tags origin "refs/tags/$tag")) {
