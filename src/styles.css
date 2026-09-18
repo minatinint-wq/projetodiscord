@@ -995,6 +995,9 @@ button {
 .friend-row:hover .friend-actions {
   display: flex;
 }
+.friend-request-row .friend-actions {
+  display: flex;
+}
 .friend-actions button {
   display: grid;
   place-items: center;

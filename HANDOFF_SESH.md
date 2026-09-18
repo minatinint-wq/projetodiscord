@@ -1,6 +1,6 @@
 # Handoff completo — Sesh
 
-Atualizado em 13/09/2026. Este documento é a fonte de continuidade para outra IA assumir o projeto sem repetir a investigação.
+Atualizado em 18/09/2026. Este documento é a fonte de continuidade para outra IA assumir o projeto sem repetir a investigação.
 
 ## Prompt pronto para a próxima IA
 
@@ -18,6 +18,15 @@ Atualizado em 13/09/2026. Este documento é a fonte de continuidade para outra I
 - A usuária exige commit e push ao terminar cada bloco coerente.
 
 ## Estado verificado
+
+### Solicitações de amizade — correção de 18/09/2026
+
+- A API já entregava corretamente o pedido recebido, mas os botões de aceitar e recusar ficavam ocultos até o hover da linha.
+- Linhas de solicitações agora mantêm as ações visíveis em desktop e mobile.
+- Abrir a aba `Pendente`, retornar à janela ou reexibir a página força uma atualização da lista, cobrindo eventos WebSocket perdidos durante suspensão/reconexão.
+- O teste `e2e/friends.spec.js` cria duas contas, envia o pedido, confirma a solicitação recebida, aceita e verifica o novo amigo.
+- Validação: `npm run build`, `npm test` (46/46) e o E2E de amizade passaram.
+- Suíte UI completa: 29 passaram, 1 foi ignorado e 1 teste antigo de imagem de moldura falhou por timeout ao carregar o asset (`profile-effects.spec.js`); a falha não envolve amizades.
 
 Antes deste handoff:
 

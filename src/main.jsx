@@ -1923,6 +1923,17 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .catch(() => {});
   }, []);
   useEffect(() => {
+    const refreshVisibleFriends = () => {
+      if (!document.hidden) refreshFriends();
+    };
+    window.addEventListener("focus", refreshVisibleFriends);
+    document.addEventListener("visibilitychange", refreshVisibleFriends);
+    return () => {
+      window.removeEventListener("focus", refreshVisibleFriends);
+      document.removeEventListener("visibilitychange", refreshVisibleFriends);
+    };
+  }, []);
+  useEffect(() => {
     selectedServerRef.current = selectedServer;
   }, [selectedServer]);
 
@@ -3448,10 +3459,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           : `Convite enviado para @${addFriendValue.trim().replace(/^@/, "")}.`,
       );
       setAddFriendValue("");
-      api
-        .friends()
-        .then(setFriendsData)
-        .catch(() => {});
+      refreshFriends();
     } catch (err) {
       setNotice(err.message);
     }
@@ -3459,10 +3467,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   async function acceptFriendRequest(friendshipId) {
     try {
       await api.acceptFriend(friendshipId);
-      api
-        .friends()
-        .then(setFriendsData)
-        .catch(() => {});
+      refreshFriends();
     } catch (err) {
       setNotice(err.message);
     }
@@ -3470,12 +3475,16 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   async function removeFriendRow(friendshipId) {
     try {
       await api.removeFriend(friendshipId);
-      api
-        .friends()
-        .then(setFriendsData)
-        .catch(() => {});
+      refreshFriends();
     } catch (err) {
       setNotice(err.message);
+    }
+  }
+  async function refreshFriends() {
+    try {
+      setFriendsData(await api.friends());
+    } catch {
+      // O próximo evento ou foco da janela tenta atualizar novamente.
     }
   }
   async function createChannel(preType = "text") {
@@ -4435,7 +4444,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               </button>
               <button
                 className={homeTab === "pending" ? "home-tab-selected" : ""}
-                onClick={() => setHomeTab("pending")}
+                onClick={() => {
+                  setHomeTab("pending");
+                  refreshFriends();
+                }}
               >
                 Pendente{" "}
                 {friendsData.pending.length > 0 && (
@@ -4503,7 +4515,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                         SOLICITAÇÕES — {friendsData.pending.length}
                       </div>
                       {friendsData.pending.map((person) => (
-                        <div className="friend-row" key={person.friendshipId}>
+                        <div
+                          className="friend-row friend-request-row"
+                          key={person.friendshipId}
+                        >
                           <Avatar
                             user={person}
                             color={person.avatarColor || "purple"}
