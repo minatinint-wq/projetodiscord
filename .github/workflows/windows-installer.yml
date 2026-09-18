@@ -36,16 +36,26 @@ jobs:
           $versionParts = $packageVersion.Split('.')
           $version = "$($versionParts[0]).$($versionParts[1]).${{ github.run_number }}"
           $tag = "v$version"
+          "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
           npm version $version --no-git-tag-version --allow-same-version
           if (-not (git ls-remote --tags origin "refs/tags/$tag")) {
             git tag $tag
             git push origin $tag
           }
 
-      - name: Build and publish Windows installer
-        run: npm run dist:win:publish
+      - name: Build Windows installer
+        run: npm run dist:win
+
+      - name: Publish complete auto-update release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target main --title $env:RELEASE_TAG --notes "Atualização automática do Sesh Desktop."
+          }
+          gh release upload $env:RELEASE_TAG release/SeshDesktop-Setup.exe release/SeshDesktop-Setup.exe.blockmap release/latest.yml --clobber
 
       - name: Publish installer artifact
         uses: actions/upload-artifact@v4
