@@ -254,6 +254,20 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
     body: JSON.stringify({ username: login.payload.user.username }),
   });
   assert.equal(friendRequest.response.status, 201);
+  const acceptedFriend = await request("/api/friends", {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ username: secondUser.payload.user.publicId }),
+  });
+  assert.equal(acceptedFriend.response.status, 200);
+  const privateCall = await request("/api/private-calls", {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ participantIds: [secondUser.payload.user.id] }),
+  });
+  assert.equal(privateCall.response.status, 201);
+  assert.match(privateCall.payload.call.channelId, /^private:/);
+  assert.equal(privateCall.payload.call.participants.length, 2);
   const visitorStillLoggedIn = await request("/api/auth/me", { headers: secondAuth });
   assert.equal(visitorStillLoggedIn.response.status, 200);
   assert.equal(visitorStillLoggedIn.payload.user.id, secondUser.payload.user.id);
@@ -266,6 +280,21 @@ test("saúde, autenticação e isolamento básico funcionam", async () => {
   const ownerSocket = await connectVoice(login.cookie);
   const visitorSocket = await connectVoice(secondUser.cookie);
   try {
+    const privateOwnerJoined = waitForSocketEvent(
+      ownerSocket,
+      (event) => event.type === "voice.participants" && event.channelId === privateCall.payload.call.channelId && event.participants.length === 1,
+    );
+    ownerSocket.send(JSON.stringify({ type: "voice.join", channelId: privateCall.payload.call.channelId }));
+    await privateOwnerJoined;
+    const privateRoomReady = waitForSocketEvent(
+      ownerSocket,
+      (event) => event.type === "voice.participants" && event.channelId === privateCall.payload.call.channelId && event.participants.length === 2,
+    );
+    visitorSocket.send(JSON.stringify({ type: "voice.join", channelId: privateCall.payload.call.channelId }));
+    assert.equal((await privateRoomReady).participants.length, 2);
+    ownerSocket.send(JSON.stringify({ type: "voice.leave", channelId: privateCall.payload.call.channelId }));
+    visitorSocket.send(JSON.stringify({ type: "voice.leave", channelId: privateCall.payload.call.channelId }));
+
     const ownerJoined = waitForSocketEvent(
       ownerSocket,
       (event) =>

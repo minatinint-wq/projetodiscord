@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Search, Mic, Shield, MessageSquare, Bell, Sparkles, Radio, Volume2, Sliders, CreditCard, LogOut } from "lucide-react";
+import { X, Search, Mic, Shield, MessageSquare, Bell, Sparkles, Radio, Volume2, Sliders, CreditCard, LogOut, ImagePlus, Palette, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { microphone, mediaError } from "./media";
+import { readAttachment } from "./files";
 
 const sections = [
  ["voice","Voz e vídeo",Mic],["transmission","Transmissão",Radio],["sounds","Sons",Volume2],
@@ -10,7 +11,7 @@ const sections = [
  ["plus","Sesh Plus",Sparkles],["subscriptions","Assinatura",CreditCard],
 ];
 function read(key, fallback) { return localStorage.getItem(key) ?? fallback; }
-export default function SettingsHub({ user, onClose, onAccount, onLogout, Avatar }) {
+export default function SettingsHub({ user, onClose, onAccount, onLogout, onUserUpdate, Avatar }) {
   const [section,setSection]=useState("voice"), [query,setQuery]=useState("");
   const [devices,setDevices]=useState([]), [error,setError]=useState(""), [notice,setNotice]=useState("");
   const [testing,setTesting]=useState(false), [level,setLevel]=useState(0), [camera,setCamera]=useState(false);
@@ -22,7 +23,7 @@ export default function SettingsHub({ user, onClose, onAccount, onLogout, Avatar
     sesh_screen_quality:read("sesh_screen_quality","720"),orbit_notifications:read("orbit_notifications","true"),
     sesh_sound_enabled:read("sesh_sound_enabled","true"),sesh_reduced_motion:read("sesh_reduced_motion","false"),
   }));
-  const testRef=useRef({}),cameraRef=useRef(null),videoRef=useRef(null),epoch=useRef(0);
+  const testRef=useRef({}),cameraRef=useRef(null),videoRef=useRef(null),epoch=useRef(0),backgroundInput=useRef(null);
   const [recordingUrl,setRecordingUrl]=useState("");
   const recordingRef=useRef("");
   const refresh=async()=>{ try { setDevices(await navigator.mediaDevices?.enumerateDevices() || []); } catch(e){ setError(mediaError(e)); } };
@@ -49,8 +50,13 @@ export default function SettingsHub({ user, onClose, onAccount, onLogout, Avatar
     setNotice("Preferência salva neste dispositivo.");
   }
   async function savePreference(key,value) {
-    try {const result=await api.updateMe({preferences:{[key]:value}});setPrefs(result.user.preferences);setNotice("Preferência salva na conta.");}
+    try {setError("");const result=await api.updateMe({preferences:{[key]:value}});setPrefs(result.user.preferences);onUserUpdate?.(result.user);setNotice("Preferência salva na conta.");}
     catch(e){setError(e.message);}
+  }
+  async function chooseBackground(event) {
+    const file=event.target.files?.[0];event.target.value="";if(!file)return;
+    try{setError("");setNotice("Preparando imagem de fundo…");const value=await readAttachment(file);if(typeof value!=="string")throw new Error("Escolha uma imagem PNG, JPEG, WebP ou GIF.");await savePreference("appBackground",value);}
+    catch(e){setNotice("");setError(e.message);}
   }
   async function testMic() {
     if(testing){if(!testRef.current.stream)epoch.current++;stopTest();return;}
@@ -115,7 +121,7 @@ export default function SettingsHub({ user, onClose, onAccount, onLogout, Avatar
       {section==="notifications"&&<div className="settings-card"><h2>Menções e mensagens</h2>{toggle("Alertas de menções","orbit_notifications","Ativa o aviso sonoro quando mencionarem você.")}<p>As mensagens continuam chegando mesmo com os sons desativados.</p></div>}
       {section==="messages"&&<div className="settings-card"><h2>Quem pode conversar com você</h2><p>As mensagens diretas ficam disponíveis entre amizades aceitas.</p><label className="setting-row"><span><strong>Receber mensagens diretas de amigos</strong><small>Salvo na conta e validado pelo servidor.</small></span><input type="checkbox" checked={prefs.allowDirectMessages!==false} onChange={e=>savePreference("allowDirectMessages",e.target.checked)}/></label></div>}
       {section==="privacy"&&<div className="settings-card"><h2>Seus dados</h2><p>O Sesh armazena seu perfil, amizades e mensagens para sincronizar a experiência. Testes de microfone e câmera nesta tela ficam no dispositivo.</p><a href="/legal.html" target="_blank" rel="noreferrer">Ler termos e política de privacidade</a><button className="secondary-setting" onClick={async()=>{try{const {user:profile}=await api.me();const blob=new Blob([JSON.stringify(profile,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="meu-perfil-sesh.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){setError(e.message);}}}>Baixar meus dados de perfil</button><p className="settings-hint">A exportação contém os dados do perfil; não inclui o histórico de mensagens.</p></div>}
-      {section==="advanced"&&<div className="settings-card"><h2>Movimento e desempenho</h2><label className="setting-row"><span><strong>Reduzir animações</strong><small>Desativa movimentos decorativos de nomes e perfis.</small></span><input type="checkbox" checked={values.sesh_reduced_motion==="true"} onChange={e=>save("sesh_reduced_motion",e.target.checked)}/></label><p>O aplicativo também respeita a preferência de movimento reduzido do sistema.</p></div>}
+      {section==="advanced"&&<><div className="settings-card"><h2><Palette size={19}/> Cores da interface</h2><p>Escolha um tema e ajuste as cores principais. Essas opções ficam salvas na sua conta.</p><div className="appearance-theme-grid">{[["dark","Escuro"],["midnight","Meia-noite"],["light","Claro"]].map(([id,label])=><button key={id} type="button" aria-pressed={(prefs.appTheme||"dark")===id} onClick={()=>savePreference("appTheme",id)}><i className={`appearance-theme-swatch theme-${id}`}/><span>{label}</span></button>)}</div><div className="appearance-color-grid"><label className="setting-field">Cor da interface<input aria-label="Cor da interface" type="color" value={prefs.appSurfaceColor||((prefs.appTheme||"dark")==="light"?"#eef1f7":"#111214")} onChange={e=>savePreference("appSurfaceColor",e.target.value)}/></label><label className="setting-field">Cor de destaque<input aria-label="Cor de destaque da interface" type="color" value={prefs.appAccentColor||"#8b5cf6"} onChange={e=>savePreference("appAccentColor",e.target.value)}/></label></div><button className="secondary-setting" onClick={async()=>{await savePreference("appSurfaceColor",null);await savePreference("appAccentColor",null);}}>Restaurar cores do tema</button></div><div className="settings-card"><h2><ImagePlus size={19}/> Imagem de fundo</h2><p>Use uma imagem de até 3 MB. Os painéis ficam translúcidos para o fundo continuar visível.</p><input ref={backgroundInput} type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" onChange={chooseBackground}/>{prefs.appBackground?<div className="settings-wallpaper-preview" style={{backgroundImage:`linear-gradient(#1116,#1116),url(${JSON.stringify(prefs.appBackground)})`}}><span>Fundo atual</span></div>:<div className="settings-wallpaper-empty">Nenhuma imagem de fundo</div>}<div className="settings-wallpaper-actions"><button className="secondary-setting" onClick={()=>backgroundInput.current?.click()}><ImagePlus size={17}/>{prefs.appBackground?"Trocar imagem":"Escolher imagem"}</button>{prefs.appBackground&&<button className="secondary-setting danger" onClick={()=>savePreference("appBackground",null)}><Trash2 size={17}/>Remover fundo</button>}</div><label className="setting-field">Intensidade da imagem<select value={String(prefs.appBackgroundStrength||55)} onChange={e=>savePreference("appBackgroundStrength",Number(e.target.value))}><option value="30">Suave</option><option value="55">Equilibrada</option><option value="75">Forte</option><option value="95">Quase sem filtro</option></select></label></div><div className="settings-card"><h2>Movimento e desempenho</h2><label className="setting-row"><span><strong>Reduzir animações</strong><small>Desativa movimentos decorativos de nomes e perfis.</small></span><input type="checkbox" checked={values.sesh_reduced_motion==="true"} onChange={e=>save("sesh_reduced_motion",e.target.checked)}/></label><p>O aplicativo também respeita a preferência de movimento reduzido do sistema.</p></div></>}
       {["plus","subscriptions"].includes(section)&&<div className="settings-card plus-card"><Sparkles size={32}/><h2>{section==="plus"?"Mais personalidade para cada conversa":"Sua assinatura"}</h2><p>Explore molduras, efeitos animados e estilos de nome no editor de perfil.</p><button className="prompt-confirm" onClick={onAccount}>Personalizar meu perfil</button><h3>Estado da conta</h3><p>{plan ? (plan.subscription?.status==="active"?"Assinatura ativa: "+plan.subscription.planId:"Sem assinatura ativa.") : "Consultando assinatura…"}</p><small>Compras e pagamentos online ainda não estão disponíveis.</small></div>}
     </main></section></div>;
 }

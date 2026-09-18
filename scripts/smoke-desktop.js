@@ -8,6 +8,6 @@ try{
  const win=await app.firstWindow();await win.waitForURL("https://sesh-web-08o6.onrender.com/app",{timeout:60000});
  await win.waitForLoadState("domcontentloaded");
  const version=await app.evaluate(({app})=>app.getVersion());
- if(version!=="1.2.0")throw new Error("Versão incorreta: "+version);
+ if(version!=="1.3.0")throw new Error("Versão incorreta: "+version);
  console.log(JSON.stringify({version,url:win.url(),title:await win.title(),visible:await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible())}));
 }finally{await app?.close();await rm(temp,{recursive:true,force:true});}

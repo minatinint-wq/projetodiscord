@@ -1,0 +1,14 @@
+{
+  "appId": "com.sesh.app",
+  "appName": "Sesh",
+  "webDir": "dist",
+  "server": {
+    "url": "https://sesh-web-08o6.onrender.com/app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0c101a"
+  }
+}

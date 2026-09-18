@@ -42,6 +42,7 @@ const COLLECTIONS = [
   "friendships",
   "emailVerifications",
   "directMessages",
+  "directGroups",
   "sessions",
 ];
 const sessions = new Map();
@@ -49,6 +50,7 @@ const wsTickets = new Map();
 const loginAttempts = new Map();
 const sockets = new Map();
 const voiceRooms = new Map();
+const privateCalls = new Map();
 const imageGenerationUsage = new Map();
 const profileMediaUrls = new Map();
 const AI_IMAGE_DAILY_LIMIT = Math.max(1, Math.min(Number(process.env.AI_IMAGE_DAILY_LIMIT) || 5, 50));
@@ -772,8 +774,7 @@ function userTag(user) {
     hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
   return String(1000 + (hash % 9000));
 }
-function publicProfileMedia(user, field) {
-  const value = user?.[field] || null;
+function userMediaUrl(user, field, value) {
   if (typeof value !== "string" || !/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(value)) return value;
   const key = `${user.id}:${field}`;
   const cached = profileMediaUrls.get(key);
@@ -782,6 +783,12 @@ function publicProfileMedia(user, field) {
   const url = `/api/users/${encodeURIComponent(user.id)}/media/${field}?v=${version}`;
   profileMediaUrls.set(key, { value, url });
   return url;
+}
+function publicProfileMedia(user, field) {
+  return userMediaUrl(user, field, user?.[field] || null);
+}
+function privatePreferenceMedia(user, field) {
+  return userMediaUrl(user, field, user?.preferences?.[field] || null);
 }
 function profileMediaPayload(value) {
   const match = typeof value === "string"
@@ -932,6 +939,10 @@ async function issueEmailVerification(user) {
 }
 
 function sessionUser(user) {
+  const preferences = {
+    ...(user.preferences || {}),
+    appBackground: privatePreferenceMedia(user, "appBackground"),
+  };
   return {
     ...publicUser(user),
     // Até a própria conta usa URLs curtas. Reenviar vários MB de base64 no
@@ -944,7 +955,7 @@ function sessionUser(user) {
     isMasterAdmin: isMasterAdmin(user),
     canUseShortUsername: canUseShortUsername(user),
     minimumUsernameLength: minimumUsernameLengthFor(user),
-    preferences: user.preferences || {},
+    preferences,
   };
 }
 function broadcastAll(event) {
@@ -1109,6 +1120,51 @@ function passwordError(password, { username = "", email = "" } = {}) {
   if (name && name.length >= 3 && lowered.includes(name)) return "A senha não pode conter seu nome de usuário.";
   if (mailUser && mailUser.length >= 3 && lowered.includes(mailUser)) return "A senha não pode conter seu e-mail.";
   return null;
+}
+function acceptedFriends(firstUserId, secondUserId) {
+  return database.friendships.some(
+    (item) =>
+      item.status === "accepted" &&
+      [item.requesterId, item.addresseeId].includes(firstUserId) &&
+      [item.requesterId, item.addresseeId].includes(secondUserId),
+  );
+}
+function privateCallForChannel(channelId) {
+  if (!String(channelId || "").startsWith("private:")) return null;
+  const call = privateCalls.get(String(channelId).slice("private:".length));
+  if (!call || Date.now() - call.createdAt > 2 * 60 * 60 * 1000) return null;
+  return call;
+}
+function privateCallView(call, viewerId = call.creatorId) {
+  const participants = call.participantIds
+    .map((userId) => publicUser(database.users.find((item) => item.id === userId)))
+    .filter(Boolean);
+  const others = participants.filter((person) => person.id !== viewerId);
+  return {
+    id: call.id,
+    channelId: `private:${call.id}`,
+    name: call.name ? `Call · ${call.name}` : others.length > 1
+      ? `Call com ${others.slice(0, 2).map((person) => person.displayName).join(", ")}${others.length > 2 ? ` +${others.length - 2}` : ""}`
+      : `Call com ${others[0]?.displayName || "amigo"}`,
+    creatorId: call.creatorId,
+    participants,
+    createdAt: new Date(call.createdAt).toISOString(),
+  };
+}
+function directGroupView(group) {
+  const members = group.memberIds
+    .map((userId) => publicUser(database.users.find((item) => item.id === userId)))
+    .filter(Boolean);
+  const lastMessage = group.messages?.at(-1);
+  return {
+    id: group.id,
+    name: group.name,
+    ownerId: group.ownerId,
+    members,
+    createdAt: group.createdAt,
+    updatedAt: lastMessage?.createdAt || group.createdAt,
+    lastMessage: lastMessage ? decorateMessage(lastMessage) : null,
+  };
 }
 function decodeDisplayNameMarkup(value) {
   let decoded = String(value || "");
@@ -1669,6 +1725,7 @@ async function handler(req, res) {
             ".svg": "image/svg+xml",
             ".ico": "image/x-icon",
             ".json": "application/json",
+            ".webmanifest": "application/manifest+json",
             ".webp": "image/webp",
             ".jpg": "image/jpeg",
             ".jpeg": "image/jpeg",
@@ -1736,14 +1793,17 @@ async function handler(req, res) {
     }
     let user = getUser(req);
     if (!user) return json(res, 401, { error: "Autenticação necessária." });
-    const profileMediaMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/media\/(avatar|banner)$/);
+    const profileMediaMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/media\/(avatar|banner|appBackground)$/);
     if (profileMediaMatch) {
       if (req.method !== "GET" && req.method !== "HEAD")
         return json(req, res, 405, { error: "Método não permitido." }, { Allow: "GET, HEAD" });
       const target = database.users.find((item) => item.id === profileMediaMatch[1]);
-      if (!target || !canViewUser(user, target))
+      const mediaField = profileMediaMatch[2];
+      if (!target || (mediaField === "appBackground" ? target.id !== user.id : !canViewUser(user, target)))
         return json(req, res, 404, { error: "Mídia de perfil não encontrada." });
-      const media = profileMediaPayload(target[profileMediaMatch[2]]);
+      const media = profileMediaPayload(
+        mediaField === "appBackground" ? target.preferences?.appBackground : target[mediaField],
+      );
       if (!media) return json(req, res, 404, { error: "Mídia de perfil não encontrada." });
       res.writeHead(200, {
         ...securityHeaders(),
@@ -2015,7 +2075,7 @@ async function handler(req, res) {
         user[field] = input[field];
       }
       for (const [field, allowed] of Object.entries({
-        bannerPreset: ["aurora","midnight","sunset","ocean","forest","candy","ember","silver", ...PREMIUM_BANNER_PRESETS],
+        bannerPreset: ["none","aurora","midnight","sunset","ocean","forest","candy","ember","silver", ...PREMIUM_BANNER_PRESETS],
         effectIntensity: ["subtle","balanced","vivid"], effectSpeed: ["slow","normal","fast"],
         profileOverlay: PROFILE_OVERLAYS.map(([id])=>id)
       })) {
@@ -2117,6 +2177,31 @@ async function handler(req, res) {
         user.preferences = { ...user.preferences };
         for (const key of ["allowDirectMessages", "notificationSounds", "reducedMotion"])
           if (input.preferences[key] !== undefined) user.preferences[key] = Boolean(input.preferences[key]);
+        if (input.preferences.appTheme !== undefined) {
+          if (!["dark", "midnight", "light"].includes(input.preferences.appTheme))
+            return json(res, 400, { error: "Tema da interface inválido." });
+          user.preferences.appTheme = input.preferences.appTheme;
+        }
+        for (const key of ["appSurfaceColor", "appAccentColor"]) {
+          if (input.preferences[key] === undefined) continue;
+          if (input.preferences[key] !== null && !/^#[0-9a-fA-F]{6}$/.test(String(input.preferences[key])))
+            return json(res, 400, { error: "Cor da interface inválida." });
+          user.preferences[key] = input.preferences[key];
+        }
+        if (input.preferences.appBackground !== undefined) {
+          const background = input.preferences.appBackground;
+          if (background === null || background === "") user.preferences.appBackground = null;
+          else if (safeImageDataUrl(background)) user.preferences.appBackground = background;
+          else if (background === privatePreferenceMedia(user, "appBackground")) {
+            // A tela pode reenviar a URL privada atual ao salvar apenas as cores.
+          } else return json(res, 400, { error: "Imagem de fundo inválida: use PNG, JPEG, WebP ou GIF de até 3 MB." });
+        }
+        if (input.preferences.appBackgroundStrength !== undefined) {
+          const strength = Number(input.preferences.appBackgroundStrength);
+          if (!Number.isFinite(strength) || strength < 10 || strength > 100)
+            return json(res, 400, { error: "Intensidade da imagem de fundo inválida." });
+          user.preferences.appBackgroundStrength = Math.round(strength);
+        }
       }
       user.displayName = displayName;
       user.username = username;
@@ -2909,6 +2994,83 @@ async function handler(req, res) {
       await saveDatabase("directMessages");
       return json(res, 201, { message: output });
     }
+    if (url.pathname === "/api/direct-groups" && req.method === "GET") {
+      const groups = database.directGroups
+        .filter((group) => group.memberIds.includes(user.id))
+        .map(directGroupView)
+        .sort((first, second) => String(second.updatedAt).localeCompare(String(first.updatedAt)));
+      return json(res, 200, { groups });
+    }
+    if (url.pathname === "/api/direct-groups" && req.method === "POST") {
+      const input = await body(req);
+      const memberIds = [...new Set((Array.isArray(input.memberIds) ? input.memberIds : [])
+        .filter((userId) => typeof userId === "string" && userId !== user.id))].slice(0, 7);
+      if (memberIds.length < 2) return json(res, 400, { error: "Escolha pelo menos dois amigos para o grupo." });
+      if (memberIds.some((memberId) => !database.users.some((person) => person.id === memberId) || !acceptedFriends(user.id, memberId)))
+        return json(res, 403, { error: "Grupos de DM só podem incluir amizades aceitas." });
+      const automaticName = memberIds
+        .map((memberId) => database.users.find((person) => person.id === memberId)?.displayName)
+        .filter(Boolean).slice(0, 3).join(", ");
+      const name = String(input.name || automaticName || "Novo grupo").trim();
+      if (!name || name.length > 60) return json(res, 400, { error: "Use um nome de grupo com até 60 caracteres." });
+      const group = { id: id(), name, ownerId: user.id, memberIds: [user.id, ...memberIds], messages: [], createdAt: now() };
+      database.directGroups.push(group);
+      await saveDatabase("directGroups");
+      const output = directGroupView(group);
+      for (const memberId of group.memberIds) notifyUser(memberId, { type: "direct.groups.updated", group: output });
+      return json(res, 201, { group: output });
+    }
+    const directGroupMessagesMatch = url.pathname.match(/^\/api\/direct-groups\/([^/]+)\/messages$/);
+    if (directGroupMessagesMatch && ["GET", "POST"].includes(req.method)) {
+      const group = database.directGroups.find((item) => item.id === directGroupMessagesMatch[1] && item.memberIds.includes(user.id));
+      if (!group) return json(res, 404, { error: "Grupo não encontrado." });
+      if (req.method === "GET") return json(res, 200, { messages: (group.messages || []).slice(-100).map(decorateMessage) });
+      const input = await body(req);
+      const clientMessageId = String(input.clientMessageId || "").trim();
+      if (input.clientMessageId !== undefined && !/^[a-zA-Z0-9_-]{8,80}$/.test(clientMessageId))
+        return json(res, 400, { error: "Identificador de envio inválido." });
+      const content = String(input.content || "").trim();
+      const attachment = input.attachment || null;
+      if ((!content && !attachment) || content.length > 4000 || (attachment && !safeAttachment(attachment)))
+        return json(res, 400, { error: "Envie até 4000 caracteres ou um arquivo válido de até 3 MB." });
+      const duplicate = clientMessageId && group.messages?.find((message) => message.authorId === user.id && message.clientMessageId === clientMessageId);
+      if (duplicate) return json(res, 200, { message: decorateMessage(duplicate), duplicate: true });
+      const message = { id: id(), groupId: group.id, ...(clientMessageId ? { clientMessageId } : {}), authorId: user.id, content, attachment, createdAt: now(), editedAt: null };
+      group.messages ||= [];
+      group.messages.push(message);
+      await saveDatabase("directGroups");
+      const output = decorateMessage(message);
+      for (const memberId of group.memberIds) notifyUser(memberId, { type: "direct.group.created", groupId: group.id, message: output });
+      return json(res, 201, { message: output });
+    }
+    if (url.pathname === "/api/private-calls" && req.method === "POST") {
+      const input = await body(req);
+      const group = typeof input.groupId === "string"
+        ? database.directGroups.find((item) => item.id === input.groupId && item.memberIds.includes(user.id))
+        : null;
+      const participantIds = group
+        ? group.memberIds.filter((userId) => userId !== user.id).slice(0, 7)
+        : [...new Set((Array.isArray(input.participantIds) ? input.participantIds : [])
+          .filter((userId) => typeof userId === "string" && userId !== user.id))].slice(0, 7);
+      if (!participantIds.length)
+        return json(res, 400, { error: "Escolha pelo menos um amigo para a chamada." });
+      const invited = participantIds.map((userId) => database.users.find((item) => item.id === userId));
+      if (invited.some((target, index) => !target || (!group && !acceptedFriends(user.id, participantIds[index]))))
+        return json(res, 403, { error: "Chamadas privadas só podem incluir amizades aceitas." });
+      const call = {
+        id: crypto.randomBytes(12).toString("base64url"),
+        creatorId: user.id,
+        participantIds: [user.id, ...participantIds],
+        groupId: group?.id || null,
+        name: group?.name || null,
+        createdAt: Date.now(),
+      };
+      privateCalls.set(call.id, call);
+      const output = privateCallView(call, user.id);
+      for (const targetId of participantIds)
+        notifyUser(targetId, { type: "private.call.invited", call: privateCallView(call, targetId) });
+      return json(res, 201, { call: output });
+    }
     if (url.pathname === "/api/friends" && req.method === "GET") {
       const friends = database.friendships
         .filter(
@@ -3027,6 +3189,8 @@ async function handler(req, res) {
       "/api/games": ["GET"],
       "/api/servers": ["GET", "POST"],
       "/api/friends": ["GET", "POST"],
+      "/api/private-calls": ["POST"],
+      "/api/direct-groups": ["GET", "POST"],
     };
     const allowed = knownMethods[url.pathname];
     if (allowed && !allowed.includes(req.method))
@@ -3099,50 +3263,51 @@ wss.on("connection", (socket, req) => {
         const channel = database.channels.find(
           (item) => item.id === event.channelId && item.type === "voice",
         );
+        const privateCall = privateCallForChannel(event.channelId);
+        const caller = database.users.find((item) => item.id === userId);
         if (
-          !channel ||
-          !serverForUser(
-            database.users.find((user) => user.id === userId),
-            channel.serverId,
-          )
+          (!channel && !privateCall) ||
+          (channel && !serverForUser(caller, channel.serverId)) ||
+          (privateCall && !privateCall.participantIds.includes(userId))
         )
           return;
-        if (!voiceRooms.has(channel.id)) voiceRooms.set(channel.id, new Map());
-        const caller = database.users.find((item) => item.id === userId);
-        const membership = membershipFor(caller, channel.serverId);
-        if (event.type === "voice.join" && (!hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
-          socket.send(JSON.stringify({ type: "voice.denied", channelId: channel.id, reason: membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
+        const roomId = event.channelId;
+        if (!voiceRooms.has(roomId)) voiceRooms.set(roomId, new Map());
+        const membership = channel ? membershipFor(caller, channel.serverId) : null;
+        if (channel && event.type === "voice.join" && (!hasServerPermission(caller, database.servers.find((item) => item.id === channel.serverId), "connectVoice") || membership?.voiceMuted)) {
+          socket.send(JSON.stringify({ type: "voice.denied", channelId: roomId, reason: membership?.voiceMuted ? "Você está silenciado na voz deste servidor." : "Seu cargo não pode entrar em canais de voz." }));
           return;
         }
-        const room = voiceRooms.get(channel.id);
+        const room = voiceRooms.get(roomId);
         const wasPresent = room.has(userId);
         const changing = event.type === "voice.join" ? !wasPresent : wasPresent;
         if (event.type === "voice.join")
           room.set(userId, { muted: false, deafened: false, camera: false, screen: false });
         else room.delete(userId);
         if (changing) {
-          broadcastVoice(channel.id, {
+          broadcastVoice(roomId, {
             type: "voice.participants",
-            channelId: channel.id,
-            participants: voiceParticipants(channel.id),
+            channelId: roomId,
+            participants: voiceParticipants(roomId),
           });
-          broadcastVoiceState(channel);
+          if (channel) broadcastVoiceState(channel);
         }
         if (event.type === "voice.leave" && room.size === 0)
-          voiceRooms.delete(channel.id);
+          voiceRooms.delete(roomId);
       } else if (event.type === "voice.media") {
         if (typeof event.channelId !== "string" || event.channelId.length > 80)
           return;
         const channel = database.channels.find(
           (item) => item.id === event.channelId && item.type === "voice",
         );
-        const room = channel && voiceRooms.get(channel.id);
+        const privateCall = privateCallForChannel(event.channelId);
+        const room = (channel || privateCall) && voiceRooms.get(event.channelId);
         const caller = database.users.find((item) => item.id === userId);
         const voiceServer = channel && database.servers.find((item) => item.id === channel.serverId);
-        if (!room?.has(userId) || !caller || !voiceServer) return;
-        if (event.camera && !hasServerPermission(caller, voiceServer, "useCamera"))
+        if (!room?.has(userId) || !caller || (!voiceServer && !privateCall)) return;
+        if (channel && event.camera && !hasServerPermission(caller, voiceServer, "useCamera"))
           return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode usar câmera neste servidor." }));
-        if (event.screen && !hasServerPermission(caller, voiceServer, "shareScreen"))
+        if (channel && event.screen && !hasServerPermission(caller, voiceServer, "shareScreen"))
           return socket.send(JSON.stringify({ type: "voice.media.denied", channelId: channel.id, reason: "Seu cargo não pode compartilhar tela neste servidor." }));
         room.set(userId, {
           muted: Boolean(event.muted),
@@ -3150,12 +3315,12 @@ wss.on("connection", (socket, req) => {
           camera: Boolean(event.camera),
           screen: Boolean(event.screen),
         });
-        broadcastVoice(channel.id, {
+        broadcastVoice(event.channelId, {
           type: "voice.participants",
-          channelId: channel.id,
-          participants: voiceParticipants(channel.id),
+          channelId: event.channelId,
+          participants: voiceParticipants(event.channelId),
         });
-        broadcastVoiceState(channel);
+        if (channel) broadcastVoiceState(channel);
       } else if (
         ["voice.offer", "voice.answer", "voice.ice"].includes(event.type)
       ) {
@@ -3189,6 +3354,7 @@ wss.on("connection", (socket, req) => {
     for (const [channelId, room] of voiceRooms)
       if (room.delete(userId)) {
         const channel = database.channels.find((item) => item.id === channelId);
+        broadcastVoice(channelId, { type: "voice.participants", channelId, participants: voiceParticipants(channelId) });
         if (channel) broadcastVoiceState(channel);
         if (!room.size) voiceRooms.delete(channelId);
       }

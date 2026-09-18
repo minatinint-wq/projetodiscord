@@ -9,6 +9,7 @@ import {
   Check,
   Copy,
   Crown,
+  Download,
   GripVertical,
   ChevronDown,
   ChevronRight,
@@ -41,6 +42,7 @@ import {
   Search,
   Send,
   Settings,
+  ShoppingBag,
   Smile,
   Trash2,
   UserPlus,
@@ -63,6 +65,10 @@ import PremiumAvatarFrame from "./PremiumAvatarFrame";
 import { PREMIUM_FRAME_ART } from "./premiumCosmetics";
 import { updateVoiceActivity } from "./voiceActivity";
 import AtmosphericEffect from "./AtmosphericEffect";
+import StorePage from "./StorePage";
+import { appAppearance } from "./appAppearance";
+import GroupDirectMessages from "./GroupDirectMessages";
+import CreateDirectGroupModal from "./CreateDirectGroupModal";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -71,6 +77,10 @@ import { microphone, mediaError } from "./media";
 import "./styles.css";
 import "./refinement.css";
 import "./profile.css";
+
+if ("serviceWorker" in navigator && import.meta.env.PROD && location.protocol === "https:") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
 
 const EmojiArtwork = React.lazy(() => import("./EmojiArtwork"));
 
@@ -1091,6 +1101,7 @@ function bannerStyleValue(banner) {
     : { background: banner };
 }
 function DirectConversation(props) { return props.user ? <DirectMessages {...props} Avatar={Avatar}/> : null; }
+function GroupConversation(props) { return props.group ? <GroupDirectMessages {...props} Avatar={Avatar}/> : null; }
 
 function LandingPage() {
   return (
@@ -1108,6 +1119,7 @@ function LandingPage() {
           <a href="#recursos">Recursos</a>
           <a href="#comunidades">Comunidades</a>
           <a href="#seguranca">Segurança</a>
+          <a href="/install.html">Baixar</a>
           <a href="/app">Entrar</a>
         </div>
         <a className="landing-open" href="/app">
@@ -1130,6 +1142,9 @@ function LandingPage() {
             </a>
             <a className="landing-secondary" href="#recursos">
               Conhecer recursos
+            </a>
+            <a className="landing-secondary" href="/install.html">
+              Instalar aplicativo
             </a>
           </div>
           <div className="landing-proof">
@@ -1543,6 +1558,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const [theme, setTheme] = useState(
     localStorage.getItem("orbit_theme") || "dark",
   );
+  const appearance = useMemo(
+    () => appAppearance(currentUser.preferences || {}, theme),
+    [currentUser.preferences, theme],
+  );
   const [compactMode, setCompactMode] = useState(
     localStorage.getItem("orbit_compact") === "true",
   );
@@ -1556,6 +1575,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const locallyMutedUsersRef = useRef(new Set());
   const [voiceStates, setVoiceStates] = useState({});
   const [voiceChannel, setVoiceChannel] = useState(null);
+  const [incomingPrivateCall, setIncomingPrivateCall] = useState(null);
   const [voiceConnectionPanel, setVoiceConnectionPanel] = useState(false);
   const [voiceLatency, setVoiceLatency] = useState({ last: 0, average: 0, samples: 0 });
   const voiceLatencySamplesRef = useRef([]);
@@ -1630,7 +1650,9 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   const pendingVoiceConnectSoundRef = useRef(null);
   const uiSoundRef = useRef(null);
   const [friendsData, setFriendsData] = useState({ friends: [], pending: [] });
-  const [homeTab, setHomeTab] = useState("online");
+  const [directGroups,setDirectGroups]=useState([]);
+  const [directGroupModal,setDirectGroupModal]=useState(false);
+  const [homeTab, setHomeTab] = useState(() => new URLSearchParams(window.location.search).get("view") === "store" ? "store" : "online");
   const [friendQuery, setFriendQuery] = useState("");
   const [addFriendValue, setAddFriendValue] = useState("");
   const [onboardOpen, setOnboardOpen] = useState(false);
@@ -1917,6 +1939,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .friends()
       .then(setFriendsData)
       .catch(() => {});
+    api.directGroups().then(result=>setDirectGroups(result.groups||[])).catch(()=>{});
     api
       .catalog()
       .then((result) => setCatalogItems(result.items || []))
@@ -2001,6 +2024,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         } else if (event.recovered) {
           setNotice("Conectado novamente.");
           api.friends().then(setFriendsData).catch(() => {});
+          api.directGroups().then(result=>setDirectGroups(result.groups||[])).catch(()=>{});
           if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
             if(selectedChannelRef.current?.id === selectedChannel.id) {
               setMessages(result.messages);
@@ -2010,6 +2034,16 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         }
       }
       if (event.type === "direct.created") window.dispatchEvent(new CustomEvent("sesh:direct-message", { detail: event.message }));
+      if (event.type === "direct.group.created") {
+        window.dispatchEvent(new CustomEvent("sesh:direct-group-message", { detail: event }));
+        setDirectGroups(current=>current.map(group=>group.id===event.groupId?{...group,lastMessage:event.message,updatedAt:event.message.createdAt}:group).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))));
+      }
+      if (event.type === "direct.groups.updated")
+        api.directGroups().then(result=>setDirectGroups(result.groups||[])).catch(()=>{});
+      if (event.type === "private.call.invited") {
+        setIncomingPrivateCall(event.call);
+        playUiSound("mention");
+      }
       if (event.type === "message.created")
         setMessages((current) => {
           if (event.message.channelId !== selectedChannel?.id) return current;
@@ -2413,6 +2447,28 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     pendingVoiceConnectSoundRef.current = target.id;
     socketRef.current?.send({ type: "voice.join", channelId: target.id });
     startSpeakingLoop();
+  }
+  async function startPrivateCall(participantIds, groupId) {
+    const { call } = await api.createPrivateCall(participantIds, groupId);
+    setIncomingPrivateCall(null);
+    await joinVoice({
+      id: call.channelId,
+      name: call.name,
+      type: "voice",
+      privateCall: true,
+      call,
+    });
+    return call;
+  }
+  async function acceptPrivateCall(call) {
+    setIncomingPrivateCall(null);
+    await joinVoice({
+      id: call.channelId,
+      name: call.name,
+      type: "voice",
+      privateCall: true,
+      call,
+    });
   }
   function leaveVoice() {
     if (!voiceActiveRef.current) return;
@@ -3487,6 +3543,13 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       // O próximo evento ou foco da janela tenta atualizar novamente.
     }
   }
+  async function createDirectGroup(input){
+    const {group}=await api.createDirectGroup(input);
+    setDirectGroups(current=>[group,...current.filter(item=>item.id!==group.id)]);
+    setHomeTab(`group:${group.id}`);
+    setMobileNav(false);
+    return group;
+  }
   async function createChannel(preType = "text") {
     if (!selectedServer) return;
     if (!canManageChannels)
@@ -3621,6 +3684,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           onClose={() => setSettingsOpen(false)}
           onAccount={() => setSettingsTab("account")}
           onLogout={onLogout}
+          onUserUpdate={onUserUpdate}
         />
       )}
       {settingsOpen && settingsTab === "account" && accountForm && (
@@ -3668,6 +3732,24 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
         <button className="notice" onClick={() => setNotice("")}>
           {notice}
         </button>
+      )}
+      {incomingPrivateCall && (
+        <section className="private-call-invite" role="dialog" aria-label="Convite para chamada privada">
+          <div className="private-call-invite-icon"><PhoneOff size={20}/></div>
+          <div><small>CHAMADA PRIVADA</small><strong>{incomingPrivateCall.name}</strong><span>{incomingPrivateCall.participants?.map(person=>person.displayName).join(", ")}</span></div>
+          <button className="private-call-decline" onClick={()=>setIncomingPrivateCall(null)}>Recusar</button>
+          <button className="private-call-accept" onClick={()=>acceptPrivateCall(incomingPrivateCall)}>Atender</button>
+        </section>
+      )}
+      {directGroupModal&&<CreateDirectGroupModal friends={friendsData.friends} onClose={()=>setDirectGroupModal(false)} onCreate={createDirectGroup} Avatar={Avatar}/>}
+      {voiceConnected && voiceChannel?.privateCall && (
+        <section className="private-call-dock" aria-label="Chamada privada ativa">
+          <span className="direct-call-live"/>
+          <div><small>CHAMADA PRIVADA</small><strong>{voiceChannel.name}</strong><span>{visibleVoiceParticipants.length} conectado{visibleVoiceParticipants.length===1?"":"s"}</span></div>
+          <div className="private-call-dock-avatars">{visibleVoiceParticipants.slice(0,4).map(person=><Avatar key={person.id} user={person} small/>)}</div>
+          <button onClick={toggleMute} title={muted?"Ativar microfone":"Silenciar microfone"}>{muted?<MicOff size={18}/>:<Mic size={18}/>}</button>
+          <button className="danger" onClick={leaveVoice} title="Encerrar chamada"><PhoneOff size={18}/></button>
+        </section>
       )}
       {false && settingsOpen && (
         <div className="modal-backdrop" onClick={() => setSettingsOpen(false)}>
@@ -4321,7 +4403,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   if (!selectedServer)
     return (
       <div
-        className={`app-shell theme-${theme} ${compactMode ? "compact-mode" : ""}`}
+        className={`app-shell theme-${appearance.theme} sesh-custom-appearance ${appearance.hasBackground ? "has-app-wallpaper" : ""} ${compactMode ? "compact-mode" : ""}`}
+        style={appearance.style}
       >
         <header className="mobile-header">
           <button
@@ -4332,7 +4415,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           >
             <Menu size={20} />
           </button>
-          <strong>Amigos</strong>
+          <strong>{homeTab === "store" ? "Loja" : "Amigos"}</strong>
           <button
             className="icon-button"
             aria-label={memberListOpen ? "Fechar membros" : "Abrir membros"}
@@ -4384,17 +4467,24 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             <Search size={14} />
             <span>Encontre ou comece uma conversa</span>
           </div>
-          <button className="home-nav selected">
+          <button className={`home-nav ${homeTab !== "store" ? "selected" : ""}`} onClick={()=>setHomeTab("online")}>
             <Users size={17} /> Amigos
           </button>
+          <button className={`home-nav ${homeTab === "store" ? "selected" : ""}`} onClick={()=>{setHomeTab("store");setMobileNav(false);}}>
+            <ShoppingBag size={17} /> Loja
+          </button>
+          <a className="home-nav home-install-link" href="/install.html">
+            <Download size={17} /> Baixar aplicativo
+          </a>
           <div className="section-title" style={{ marginTop: 18 }}>
             <span>MENSAGENS DIRETAS</span>
-            <button>
+            <button title="Criar grupo de DM" onClick={()=>setDirectGroupModal(true)}>
               <Plus size={14} />
             </button>
           </div>
           <div className="home-dm-list">
-            {friendsData.friends.length === 0 ? (
+            {directGroups.map(group=><button className="home-dm-row home-group-row" key={group.id} onClick={()=>{setHomeTab(`group:${group.id}`);setMobileNav(false);}}><span className="group-dm-avatar"><Users size={16}/></span><span className="home-dm-name"><strong>{group.name}</strong><small>{group.members.length} membros</small></span></button>)}
+            {friendsData.friends.length === 0 && directGroups.length===0 ? (
               <div className="home-dm-hint">
                 Suas conversas diretas aparecerão aqui.
               </div>
@@ -4422,7 +4512,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             )}
           </div>
         </aside>
-        <main className="main-content">
+        {homeTab === "store" ? (
+          <StorePage user={currentUser} Avatar={Avatar} onClose={()=>setHomeTab("online")}/>
+        ) : <main className="main-content">
           <div className="channel-header home-header">
             <div className="channel-title">
               <Users size={20} />
@@ -4670,7 +4762,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
               ))}
             </aside>
           </div>
-        </main>
+        </main>}
         {!voiceConnected && currentUser.gameInterests?.[0] && <FavoriteGameActivity user={currentUser}/>}
         <div className={`user-panel ${mobileNav ? "mobile-open" : ""}`}>
           {statusMenu && statusMenuEl()}
@@ -4713,7 +4805,13 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
           <DirectConversation
             key={homeTab}
             currentUser={currentUser}
-            onJoinVoice={openVoiceFromProfile}
+            onStartPrivateCall={startPrivateCall}
+            friends={friendsData.friends}
+            activePrivateCall={voiceConnected&&voiceChannel?.privateCall?voiceChannel:null}
+            onLeaveVoice={leaveVoice}
+            onToggleMute={toggleMute}
+            muted={muted}
+            voiceParticipants={visibleVoiceParticipants}
             user={friendsData.friends.find(
               (person) => person.id === homeTab.slice(3),
             )}
@@ -4731,6 +4829,9 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
             onOpenFullProfile={() => setProfileView({mode:"full",userId:homeTab.slice(3)})}
           />
         )}
+        {homeTab.startsWith("group:")&&(
+          <GroupConversation key={homeTab} group={directGroups.find(group=>group.id===homeTab.slice(6))} currentUser={currentUser} onClose={()=>setHomeTab("online")} onStartPrivateCall={startPrivateCall} activePrivateCall={voiceConnected&&voiceChannel?.privateCall?voiceChannel:null} onLeaveVoice={leaveVoice} onToggleMute={toggleMute} muted={muted} voiceParticipants={visibleVoiceParticipants}/>
+        )}
       </div>
     );
   function savePreference(key, value) {
@@ -4738,7 +4839,8 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
   }
   return (
     <div
-      className={`app-shell theme-${theme} ${compactMode ? "compact-mode" : ""}`}
+      className={`app-shell theme-${appearance.theme} sesh-custom-appearance ${appearance.hasBackground ? "has-app-wallpaper" : ""} ${compactMode ? "compact-mode" : ""}`}
+      style={appearance.style}
     >
       <header className="mobile-header">
         <button

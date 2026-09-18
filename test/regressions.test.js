@@ -147,6 +147,24 @@ test("novos cosméticos são aceitos e persistidos",async()=>{
  const plain=await req("/api/auth/register","POST",{username:"plainuser",email:"plain@sesh.local",password:"Valida-975310!Z",displayName:"Plain"});assert.equal(plain.status,201);
  const plainNameEffect=await req("/api/auth/me","PATCH",{nameEffect:"rgb"},plain.token);assert.equal(plainNameEffect.status,200);assert.equal(plainNameEffect.user.nameEffect,"rgb");
 });
+test("aparência da conta, fundo privado e ausência de banner persistem",async()=>{
+ const updated=await req("/api/auth/me","PATCH",{banner:null,bannerPreset:"none",preferences:{appTheme:"midnight",appSurfaceColor:"#121826",appAccentColor:"#ff4d8d",appBackground:png,appBackgroundStrength:75}},guest.token);
+ assert.equal(updated.status,200);assert.equal(updated.user.banner,null);assert.equal(updated.user.bannerPreset,"none");assert.equal(updated.user.preferences.appTheme,"midnight");assert.equal(updated.user.preferences.appBackgroundStrength,75);assert.match(updated.user.preferences.appBackground,/\/media\/appBackground\?v=/);
+ const ownMedia=await fetch(url+updated.user.preferences.appBackground,{headers:{Cookie:guest.token}});assert.equal(ownMedia.status,200);assert.deepEqual(Buffer.from(await ownMedia.arrayBuffer()),Buffer.from(png.split(",")[1],"base64"));
+ const hiddenMedia=await fetch(url+updated.user.preferences.appBackground,{headers:{Cookie:owner.token}});assert.equal(hiddenMedia.status,404);
+ assert.equal((await req("/api/auth/me","PATCH",{preferences:{appAccentColor:"red"}},guest.token)).status,400);
+});
+test("grupo de DM persiste membros, mensagens e cria chamada do grupo",async()=>{
+ const third=await req("/api/auth/register","POST",{username:"groupthird",email:"groupthird@sesh.local",password:"Grupo-975310!",displayName:"Terceira Pessoa"});
+ assert.equal((await req("/api/friends","POST",{username:"demo"},third.token)).status,201);
+ assert.equal((await req("/api/friends","POST",{username:third.user.publicId},owner.token)).status,200);
+ const created=await req("/api/direct-groups","POST",{name:"Trio de teste",memberIds:[guest.user.id,third.user.id]},owner.token);
+ assert.equal(created.status,201);assert.equal(created.group.members.length,3);
+ const listed=await req("/api/direct-groups","GET",undefined,guest.token);assert(listed.groups.some(group=>group.id===created.group.id));
+ const sent=await req(`/api/direct-groups/${created.group.id}/messages`,"POST",{content:"Mensagem no grupo",clientMessageId:"group-message-0001"},guest.token);assert.equal(sent.status,201);assert.equal(sent.message.author.id,guest.user.id);
+ const history=await req(`/api/direct-groups/${created.group.id}/messages`,"GET",undefined,third.token);assert.equal(history.messages[0].content,"Mensagem no grupo");
+ const call=await req("/api/private-calls","POST",{groupId:created.group.id},guest.token);assert.equal(call.status,201);assert.equal(call.call.participants.length,3);assert.equal(call.call.name,"Call · Trio de teste");
+});
 test("envio rápido usa identificador idempotente sem duplicar mensagens",async()=>{
  const channel=server.channels.find(item=>item.type==="text");
  const clientMessageId="fast-send-12345678";

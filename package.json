@@ -1,6 +1,6 @@
 {
   "name": "sesh",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Sesh - comunidades, voz, vídeo e compartilhamento",
   "author": "Sesh",
   "private": true,
@@ -15,6 +15,8 @@
     "build": "vite build",
     "dist:win": "npm run build && electron-builder --win nsis --x64",
     "dist:win:publish": "npm run build && electron-builder --win nsis --x64 --publish always",
+    "android:sync": "npm run build && cap sync android",
+    "dist:android": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "preview": "vite preview",
     "electron": "electron .",
     "db:import": "node scripts/import-database.js",
@@ -25,6 +27,7 @@
     "node": ">=22.22.0 <23"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@playwright/test": "^1.63.0",
     "@vitejs/plugin-react": "latest",
     "animejs": "^4.5.0",
@@ -39,6 +42,8 @@
     "wait-on": "latest"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "electron-updater": "6.6.2",
     "pg": "^8.23.0",
     "ws": "latest"
@@ -53,6 +58,14 @@
     "files": [
       "dist/**/*",
       "electron-main.cjs",
+      "server.js",
+      "game-catalog.js",
+      "cosmetics.js",
+      "avatar-decorations.js",
+      "nameplates.js",
+      "profile-art.js",
+      "profile-frames.js",
+      "image-generation.js",
       "package.json"
     ],
     "win": {

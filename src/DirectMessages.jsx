@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef} from "react";
-import {X,Send,Plus,Users,Phone} from "lucide-react";
+import {X,Send,Plus,Users,Phone,PhoneOff,UserPlus,Mic,MicOff} from "lucide-react";
 import {api} from "./api";
 import EmojiPicker from "./EmojiPicker";
 import EmojiText from "./EmojiText";
@@ -15,11 +15,12 @@ function isCompactMessage(message,previous){
  const gap=new Date(message.createdAt).getTime()-new Date(previous.createdAt).getTime();
  return gap>=0&&gap<7*60*1000&&new Date(message.createdAt).toDateString()===new Date(previous.createdAt).toDateString();
 }
-export default function DirectMessages({user,currentUser,onClose,onOpenProfile,onOpenFullProfile,onJoinVoice,Avatar}){
+export default function DirectMessages({user,currentUser,onClose,onOpenProfile,onOpenFullProfile,onStartPrivateCall,friends=[],activePrivateCall,onLeaveVoice,onToggleMute,muted=false,voiceParticipants=[],Avatar}){
  const [messages,setMessages]=useState([]),[draft,setDraft]=useState(""),[attachment,setAttachment]=useState(null);
  const [loading,setLoading]=useState(true),[error,setError]=useState("");
  const input=useRef(null),bottom=useRef(null),readId=useRef(0);
  const [reading,setReading]=useState(false);
+ const [groupOpen,setGroupOpen]=useState(false),[groupSelection,setGroupSelection]=useState(()=>new Set()),[callBusy,setCallBusy]=useState(false);
  const drop=useFileDrop(files=>attachFiles(files));
   const merge=message=>setMessages(current=>{
    const pending=message.clientMessageId&&current.find(item=>item.sendState&&item.clientMessageId===message.clientMessageId);
@@ -70,8 +71,19 @@ export default function DirectMessages({user,currentUser,onClose,onOpenProfile,o
  }
  function attach(event){const files=Array.from(event.target.files||[]);event.target.value="";attachFiles(files);}
 
+ async function startCall(participantIds){
+  if(callBusy)return;setCallBusy(true);setError("");
+  try{await onStartPrivateCall?.(participantIds);setGroupOpen(false);setGroupSelection(new Set());}
+  catch(e){setError(e.message||"Não foi possível iniciar a chamada.");}
+  finally{setCallBusy(false);}
+ }
+ function toggleGroupFriend(friendId){setGroupSelection(current=>{const next=new Set(current);if(next.has(friendId))next.delete(friendId);else if(next.size<6)next.add(friendId);return next;});}
+
  const activeGame=(user.gameInterests||[]).map(id=>GAME_CATALOG.find(game=>game.id===id)).find(Boolean);
- return <section className="direct-conversation"><header className="direct-header"><button className="icon-button" aria-label="Voltar para amigos" onClick={onClose}><X size={20}/></button><Avatar user={user} small/><div className="direct-header-person"><strong><StyledName user={user}/></strong><span>@{user.username}</span></div><div className="direct-header-actions">{user.voice&&<button onClick={()=>onJoinVoice(user.voice)} title="Entrar na chamada do amigo"><Phone size={18}/></button>}<button title="Ver resumo do perfil" onClick={onOpenProfile}><Users size={18}/></button></div></header>
+ const extraFriends=friends.filter(friend=>friend.id!==user.id);
+ return <section className="direct-conversation"><header className="direct-header"><button className="icon-button" aria-label="Voltar para amigos" onClick={onClose}><X size={20}/></button><Avatar user={user} small/><div className="direct-header-person"><strong><StyledName user={user}/></strong><span>@{user.username}</span></div><div className="direct-header-actions"><button disabled={callBusy} onClick={()=>startCall([user.id])} title="Iniciar chamada privada"><Phone size={18}/></button><button onClick={()=>setGroupOpen(value=>!value)} title="Iniciar chamada em grupo"><UserPlus size={18}/></button><button title="Ver resumo do perfil" onClick={onOpenProfile}><Users size={18}/></button></div></header>
+ {activePrivateCall&&<div className="direct-call-strip"><div className="direct-call-people"><span className="direct-call-live"/><div><strong>{activePrivateCall.name}</strong><small>{voiceParticipants.length} conectado{voiceParticipants.length===1?"":"s"}</small></div><div className="direct-call-avatars">{voiceParticipants.slice(0,5).map(person=><Avatar key={person.id} user={person} small/>)}</div></div><div className="direct-call-controls"><button onClick={onToggleMute} title={muted?"Ativar microfone":"Silenciar microfone"}>{muted?<MicOff size={18}/>:<Mic size={18}/>}</button><button className="danger" onClick={onLeaveVoice} title="Encerrar chamada"><PhoneOff size={18}/></button></div></div>}
+ {groupOpen&&<div className="direct-group-call-panel" role="dialog" aria-label="Criar chamada em grupo"><header><div><strong>Chamada em grupo</strong><small>Convide até 6 amigos além de {user.displayName}.</small></div><button aria-label="Fechar" onClick={()=>setGroupOpen(false)}><X size={18}/></button></header><div className="direct-group-list"><label className="selected locked"><Avatar user={user} small/><span>{user.displayName}<small>Esta conversa</small></span><input type="checkbox" checked disabled/></label>{extraFriends.map(friend=><label key={friend.id} className={groupSelection.has(friend.id)?"selected":""}><Avatar user={friend} small/><span>{friend.displayName}<small>@{friend.username}</small></span><input type="checkbox" checked={groupSelection.has(friend.id)} onChange={()=>toggleGroupFriend(friend.id)}/></label>)}</div><button className="direct-group-start" disabled={!groupSelection.size||callBusy} onClick={()=>startCall([user.id,...groupSelection])}><Phone size={17}/>{callBusy?"Chamando…":`Iniciar com ${groupSelection.size+1} amigos`}</button></div>}
  <div className={"direct-main file-drop-zone"+(drop.dragging?" dragging":"")} {...drop.bind}>{drop.dragging&&<div className="file-drop-overlay"><strong>Solte o arquivo aqui</strong><span>Até 3 MB · você confirma antes de enviar</span></div>}<div className="direct-messages" aria-live="polite"><div className="direct-welcome"><Avatar user={user}/><h2><StyledName user={user}/></h2><p>Esta é uma conversa só entre vocês.</p></div>{loading&&<p className="direct-loading">Carregando conversa…</p>}{messages.map((message,index)=>{const compact=isCompactMessage(message,messages[index-1]);return <article className={"dm-message"+(compact?" dm-message-compact":"")+(message.sendState?` message-${message.sendState}`:"")} key={message.id}>{compact?<time className="dm-hover-time" dateTime={message.createdAt}>{messageTime(message.createdAt)}</time>:<Avatar user={message.author} small/>}<div>{!compact&&<header><StyledName user={message.author}/><time dateTime={message.createdAt}>{messageTime(message.createdAt)}</time></header>}<p><EmojiText text={message.content}/></p>{message.attachment&&<AttachmentView attachment={message.attachment} alt="Imagem enviada na conversa"/>}{message.sendState==="sending"&&<span className="message-delivery-state">Enviando…</span>}{message.sendState==="failed"&&<button type="button" className="message-retry" title={message.sendError||"Falha no envio"} onClick={()=>retry(message)}>Falhou · tentar novamente</button>}</div></article>})}<div ref={bottom}/></div>
  {error&&<p className="form-error" role="alert">{error}</p>}{reading&&<p role="status">Preparando arquivo…</p>}{attachment&&<div className="dm-attachment"><AttachmentView attachment={attachment} preview/><button onClick={()=>setAttachment(null)}>Remover</button></div>}
  <form className="direct-composer" onSubmit={send}><input ref={input} type="file" hidden onChange={attach}/><button type="button" aria-label="Anexar arquivo" onClick={()=>input.current.click()}><Plus size={20}/></button><input maxLength={4000} value={draft} onChange={e=>setDraft(e.target.value)} placeholder={"Conversar com @"+user.username}/><EmojiPicker onSelect={emoji=>setDraft(current=>current+emoji)}/><button disabled={reading||(!draft.trim()&&!attachment)} aria-label="Enviar mensagem"><Send size={20}/></button></form></div>
