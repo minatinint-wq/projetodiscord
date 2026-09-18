@@ -92,6 +92,16 @@ test("DM persiste texto e imagem e respeita preferências",async()=>{
  await req("/api/auth/me","PATCH",{preferences:{allowDirectMessages:false}},owner.token);
  assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"bloqueada"},guest.token)).status,403);
 });
+test("preferência de amizade bloqueia novos pedidos no servidor",async()=>{
+ const target=await req("/api/auth/register","POST",{username:"privacytarget",email:"privacytarget@sesh.local",password:"Privacidade-975310",displayName:"Alvo Privado"});
+ const requester=await req("/api/auth/register","POST",{username:"privacyrequest",email:"privacyrequest@sesh.local",password:"Privacidade-864209",displayName:"Solicitante"});
+ const disabled=await req("/api/auth/me","PATCH",{preferences:{allowFriendRequests:false}},target.token);
+ assert.equal(disabled.status,200);assert.equal(disabled.user.preferences.allowFriendRequests,false);
+ const blocked=await req("/api/friends","POST",{username:target.user.publicId},requester.token);
+ assert.equal(blocked.status,403);assert.match(blocked.error,/pausou/i);
+ await req("/api/auth/me","PATCH",{preferences:{allowFriendRequests:true}},target.token);
+ assert.equal((await req("/api/friends","POST",{username:target.user.publicId},requester.token)).status,201);
+});
 test("banner animado mantém bytes e enquadramento com Nitro",async()=>{
  const admin=await req("/api/auth/login","POST",{username:"test-admin@sesh.local",password:"test-admin-password"});
  await req("/api/admin/users/"+guest.user.id+"/subscription","PATCH",{planId:"classic",status:"active"},admin.token);

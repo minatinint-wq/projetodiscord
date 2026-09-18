@@ -9,7 +9,7 @@ import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
 import AttachmentView from "./AttachmentView";
 import {bannerPresentation} from "./profilePresentation";
-const messageTime=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const messageTime=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",hour12:localStorage.getItem("sesh_time_format")==="12"});
 function isCompactMessage(message,previous){
  if(!previous||previous.authorId!==message.authorId)return false;
  const gap=new Date(message.createdAt).getTime()-new Date(previous.createdAt).getTime();

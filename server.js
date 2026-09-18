@@ -1054,7 +1054,7 @@ function clientIp(req) {
 }
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MS = 15 * 60_000;
-const REGISTER_MAX_PER_HOUR = 10;
+const REGISTER_MAX_PER_HOUR = Math.max(1, Number(process.env.REGISTER_MAX_PER_HOUR) || 10);
 const registerAttempts = new Map(); // ip -> { count, resetAt }
 function loginLimitKey(req, identifier) {
   return clientIp(req) + ":" + String(identifier || "").toLowerCase();
@@ -2176,7 +2176,15 @@ async function handler(req, res) {
         if (!input.preferences || typeof input.preferences !== "object" || Array.isArray(input.preferences))
           return json(res, 400, { error: "Preferências inválidas." });
         user.preferences = { ...user.preferences };
-        for (const key of ["allowDirectMessages", "notificationSounds", "reducedMotion"])
+        for (const key of [
+          "allowDirectMessages",
+          "allowFriendRequests",
+          "notificationSounds",
+          "reducedMotion",
+          "improveSesh",
+          "personalizedExperience",
+          "shareProfileUpdates",
+        ])
           if (input.preferences[key] !== undefined) user.preferences[key] = Boolean(input.preferences[key]);
         if (input.preferences.appTheme !== undefined) {
           if (!["dark", "midnight", "light"].includes(input.preferences.appTheme))
@@ -3131,6 +3139,8 @@ async function handler(req, res) {
           error: "Você já enviou um convite para esta pessoa.",
         });
       }
+      if (target.preferences?.allowFriendRequests === false)
+        return json(res, 403, { error: "Esta pessoa pausou o recebimento de pedidos de amizade." });
       database.friendships.push({
         id: id(),
         requesterId: user.id,

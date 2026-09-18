@@ -67,6 +67,7 @@ import { updateVoiceActivity } from "./voiceActivity";
 import AtmosphericEffect from "./AtmosphericEffect";
 import StorePage from "./StorePage";
 import { appAppearance } from "./appAppearance";
+import { applyLocalPreferences } from "./localPreferences";
 import GroupDirectMessages from "./GroupDirectMessages";
 import CreateDirectGroupModal from "./CreateDirectGroupModal";
 
@@ -1854,12 +1855,22 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return () => document.removeEventListener("pointerdown", close);
   }, [profileView?.mode, profileView?.userId]);
   useEffect(() => {
-    document.documentElement.dataset.reducedMotion = localStorage.getItem("sesh_reduced_motion") || "false";
+    const syncLocalSettings = () => {
+      applyLocalPreferences();
+      const density = localStorage.getItem("sesh_interface_density");
+      setCompactMode(density ? density === "compact" : localStorage.getItem("orbit_compact") === "true");
+      setNotifications(localStorage.getItem("orbit_notifications") !== "false");
+    };
+    syncLocalSettings();
+    window.addEventListener("sesh:settings-changed", syncLocalSettings);
     document.body.classList.toggle(
       "creator-account",
       Boolean(currentUser.isCreator),
     );
-    return () => document.body.classList.remove("creator-account");
+    return () => {
+      window.removeEventListener("sesh:settings-changed", syncLocalSettings);
+      document.body.classList.remove("creator-account");
+    };
   }, [currentUser.isCreator]);
   useEffect(() => {
     const ownProfile =
@@ -2089,7 +2100,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         api.directGroups().then(result=>setDirectGroups(result.groups||[])).catch(()=>{});
       if (event.type === "private.call.invited") {
         setIncomingPrivateCall(event.call);
-        playUiSound("mention");
+        playUiSound("call");
+        showDesktopNotification("Chamada recebida", event.call?.name || "Alguém está chamando você.");
       }
       if (event.type === "message.created")
         setMessages((current) => {
@@ -2115,6 +2127,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       if (event.type === "mention.created" && event.message.author.id !== currentUser.id) {
         if (localStorage.getItem("orbit_notifications") !== "false") playUiSound("mention");
         setNotice(`${event.message.author.displayName} mencionou você em #${event.channelName}.`);
+        showDesktopNotification(`${event.message.author.displayName} mencionou você`, `#${event.channelName}: ${event.message.content || "Nova mensagem"}`);
       }
       if (event.type === "member.moderation.updated" && event.serverId === selectedServer?.id)
         setMembers((current) => current.map((member) =>
@@ -2241,6 +2254,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
         // User updates are broadcast to all connected people. Only the
         // matching event may refresh this browser's authenticated session.
         if (event.user.id === currentUser.id) onUserUpdate(event.user);
+        else if (localStorage.getItem("sesh_notify_profile_updates") === "true" && friendsData.friends.some((friend) => friend.id === event.user.id))
+          showDesktopNotification("Perfil atualizado", `${event.user.displayName} atualizou o perfil.`);
         setProfileData(current => current?.user?.id === event.user.id ? {...current,user:{...current.user,...event.user}} : current);
       }
       if (event.type === "friends.updated")
@@ -2248,11 +2263,16 @@ function App({ currentUser, onLogout, onUserUpdate }) {
           .friends()
           .then(setFriendsData)
           .catch(() => {});
-      if (event.type === "presence.updated")
+      if (event.type === "presence.updated") {
+        if (event.presence === "online" && localStorage.getItem("sesh_notify_friend_online") === "true") {
+          const friend = friendsData.friends.find((person) => person.id === event.userId);
+          if (friend) showDesktopNotification("Amigo online", `${friend.displayName} entrou no Sesh.`);
+        }
         setPresenceMap((current) => ({
           ...current,
           [event.userId]: event.presence,
         }));
+      }
       if (event.type === "voice.state")
         setVoiceStates((current) => ({
           ...current,
@@ -2527,6 +2547,8 @@ function App({ currentUser, onLogout, onUserUpdate }) {
   }
   function playUiSound(kind) {
     if (localStorage.getItem("sesh_ui_sounds") === "off" || localStorage.getItem("sesh_sound_enabled") === "false") return;
+    if (kind === "mention" && localStorage.getItem("sesh_sound_message") === "false") return;
+    if (["call", "connect", "disconnect"].includes(kind) && localStorage.getItem("sesh_sound_call") === "false") return;
     if (kind === "connect" || kind === "disconnect") {
       try {
         const sound = new Audio(kind === "connect" ? "/sounds/call-enter.mp3" : "/sounds/call-exit.mp3");
@@ -2549,7 +2571,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
       oscillator.type = "sine";
-      oscillator.frequency.value = kind === "mention" ? 880 : kind === "connect" ? 660 : kind === "disconnect" ? 330 : 220;
+      oscillator.frequency.value = kind === "mention" ? 880 : kind === "call" || kind === "connect" ? 660 : kind === "disconnect" ? 330 : 220;
       gain.gain.setValueAtTime(0.0001, audio.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.05, audio.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.16);
@@ -2558,6 +2580,10 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       oscillator.stop(audio.currentTime + 0.17);
       oscillator.onended = () => audio.close();
     } catch {}
+  }
+  function showDesktopNotification(title, body) {
+    if (localStorage.getItem("sesh_desktop_notifications") === "false" || !("Notification" in window) || Notification.permission !== "granted" || document.visibilityState === "visible") return;
+    try { new Notification(title, { body, icon: "/branding/sesh-192.png", tag: `sesh-${title}` }); } catch {}
   }
   async function joinVoice(targetChannel) {
     const target =
@@ -2828,7 +2854,10 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       const now = performance.now();
       analysersRef.current.forEach((item, userId) => {
         item.analyser.getByteTimeDomainData(item.data);
-        item.vad = updateVoiceActivity(item.vad, item.data, now);
+        const sensitivity = userId === currentUser.id
+          ? Number(localStorage.getItem("sesh_input_sensitivity") || 50)
+          : 50;
+        item.vad = updateVoiceActivity(item.vad, item.data, now, sensitivity);
         if (item.vad.speaking) next[userId] = true;
       });
       const prev = speakingRef.current;
@@ -3014,6 +3043,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       message.content || `Imagem enviada por ${message.author?.displayName || "um membro"}`,
     );
     speech.lang = "pt-BR";
+    speech.rate = Math.max(.5, Math.min(2, Number(localStorage.getItem("sesh_tts_rate") || 1)));
     window.speechSynthesis.speak(speech);
   }
   async function removeMessage(message) {
@@ -5600,7 +5630,7 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     const previousDate = previous ? new Date(previous.createdAt) : null;
                     const sameDay = previousDate?.toDateString() === messageDate.toDateString();
                     const compact = Boolean(previous && sameDay && previous.author.id === message.author.id && messageDate - previousDate < 7 * 60 * 1000 && !message.replyTo && !message.forwardedFrom);
-                    const shortTime = messageDate.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+                    const shortTime = messageDate.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit", hour12:localStorage.getItem("sesh_time_format")==="12"});
                     return <React.Fragment key={message.id}>
                     {!sameDay && <div className="message-day-divider"><span>{messageDate.toLocaleDateString("pt-BR",{day:"2-digit",month:"long",year:"numeric"})}</span></div>}
                     <article

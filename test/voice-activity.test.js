@@ -15,3 +15,12 @@ test("VAD ignora silêncio e reage ao sinal real com retenção curta",()=>{
  for(let index=0;index<18;index++)state=updateVoiceActivity(state,silence,1200+index*50)
  assert.equal(state.speaking,false)
 })
+
+test("sensibilidade alta detecta uma voz que o nível baixo ignora",()=>{
+ const silence=new Uint8Array(1024).fill(128)
+ const quietVoice=Uint8Array.from({length:1024},(_,index)=>128+Math.round(Math.sin(index*.17)*4))
+ const calibrated=()=>{let state={};for(let index=0;index<14;index++)state=updateVoiceActivity(state,silence,index*50);return state}
+ const sample=(sensitivity)=>{let state=calibrated();for(let index=0;index<3;index++)state=updateVoiceActivity(state,quietVoice,750+index*20,sensitivity);return state}
+ assert.equal(sample(0).speaking,false)
+ assert.equal(sample(100).speaking,true)
+})

@@ -1,9 +1,12 @@
 export function audioConstraints() {
   const deviceId = localStorage.getItem("sesh_audio_input");
   const studio = localStorage.getItem("sesh_audio_profile") === "studio";
+  const supported = navigator.mediaDevices?.getSupportedConstraints?.() || {};
+  const requestedVolume = Math.max(0, Math.min(1, Number(localStorage.getItem("sesh_input_volume") || 100) / 100));
   return {
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-    echoCancellation: !studio,
+    ...(supported.volume ? { volume: requestedVolume } : {}),
+    echoCancellation: !studio && localStorage.getItem("sesh_echo_cancellation") !== "false",
     noiseSuppression: !studio && localStorage.getItem("sesh_noise_suppression") !== "false",
     autoGainControl: !studio && localStorage.getItem("sesh_auto_gain") !== "false",
   };

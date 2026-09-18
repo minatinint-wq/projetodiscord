@@ -8,7 +8,7 @@ import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
 import {StyledName} from "./ProfileEditor";
 
-const time=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const time=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",hour12:localStorage.getItem("sesh_time_format")==="12"});
 
 export default function GroupDirectMessages({group,currentUser,onClose,onStartPrivateCall,activePrivateCall,onLeaveVoice,onToggleMute,muted=false,voiceParticipants=[],Avatar}){
  const [messages,setMessages]=useState([]),[draft,setDraft]=useState(""),[attachment,setAttachment]=useState(null),[loading,setLoading]=useState(true),[reading,setReading]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
