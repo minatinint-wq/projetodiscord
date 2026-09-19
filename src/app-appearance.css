@@ -1,0 +1,78 @@
+/* Loaded last so account appearance wins over the base/refinement skins. */
+.app-shell.sesh-custom-appearance {
+  background-color: var(--app-bg) !important;
+  background-image: linear-gradient(var(--app-wallpaper-tint), var(--app-wallpaper-tint)), var(--app-wallpaper) !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+  color: var(--text) !important;
+}
+
+.app-shell.sesh-custom-appearance .server-rail,
+.app-shell.sesh-custom-appearance .channel-sidebar,
+.app-shell.sesh-custom-appearance .home-sidebar,
+.app-shell.sesh-custom-appearance .member-sidebar,
+.app-shell.sesh-custom-appearance .user-panel {
+  background: var(--surface-2) !important;
+  border-color: var(--border) !important;
+}
+
+.app-shell.sesh-custom-appearance .channel-header,
+.app-shell.sesh-custom-appearance .home-header,
+.app-shell.sesh-custom-appearance .direct-header,
+.app-shell.sesh-custom-appearance .mobile-header {
+  background: var(--surface-3) !important;
+  border-color: var(--border) !important;
+}
+
+.app-shell.sesh-custom-appearance .main-content,
+.app-shell.sesh-custom-appearance .content-body,
+.app-shell.sesh-custom-appearance .chat-area,
+.app-shell.sesh-custom-appearance .direct-main,
+.app-shell.sesh-custom-appearance .direct-profile,
+.app-shell.sesh-custom-appearance .friends-area,
+.app-shell.sesh-custom-appearance .active-now-sidebar {
+  background: var(--surface-1) !important;
+  color: var(--text) !important;
+}
+
+.app-shell.sesh-custom-appearance .composer,
+.app-shell.sesh-custom-appearance input,
+.app-shell.sesh-custom-appearance textarea,
+.app-shell.sesh-custom-appearance select {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.app-shell.sesh-custom-appearance.has-app-wallpaper .server-rail,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .channel-sidebar,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .home-sidebar,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .member-sidebar,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .user-panel,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .channel-header,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .home-header,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .direct-header,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .mobile-header {
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent) !important;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.app-shell.sesh-custom-appearance.has-app-wallpaper .main-content,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .content-body,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .chat-area,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .direct-main,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .direct-profile,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .friends-area,
+.app-shell.sesh-custom-appearance.has-app-wallpaper .active-now-sidebar {
+  background: color-mix(in srgb, var(--surface-1) 76%, transparent) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 650px) {
+  .app-shell.sesh-custom-appearance {
+    background-attachment: scroll !important;
+  }
+}

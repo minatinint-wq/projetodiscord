@@ -78,6 +78,7 @@ import { microphone, mediaError } from "./media";
 import "./styles.css";
 import "./refinement.css";
 import "./profile.css";
+import "./app-appearance.css";
 
 if ("serviceWorker" in navigator && import.meta.env.PROD && location.protocol === "https:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));

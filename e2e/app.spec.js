@@ -26,6 +26,21 @@ test("perfil salva avatar, banner e efeitos e fecha ao concluir",{tag:"@profile"
  await page.screenshot({path:"test-results/profile-studio.png",fullPage:true});
  expect(errors).toEqual([]);
 });
+test("aparência aplica uma imagem ao aplicativo inteiro",async({page})=>{
+ await page.getByTitle("Configurações",{exact:true}).click();
+ const settings=page.getByRole("dialog",{name:"Configurações",exact:true});
+ await settings.getByRole("button",{name:"Aparência",exact:true}).click();
+ const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
+ await settings.locator('input[type=file][accept*="image/png"]').setInputFiles({name:"app-background.png",mimeType:"image/png",buffer:png});
+ await expect(settings.getByText("Preferência sincronizada na sua conta.",{exact:true})).toBeVisible();
+ const shell=page.locator(".app-shell");
+ await expect(shell).toHaveClass(/has-app-wallpaper/);
+ await expect.poll(()=>shell.evaluate(element=>getComputedStyle(element).getPropertyValue("--app-wallpaper").trim())).toContain("url(");
+ const mainBackground=await page.locator(".main-content").evaluate(element=>getComputedStyle(element).backgroundColor);
+ expect(mainBackground).not.toBe("rgb(24, 25, 30)");
+ await settings.getByRole("button",{name:"Remover fundo",exact:true}).click();
+ await expect(shell).not.toHaveClass(/has-app-wallpaper/);
+});
 test("artes animadas carregam uma página leve por vez",async({page})=>{
  await page.getByTitle("Configurações",{exact:true}).click();
  await page.getByRole("button",{name:"Editar perfil e conta"}).click();

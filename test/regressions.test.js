@@ -163,6 +163,7 @@ test("aparência da conta, fundo privado e ausência de banner persistem",async(
  const ownMedia=await fetch(url+updated.user.preferences.appBackground,{headers:{Cookie:guest.token}});assert.equal(ownMedia.status,200);assert.deepEqual(Buffer.from(await ownMedia.arrayBuffer()),Buffer.from(png.split(",")[1],"base64"));
  const hiddenMedia=await fetch(url+updated.user.preferences.appBackground,{headers:{Cookie:owner.token}});assert.equal(hiddenMedia.status,404);
  assert.equal((await req("/api/auth/me","PATCH",{preferences:{appAccentColor:"red"}},guest.token)).status,400);
+ assert.equal((await req("/api/auth/me","PATCH",{preferences:{appBackground:"data:image/png;base64,aGVsbG8="}},guest.token)).status,400);
 });
 test("grupo de DM persiste membros, mensagens e cria chamada do grupo",async()=>{
  const third=await req("/api/auth/register","POST",{username:"groupthird",email:"groupthird@sesh.local",password:"Grupo-975310!",displayName:"Terceira Pessoa"});
