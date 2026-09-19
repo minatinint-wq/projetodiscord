@@ -41,7 +41,7 @@ test("aparência aplica uma imagem ao aplicativo inteiro",async({page})=>{
  await settings.getByRole("button",{name:"Remover fundo",exact:true}).click();
  await expect(shell).not.toHaveClass(/has-app-wallpaper/);
 });
-test("home mantém contraste e enquadra o ícone completo do servidor",async({page})=>{
+test("home mantém contraste e preenche o ícone do servidor",async({page})=>{
  const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
  const created=await(await page.request.post("/api/servers",{data:{name:"Ícone visual"}})).json();
  const updated=await page.request.patch(`/api/servers/${created.server.id}`,{data:{icon:png}});
@@ -53,7 +53,7 @@ test("home mantém contraste e enquadra o ícone completo do servidor",async({pa
  await expect(serverButton).toBeVisible();
  const serverImage=serverButton.locator(".server-icon-img");
  await expect(serverImage).toBeVisible();
- expect(await serverImage.evaluate(element=>getComputedStyle(element).objectFit)).toBe("contain");
+ expect(await serverImage.evaluate(element=>getComputedStyle(element).objectFit)).toBe("cover");
  await page.locator(".brand-home").click();
  const store=page.locator(".home-sidebar .home-nav").filter({hasText:"Loja"});
  await store.click();

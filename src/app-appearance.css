@@ -85,34 +85,32 @@
 
 .app-shell.sesh-custom-appearance .server-rail .server-icon {
   position: relative;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  padding: 3px;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  padding: 0;
   overflow: visible;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 15px;
-  background: color-mix(in srgb, var(--surface-4) 82%, var(--surface-2)) !important;
-  box-shadow: 0 5px 14px color-mix(in srgb, #000 26%, transparent);
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-4) !important;
+  box-shadow: 0 5px 14px color-mix(in srgb, #000 28%, transparent);
 }
 
 .app-shell.sesh-custom-appearance .server-rail .server-icon:hover {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface-4) 68%, var(--accent)) !important;
+  border-radius: 14px;
+  background: var(--interactive-hover) !important;
+  box-shadow: 0 7px 18px color-mix(in srgb, #000 36%, transparent);
 }
 
 .app-shell.sesh-custom-appearance .server-rail .server-icon.active {
-  border-color: color-mix(in srgb, var(--accent) 76%, white 12%);
-  border-radius: 13px;
-  background: color-mix(in srgb, var(--surface-4) 72%, var(--accent)) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 32%, transparent), 0 8px 20px #0005 !important;
+  border-radius: 14px;
+  background: var(--surface-4) !important;
+  box-shadow: 0 0 0 2px var(--accent), 0 7px 18px color-mix(in srgb, #000 42%, transparent) !important;
 }
-
 .app-shell.sesh-custom-appearance .server-rail .server-icon.active::after {
   content: "";
   position: absolute;
-  left: -11px;
+  left: -12px;
   top: 50%;
   width: 4px;
   height: 22px;
@@ -122,7 +120,18 @@
   box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 
-.app-shell.sesh-custom-appearance .server-icon-img,
+.app-shell.sesh-custom-appearance .server-icon-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border-radius: inherit;
+  background: var(--surface-4);
+  object-fit: cover !important;
+  object-position: center;
+  image-rendering: auto;
+}
+
 .app-shell.sesh-custom-appearance .server-settings-icon img {
   width: 100%;
   height: 100%;
@@ -131,9 +140,7 @@
   background: color-mix(in srgb, var(--surface-3) 84%, transparent);
   object-fit: contain !important;
   object-position: center;
-  image-rendering: auto;
 }
-
 .app-shell.sesh-custom-appearance .server-settings-icon {
   padding: 3px;
   border-color: color-mix(in srgb, var(--accent) 46%, var(--app-bg));
