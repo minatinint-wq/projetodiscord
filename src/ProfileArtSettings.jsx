@@ -4,35 +4,12 @@ import { PROFILE_ART_EFFECTS, profileArtVariantCount } from "../profile-art";
 import { PROFILE_FRAMES } from "../profile-frames";
 import ProfileArtEffect from "./ProfileArtEffect";
 import ProfileFrameEffect from "./ProfileFrameEffect";
+import CatalogPager from "./CatalogPager";
 
 // APNGs are expensive to decode even when their cards are below the fold.
 // Keep each mounted page deliberately small so changing tabs stays instant.
 const EFFECT_PAGE_SIZE = 6;
 const FRAME_PAGE_SIZE = 8;
-
-function visiblePageItems(page, pages) {
-  if (pages <= 7) return Array.from({ length: pages }, (_, index) => index);
-  const indexes = new Set([0, pages - 1, page - 1, page, page + 1]);
-  const visible = [...indexes].filter((index) => index >= 0 && index < pages).sort((a, b) => a - b);
-  const items = [];
-  visible.forEach((index, position) => {
-    if (position && index - visible[position - 1] > 1) items.push(`gap-${index}`);
-    items.push(index);
-  });
-  return items;
-}
-
-function Pager({ page, pages, setPage, count, label }) {
-  if (pages <= 1) return <div className="pager"><span className="pager-count">{count} {label}</span></div>;
-  return <div className="pager" role="navigation" aria-label={`Páginas de ${label}`}>
-    <button type="button" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} aria-label="Página anterior">‹</button>
-    {visiblePageItems(page, pages).map((item) => typeof item === "number"
-      ? <button type="button" key={item} aria-pressed={item === page} className={item === page ? "pager-current" : ""} onClick={() => setPage(item)}>{item + 1}</button>
-      : <span className="pager-gap" aria-hidden="true" key={item}>…</span>)}
-    <button type="button" disabled={page >= pages - 1} onClick={() => setPage((value) => Math.min(pages - 1, value + 1))} aria-label="Próxima página">›</button>
-    <span className="pager-count">{count} {label}</span>
-  </div>;
-}
 
 export default function ProfileArtSettings({ form, nitro, update }) {
   const [effectQuery, setEffectQuery] = useState("");
@@ -63,7 +40,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
           </button>;
         })}
       </div>
-      <Pager page={safeEffectPage} pages={effectPages} setPage={setEffectPage} count={Math.max(0, effects.length - 1)} label="efeitos"/>
+      <CatalogPager page={safeEffectPage} pages={effectPages} setPage={setEffectPage} count={Math.max(0, effects.length - 1)} label="efeitos"/>
     </section>
 
     <section className="settings-card profile-art-settings">
@@ -82,7 +59,7 @@ export default function ProfileArtSettings({ form, nitro, update }) {
           </button>;
         })}
       </div>
-      <Pager page={safeFramePage} pages={framePages} setPage={setFramePage} count={Math.max(0, frames.length - 1)} label="molduras"/>
+      <CatalogPager page={safeFramePage} pages={framePages} setPage={setFramePage} count={Math.max(0, frames.length - 1)} label="molduras"/>
     </section>
   </>;
 }

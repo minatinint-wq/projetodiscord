@@ -5,6 +5,7 @@ import { NAMEPLATES, nameplateSrc } from "../nameplates";
 import { PROFILE_ART_EFFECTS, profileArtSrc } from "../profile-art";
 import { PROFILE_FRAMES, profileFrameLayers } from "../profile-frames";
 import { BANNER_PRESETS } from "./profilePresentation";
+import CatalogPager from "./CatalogPager";
 
 const CATEGORY_LABELS = {
   all: "Tudo",
@@ -77,7 +78,7 @@ export default function StorePage({ user, Avatar, onClose }) {
       </>}
       <section className="store-section store-catalog"><div className="store-section-title"><div><span>{category === "all" ? "CATÁLOGO COMPLETO" : "CATEGORIA"}</span><h2>{CATEGORY_LABELS[category]} <small>{filtered.length} itens</small></h2></div></div>
         {shown.length ? <div className="store-product-grid">{shown.map((product) => <StoreProductCard key={product.id} {...{ product, user, Avatar, favorites, toggleFavorite, setSelected }}/>)}</div> : <div className="store-empty">Nenhum item encontrado para essa busca.</div>}
-        {pages > 1 && <div className="store-pager"><button disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Anterior</button><span>Página {Math.min(page, pages - 1) + 1} de {pages}</span><button disabled={page >= pages - 1} onClick={() => setPage((value) => Math.min(pages - 1, value + 1))}>Próxima</button></div>}
+        {pages > 1 && <CatalogPager page={Math.min(page,pages-1)} pages={pages} setPage={setPage} count={filtered.length} label="itens da loja"/>}
       </section>
     </div>
     {notice && <button className="store-notice" onClick={() => setNotice("")}>{notice}</button>}

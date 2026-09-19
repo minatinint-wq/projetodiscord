@@ -9,6 +9,7 @@ import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
 import AttachmentView from "./AttachmentView";
 import {bannerPresentation} from "./profilePresentation";
+import {readMessageCache,writeMessageCache} from "./secureMessageCache";
 const messageTime=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",hour12:localStorage.getItem("sesh_time_format")==="12"});
 function isCompactMessage(message,previous){
  if(!previous||previous.authorId!==message.authorId)return false;
@@ -44,9 +45,11 @@ export default function DirectMessages({user,currentUser,onClose,onOpenProfile,o
   let active=true;readId.current++;setReading(false);setLoading(true);setMessages([]);setDraft("");setAttachment(null);setError("");
   const receive=({detail})=>{if([detail.authorId,detail.recipientId].includes(user.id)&&[detail.authorId,detail.recipientId].includes(currentUser.id))merge(detail);};
   window.addEventListener("sesh:direct-message",receive);
-   api.directMessages(user.id).then(result=>{if(active){setMessages(current=>[...new Map([...result.messages,...current].map(m=>[m.id,m])).values()].sort((a,b)=>a.createdAt.localeCompare(b.createdAt)));fillAttachments(result.messages);}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
+  readMessageCache(currentUser.id,"direct",user.id).then(cached=>{if(active&&cached?.length){setMessages(cached);setLoading(false);}});
+  api.directMessages(user.id).then(result=>{if(active){setMessages(current=>[...new Map([...result.messages,...current].map(m=>[m.id,m])).values()].sort((a,b)=>a.createdAt.localeCompare(b.createdAt)));writeMessageCache(currentUser.id,"direct",user.id,result.messages);fillAttachments(result.messages);}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;readId.current++;window.removeEventListener("sesh:direct-message",receive);};
  },[user.id,currentUser.id]);
+ useEffect(()=>{if(!messages.length)return;const timer=setTimeout(()=>writeMessageCache(currentUser.id,"direct",user.id,messages),250);return()=>clearTimeout(timer);},[currentUser.id,user.id,messages]);
  useEffect(()=>{bottom.current?.scrollIntoView({block:"end"});},[messages.length]);
  useEffect(()=>{const close=event=>{if(event.key==="Escape")onClose();};window.addEventListener("keydown",close);return()=>window.removeEventListener("keydown",close);},[onClose]);
  async function send(event){

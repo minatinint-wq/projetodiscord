@@ -41,7 +41,38 @@ test("aparência aplica uma imagem ao aplicativo inteiro",async({page})=>{
  await settings.getByRole("button",{name:"Remover fundo",exact:true}).click();
  await expect(shell).not.toHaveClass(/has-app-wallpaper/);
 });
+test("home mantém contraste e enquadra o ícone completo do servidor",async({page})=>{
+ const png="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+ const created=await(await page.request.post("/api/servers",{data:{name:"Ícone visual"}})).json();
+ const updated=await page.request.patch(`/api/servers/${created.server.id}`,{data:{icon:png}});
+ expect(updated.ok()).toBeTruthy();
+ const appearance=await page.request.patch("/api/auth/me",{data:{preferences:{appSurfaceColor:"#111214",appAccentColor:"#a3ff12"}}});
+ expect(appearance.ok()).toBeTruthy();
+ await page.reload();
+ const serverButton=page.locator('.server-icon[title="Ícone visual"]');
+ await expect(serverButton).toBeVisible();
+ const serverImage=serverButton.locator(".server-icon-img");
+ await expect(serverImage).toBeVisible();
+ expect(await serverImage.evaluate(element=>getComputedStyle(element).objectFit)).toBe("contain");
+ await page.locator(".brand-home").click();
+ const store=page.locator(".home-sidebar .home-nav").filter({hasText:"Loja"});
+ await store.click();
+ await expect(store).toHaveClass(/selected/);
+ expect(await store.evaluate(element=>getComputedStyle(element).backgroundColor)).not.toBe("rgb(255, 255, 255)");
+ await page.locator(".home-sidebar .home-nav").filter({hasText:"Amigos"}).click();
+ const addFriend=page.getByRole("button",{name:"Adicionar amigo",exact:true});
+ await addFriend.click();
+ await expect(addFriend).toHaveClass(/home-tab-selected/);
+ expect(await addFriend.evaluate(element=>getComputedStyle(element).color)).toBe("rgb(16, 18, 24)");
+ await page.screenshot({path:"test-results/home-visual-polish.png",fullPage:true});
+ await page.request.patch("/api/auth/me",{data:{preferences:{appSurfaceColor:null,appAccentColor:null}}});
+});
 test("artes animadas carregam uma página leve por vez",async({page})=>{
+ const me=await(await page.request.get("/api/auth/me")).json();
+ expect((await page.request.post("/api/auth/login",{data:{username:"sesh_admin",password:"browser-admin-test-only"}})).ok()).toBeTruthy();
+ expect((await page.request.patch(`/api/users/${me.user.id}/badges`,{data:{badges:["nitro_classic"]}})).ok()).toBeTruthy();
+ expect((await page.request.post("/api/auth/login",{data:{username:"demo",password:"demo123"}})).ok()).toBeTruthy();
+ await page.reload();
  await page.getByTitle("Configurações",{exact:true}).click();
  await page.getByRole("button",{name:"Editar perfil e conta"}).click();
  const editor=page.getByRole("dialog",{name:"Editar perfil",exact:true});
@@ -55,10 +86,28 @@ test("artes animadas carregam uma página leve por vez",async({page})=>{
  await editor.getByRole("button",{name:"Jogos de interesse",exact:true}).click();
  await expect(editor.locator(".games-gallery>button")).toHaveCount(24);
  await editor.getByRole("button",{name:"Efeitos e estilo",exact:true}).click();
- await expect(editor.locator(".studio-grid-avatar-frame .studio-choice")).toHaveCount(9);
- await expect(editor.locator(".nameplate-grid .nameplate-choice")).toHaveCount(9);
+ await expect(editor.locator(".studio-grid-avatar-frame .studio-choice")).toHaveCount(18);
+ await expect(editor.locator(".nameplate-grid .nameplate-choice")).toHaveCount(18);
+ const plateChoice=editor.locator(".nameplate-choice").nth(1);
+ await plateChoice.click();
+ await expect(editor.locator(".profile-editor-preview .identity-nameplate-preview video")).toBeVisible();
+ const framePager=editor.getByRole("navigation",{name:"Páginas de molduras"});
+ await expect(framePager.locator(".pager-pages>button")).toHaveCount(7);
+ const jump=framePager.getByLabel("Ir para página de molduras");
+ await jump.selectOption({value:"3"});
+ await expect(jump).toHaveValue("3");
+ await expect(framePager.locator(".pager-current")).toHaveText("4");
 });
-test("backend entrega animações em partes cacheáveis",async({page})=>{
+test("cache de mensagens guarda somente conteúdo cifrado",async({page})=>{
+ const created=await(await page.request.post("/api/servers",{data:{name:"Cache seguro"}})).json();
+ const channel=created.server.channels.find(item=>item.type==="text");
+ await page.goto(`/app?server=${created.server.id}&channel=${channel.id}`);
+ await expect(page.locator(`.channel-row[data-channel-id="${channel.id}"]`)).toBeVisible();
+ await expect.poll(()=>page.evaluate(()=>new Promise(resolve=>{const open=indexedDB.open("sesh-secure-message-cache");open.onerror=()=>resolve(0);open.onsuccess=()=>{const request=open.result.transaction("entries","readonly").objectStore("entries").count();request.onsuccess=()=>resolve(request.result);request.onerror=()=>resolve(0);};})),{timeout:10000}).toBeGreaterThan(0);
+ const entries=await page.evaluate(()=>new Promise(resolve=>{const open=indexedDB.open("sesh-secure-message-cache");open.onsuccess=()=>{const request=open.result.transaction("entries","readonly").objectStore("entries").getAll();request.onsuccess=()=>resolve(request.result.map(entry=>({keys:Object.keys(entry),cipherBytes:entry.cipher?.byteLength||0,ivBytes:entry.iv?.byteLength||0})));};}));
+ expect(entries.length).toBeGreaterThan(0);
+ expect(entries.every(entry=>entry.cipherBytes>0&&entry.ivBytes===12&&!entry.keys.includes("messages"))).toBeTruthy();
+});test("backend entrega animações em partes cacheáveis",async({page})=>{
  const response=await page.request.get("/nameplates/brazil.webm",{headers:{Range:"bytes=0-1023"}});
  expect(response.status()).toBe(206);
  expect(response.headers()["content-range"]).toMatch(/^bytes 0-1023\//);

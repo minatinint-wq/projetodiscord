@@ -29,6 +29,7 @@ export function appAppearance(preferences = {}, fallbackTheme = "dark") {
   const accent = /^#[0-9a-f]{6}$/i.test(preferences.appAccentColor || "")
     ? preferences.appAccentColor
     : "#8b5cf6";
+  const accentLight = hexToRgb(accent).reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0) > 150;
   const light = hexToRgb(surface).reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0) > 160;
   const background = typeof preferences.appBackground === "string" ? preferences.appBackground : "";
   const strength = Math.max(10, Math.min(100, Number(preferences.appBackgroundStrength) || 55));
@@ -49,6 +50,7 @@ export function appAppearance(preferences = {}, fallbackTheme = "dark") {
       "--text-muted": light ? "#5b687d" : "#aeb4bf",
       "--text-soft": light ? "#637086" : "#8d93a1",
       "--accent": accent,
+      "--accent-text": accentLight ? "#101218" : "#ffffff",
       "--app-wallpaper": background ? `url(${JSON.stringify(background)})` : "none",
       "--app-wallpaper-tint": withAlpha(surface, 1 - strength / 130),
     },

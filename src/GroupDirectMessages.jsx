@@ -7,6 +7,7 @@ import EmojiText from "./EmojiText";
 import {readAttachment} from "./files";
 import useFileDrop from "./useFileDrop";
 import {StyledName} from "./ProfileEditor";
+import {readMessageCache,writeMessageCache} from "./secureMessageCache";
 
 const time=value=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",hour12:localStorage.getItem("sesh_time_format")==="12"});
 
@@ -15,7 +16,8 @@ export default function GroupDirectMessages({group,currentUser,onClose,onStartPr
  const fileInput=useRef(null),bottom=useRef(null),readEpoch=useRef(0);
  const drop=useFileDrop(files=>attachFiles(files));
  const merge=message=>setMessages(current=>{const pending=message.clientMessageId&&current.find(item=>item.sendState&&item.clientMessageId===message.clientMessageId);if(pending)return current.map(item=>item.id===pending.id?message:item);return current.some(item=>item.id===message.id)?current:[...current,message];});
- useEffect(()=>{let active=true;setLoading(true);setMessages([]);setError("");const receive=({detail})=>{if(detail.groupId===group.id)merge(detail.message);};window.addEventListener("sesh:direct-group-message",receive);api.directGroupMessages(group.id).then(result=>{if(active)setMessages(result.messages||[]);}).catch(e=>active&&setError(e.message)).finally(()=>active&&setLoading(false));return()=>{active=false;readEpoch.current++;window.removeEventListener("sesh:direct-group-message",receive);};},[group.id]);
+ useEffect(()=>{let active=true;setLoading(true);setMessages([]);setError("");const receive=({detail})=>{if(detail.groupId===group.id)merge(detail.message);};window.addEventListener("sesh:direct-group-message",receive);readMessageCache(currentUser.id,"group",group.id).then(cached=>{if(active&&cached?.length){setMessages(cached);setLoading(false);}});api.directGroupMessages(group.id).then(result=>{if(active){setMessages(result.messages||[]);writeMessageCache(currentUser.id,"group",group.id,result.messages||[]);}}).catch(e=>active&&setError(e.message)).finally(()=>active&&setLoading(false));return()=>{active=false;readEpoch.current++;window.removeEventListener("sesh:direct-group-message",receive);};},[group.id,currentUser.id]);
+ useEffect(()=>{if(!messages.length)return;const timer=setTimeout(()=>writeMessageCache(currentUser.id,"group",group.id,messages),250);return()=>clearTimeout(timer);},[currentUser.id,group.id,messages]);
  useEffect(()=>{bottom.current?.scrollIntoView({block:"end"});},[messages.length]);
  useEffect(()=>{const key=event=>event.key==="Escape"&&onClose();window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key);},[onClose]);
  async function attachFiles(files){if(!files.length)return;if(files.length>1)return setError("Envie um arquivo por mensagem.");const attempt=++readEpoch.current;setReading(true);setError("");try{const value=await readAttachment(files[0]);if(attempt===readEpoch.current)setAttachment(value);}catch(e){if(attempt===readEpoch.current)setError(e.message);}finally{if(attempt===readEpoch.current)setReading(false);}}

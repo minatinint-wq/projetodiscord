@@ -70,6 +70,7 @@ import { appAppearance } from "./appAppearance";
 import { applyLocalPreferences } from "./localPreferences";
 import GroupDirectMessages from "./GroupDirectMessages";
 import CreateDirectGroupModal from "./CreateDirectGroupModal";
+import {readMessageCache,writeMessageCache} from "./secureMessageCache";
 
 import DirectMessages from "./DirectMessages";
 import EmojiPicker from "./EmojiPicker";
@@ -1022,7 +1023,8 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   function chooseImage(key, event) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !file.type.startsWith("image/")) { if (file) setError("Escolha um arquivo de imagem válido."); return; }
+    const supportedTypes = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    if (!file || !supportedTypes.includes(file.type)) { if (file) setError("Escolha uma imagem PNG, JPEG, WebP ou GIF."); return; }
     if (file.size > 3 * 1024 * 1024) { setError("Escolha uma imagem de até 3 MB."); return; }
     const reader = new FileReader();
     reader.onerror = () => setError("Não foi possível ler essa imagem.");
@@ -1071,7 +1073,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
               <label>Tag do servidor<input maxLength="4" placeholder="SESH" value={form.tag} onChange={(event) => setForm({ ...form, tag: event.target.value.replace(/[^a-z0-9]/gi, "").toUpperCase() })} /><small>De 2 a 4 letras ou números.</small></label>
               <label>Cor de destaque<input type="color" value={form.accentColor} onChange={(event) => setForm({ ...form, accentColor: event.target.value })} /></label>
             </div>
-            <section className="server-media-controls"><div><strong>Imagem do servidor</strong><small>Use um ícone e um banner para deixar a comunidade reconhecível.</small></div><div className="server-banner-actions"><label className="secondary-setting">Escolher ícone<input type="file" accept="image/*" onChange={(event) => chooseImage("icon", event)} /></label>{form.icon && <button type="button" onClick={() => setForm({ ...form, icon: null })}>Remover ícone</button>}<label className="secondary-setting">Escolher banner<input type="file" accept="image/*" onChange={(event) => chooseImage("banner", event)} /></label>{form.banner && <button type="button" onClick={() => setForm({ ...form, banner: null })}>Remover banner</button>}</div></section>
+            <section className="server-media-controls"><div><strong>Imagem do servidor</strong><small>Use PNG, JPEG, WebP ou GIF de até 3 MB para identificar a comunidade.</small></div><div className="server-banner-actions"><label className="secondary-setting">Escolher ícone<input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage("icon", event)} /></label>{form.icon && <button type="button" onClick={() => setForm({ ...form, icon: null })}>Remover ícone</button>}<label className="secondary-setting">Escolher banner<input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" onChange={(event) => chooseImage("banner", event)} /></label>{form.banner && <button type="button" onClick={() => setForm({ ...form, banner: null })}>Remover banner</button>}</div></section>
             {error && <div className="form-error">{error}</div>}
             <div className="prompt-actions"><button type="button" className="prompt-cancel" onClick={onClose}>Cancelar</button><button className="prompt-confirm" disabled={busy}>{busy ? "Salvando..." : "Salvar alterações"}</button></div>
           </form>}
@@ -2005,6 +2007,21 @@ function App({ currentUser, onLogout, onUserUpdate }) {
       .catch(() => {});
   }, []);
   useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const channelTargets = servers.flatMap(server => (server.channels || []).filter(channel => channel.type === "text")).slice(0,4).map(channel => ({ scope:"channel", id:channel.id, load:() => api.messages(channel.id) }));
+      const directTargets = friendsData.friends.slice(0,3).map(friend => ({ scope:"direct", id:friend.id, load:() => api.directMessages(friend.id) }));
+      const groupTargets = directGroups.slice(0,2).map(group => ({ scope:"group", id:group.id, load:() => api.directGroupMessages(group.id) }));
+      for (const target of [...channelTargets,...directTargets,...groupTargets].slice(0,8)) {
+        if (cancelled) break;
+        if (await readMessageCache(currentUser.id,target.scope,target.id)) continue;
+        try { const result = await target.load(); if (!cancelled) await writeMessageCache(currentUser.id,target.scope,target.id,result.messages || []); } catch {}
+      }
+    };
+    const handle = window.requestIdleCallback ? window.requestIdleCallback(run,{timeout:1800}) : window.setTimeout(run,350);
+    return () => { cancelled=true; window.cancelIdleCallback ? window.cancelIdleCallback(handle) : window.clearTimeout(handle); };
+  }, [currentUser.id,servers,friendsData.friends,directGroups]);
+  useEffect(() => {
     const refreshVisibleFriends = () => {
       if (!document.hidden) refreshFriends();
     };
@@ -2046,16 +2063,26 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     let active = true;
     attachmentRead.current++;setReadingAttachment(false);
     setMessages([]); setDraft(""); setAttachment(null); setReplyingTo(null); setMessageMenu(null);
-    if (selectedChannel?.id) api.messages(selectedChannel.id).then(result => {
-      if (!active) return;
-      setMessages(result.messages);
-      fillAttachments(selectedChannel.id, result.messages);
-      const messageId = window.location.hash.match(/^#message-(.+)$/)?.[1];
-      if (messageId) requestAnimationFrame(() => document.getElementById(`message-${messageId}`)?.scrollIntoView({ block: "center" }));
-    })
-      .catch(error => { if(active) setNotice(error.message); });
+    if (selectedChannel?.id) {
+      readMessageCache(currentUser.id,"channel",selectedChannel.id).then(cached => {
+        if (active && cached?.length) setMessages(cached);
+      });
+      api.messages(selectedChannel.id).then(result => {
+        if (!active) return;
+        setMessages(result.messages);
+        writeMessageCache(currentUser.id,"channel",selectedChannel.id,result.messages);
+        fillAttachments(selectedChannel.id, result.messages);
+        const messageId = window.location.hash.match(/^#message-(.+)$/)?.[1];
+        if (messageId) requestAnimationFrame(() => document.getElementById(`message-${messageId}`)?.scrollIntoView({ block: "center" }));
+      }).catch(error => { if(active) setNotice(error.message); });
+    }
     return () => { active=false; };
-  }, [selectedChannel?.id]);
+  }, [selectedChannel?.id,currentUser.id]);
+  useEffect(() => {
+    if (!selectedChannel?.id || !messages.length) return;
+    const timer = setTimeout(() => writeMessageCache(currentUser.id,"channel",selectedChannel.id,messages),250);
+    return () => clearTimeout(timer);
+  }, [currentUser.id,selectedChannel?.id,messages]);
   // Completa anexos em segundo plano após listagem leve (?attachments=refs).
   // Só substitui quem ainda está como referência (não pisa em edição nova).
   function fillAttachments(channelId, list) {
