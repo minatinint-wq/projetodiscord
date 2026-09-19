@@ -95,7 +95,7 @@ html[data-reduced-motion=true] :is(.profile-role-badge,.identity-role),html[data
 .profile-art-media{position:absolute;inset:0 auto auto 50%;display:block;width:100%;height:auto;max-width:none;transform:translateX(-50%);pointer-events:none;user-select:none}
 .profile-frame-effect{position:absolute;z-index:auto;inset:0;display:block;overflow:visible;border-radius:0;pointer-events:none;user-select:none}
 .profile-frame-layer{position:absolute;left:50%;display:block;width:var(--profile-frame-render-width,100%);height:auto;max-width:none;pointer-events:none}
-.profile-frame-layer[data-role="back"]{z-index:1}
+.profile-frame-layer[data-role="back"]{z-index:3}
 .profile-frame-layer[data-role="front"]{z-index:calc(9 + var(--frame-layer,0))}
 .profile-frame-layer[data-edge="top"]{top:var(--profile-frame-top-offset,0px);bottom:auto;transform:translateX(-50%)}
 .profile-frame-layer[data-edge="bottom"]{top:auto;bottom:var(--profile-frame-bottom-offset,0px);transform:translateX(-50%)}

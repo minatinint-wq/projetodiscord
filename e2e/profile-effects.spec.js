@@ -103,6 +103,8 @@ test("efeito fica recortado no cartão e moldura extrapola o perfil",async({page
   expectOfficialTopGeometry(fireCardBox,fireFrameTopBox,"lord-of-dead-blue");
   const fireBackBottom=card.locator(':scope > .profile-frame-effect .profile-frame-layer[data-role="back"][data-edge="bottom"]');
   await expect(fireBackBottom).toBeVisible();
+  const cardBody=card.locator(":scope > .identity-card-body");
+  expect(Number(await fireBackBottom.evaluate(element=>getComputedStyle(element).zIndex))).toBeGreaterThan(Number(await cardBody.evaluate(element=>getComputedStyle(element).zIndex)));
   const fireBottomBox=await fireBackBottom.boundingBox();
   const fireLayout=profileFrameLayout("lord-of-dead-blue");
   const fireScale=fireCardBox.width/fireLayout.containerWidth;
