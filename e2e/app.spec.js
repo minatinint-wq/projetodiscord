@@ -61,9 +61,10 @@ test("home mantém contraste e enquadra o ícone completo do servidor",async({pa
  expect(await store.evaluate(element=>getComputedStyle(element).backgroundColor)).not.toBe("rgb(255, 255, 255)");
  await page.locator(".home-sidebar .home-nav").filter({hasText:"Amigos"}).click();
  const addFriend=page.getByRole("button",{name:"Adicionar amigo",exact:true});
+ expect(await addFriend.evaluate(element=>getComputedStyle(element).color)).not.toBe("rgb(35, 165, 90)");
  await addFriend.click();
  await expect(addFriend).toHaveClass(/home-tab-selected/);
- expect(await addFriend.evaluate(element=>getComputedStyle(element).color)).toBe("rgb(16, 18, 24)");
+ expect(await addFriend.evaluate(element=>getComputedStyle(element).color)).toBe("rgb(242, 243, 245)");
  await page.screenshot({path:"test-results/home-visual-polish.png",fullPage:true});
  await page.request.patch("/api/auth/me",{data:{preferences:{appSurfaceColor:null,appAccentColor:null}}});
 });
