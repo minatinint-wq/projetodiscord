@@ -8,6 +8,7 @@
 .identity-main .identity-games article{background:color-mix(in srgb,var(--profile-surface) 80%,#000)}
 .identity-main .identity-tabs button[aria-pressed=true]{color:var(--profile-ink)!important;border-color:var(--profile-accent)}
 .profile-overlay{position:absolute;inset:0;pointer-events:none;z-index:1;overflow:hidden;color:var(--profile-accent,#ad9bff);opacity:var(--profile-effect-opacity,.7);border-radius:inherit}
+.identity-card>.profile-overlay{z-index:7}
 .overlay-art{position:absolute;inset:0;width:100%;height:100%;overflow:visible;stroke:currentColor;stroke-width:1.4;fill:currentColor;filter:drop-shadow(0 0 6px currentColor)}
 .overlay-orbital .overlay-art{animation:overlay-orbit calc(10s * var(--profile-effect-speed,1)) ease-in-out infinite;transform-origin:50% 20%}
 .overlay-runes .overlay-art{animation:overlay-breathe calc(5s * var(--profile-effect-speed,1)) ease-in-out infinite}

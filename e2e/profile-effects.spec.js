@@ -34,8 +34,16 @@ test("sobreposição e cores aparecem na prévia e no perfil após salvar",async
  await editor.getByLabel("Cor de fundo",{exact:true}).fill("#080c30");
  await editor.getByLabel("Cor de destaque",{exact:true}).fill("#81bcff");
  await expect(editor.locator(".identity-card .premium-overlay-lunar-orbit")).toBeVisible();
+ const previewOverlay=editor.locator(".profile-editor-preview .identity-card>.premium-overlay-lunar-orbit");
+ const previewBody=editor.locator(".profile-editor-preview .identity-card>.identity-card-body");
+ expect(Number(await previewOverlay.evaluate(element=>getComputedStyle(element).zIndex))).toBeGreaterThan(Number(await previewBody.evaluate(element=>getComputedStyle(element).zIndex)));
  await editor.getByRole("button",{name:"Salvar alterações"}).click();await expect(editor).toBeHidden();
- await page.getByTitle("Abrir meu perfil",{exact:true}).click();await page.getByRole("button",{name:"Ver perfil completo"}).click();
+ await page.getByTitle("Abrir meu perfil",{exact:true}).click();
+ const quickOverlay=page.locator(".quick-profile .identity-card>.premium-overlay-lunar-orbit");
+ const quickBody=page.locator(".quick-profile .identity-card>.identity-card-body");
+ await expect(quickOverlay).toBeVisible();
+ expect(Number(await quickOverlay.evaluate(element=>getComputedStyle(element).zIndex))).toBeGreaterThan(Number(await quickBody.evaluate(element=>getComputedStyle(element).zIndex)));
+ await page.getByRole("button",{name:"Ver perfil completo"}).click();
  await expect(page.locator(".identity-dialog>.premium-overlay-lunar-orbit")).toBeVisible();
  await expect(page.locator(".identity-dialog")).toHaveCSS("--profile-surface","#080c30");
  await expect(page.locator(".identity-dialog")).toHaveCSS("--profile-accent","#81bcff");
