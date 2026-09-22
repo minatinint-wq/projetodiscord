@@ -1725,6 +1725,7 @@ async function handler(req, res) {
             ".js": "text/javascript",
             ".css": "text/css",
             ".png": "image/png",
+            ".apng": "image/png",
             ".gif": "image/gif",
             ".svg": "image/svg+xml",
             ".ico": "image/x-icon",

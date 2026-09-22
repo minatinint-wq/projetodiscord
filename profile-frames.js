@@ -1,4 +1,5 @@
 const DISCORD_SHOP = "https://cdn.discordapp.com/media/v1/collectibles-shop/";
+const PROFILE_FRAME_BASE = "/profile-frames/";
 
 // Molduras de perfil coletadas do catálogo completo.
 // A loja fornece a ordem de profundidade (front/back), a âncora (top/bottom)
@@ -15,6 +16,7 @@ const ORDERS = {
   topPair: [["front", "top"], ["back", "top"]],
   topOnly: [["front", "top"]],
   backTopOnly: [["back", "top"]],
+  frontFill: [["front", "fill"]],
 };
 
 const DEFAULT_LAYOUT = {
@@ -27,8 +29,7 @@ const DEFAULT_LAYOUT = {
 
 const FRAME_LAYOUTS = new Map();
 
-const frame = (id, label, paths, options = {}) => {
-  const sources = paths.map((path) => DISCORD_SHOP + path);
+const registerFrame = (id, label, sources, options = {}, format = "PNG EM CAMADAS") => {
   const layout = { ...DEFAULT_LAYOUT, ...options };
   const order = ORDERS[layout.order] || ORDERS.standard;
   FRAME_LAYOUTS.set(id, {
@@ -41,11 +42,27 @@ const frame = (id, label, paths, options = {}) => {
       return { src, role, edge };
     }),
   });
-  return [id, label, sources];
+  return [id, label, sources, format];
 };
+
+const frame = (id, label, paths, options = {}) => registerFrame(
+  id,
+  label,
+  paths.map((path) => DISCORD_SHOP + path),
+  options,
+);
+
+const localFrame = (id, label, files, options = {}) => registerFrame(
+  id,
+  label,
+  files.map((file) => PROFILE_FRAME_BASE + file),
+  options,
+  "APNG",
+);
 
 export const PROFILE_FRAMES = [
   ["none", "Sem moldura", []],
+  localFrame("aura-ciano", "Aura Ciano", ["aura-ciano.apng"], { containerWidth: 600, overflowHorizontal: 0, overflowTop: 0, overflowBottom: 0, order: "frontFill" }),
   frame("symbiote", "Simbionte", ["1536493354450288680/1536493443591708682/static", "1536493354450288680/1536493448750825562/static", "1536493354450288680/1536493453150658600/static", "1536493354450288680/1536493458490003548/static"]),
   frame("rose-filigree", "Filigrana de Rosas", ["1538992680552636548/1538992839197720769/static", "1538992680552636548/1538992843312464012/static", "1538992680552636548/1538992846814576751/static", "1538992680552636548/1538992850535059466/static"]),
   frame("total-concealment", "Ocultação Total", ["1531413285243719880/1533986938368036915/static", "1531413285243719880/1533986943057137715/static", "1531413285243719880/1533986948220321862/static"]),

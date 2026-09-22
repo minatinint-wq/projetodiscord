@@ -37,8 +37,8 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
   assert.deepEqual(profileArtSources("unknown"), []);
 });
 
-test("profile frame catalog keeps every product separate and uses layered Discord PNGs", () => {
-  assert.equal(PROFILE_FRAMES.length, 60);
+test("profile frame catalog keeps every product separate and accepts verified local APNGs", () => {
+  assert.equal(PROFILE_FRAMES.length, 61);
   assert.equal(PROFILE_FRAME_IDS.size, PROFILE_FRAMES.length);
   for (const [id, , layers] of PROFILE_FRAMES.slice(1)) {
     assert(layers.length >= 1 && layers.length <= 4, `${id} precisa ter de 1 a 4 camadas`);
@@ -47,13 +47,19 @@ test("profile frame catalog keeps every product separate and uses layered Discor
     assert(layout, `${id} precisa ter geometria própria`);
     assert.deepEqual(layout.layers.map((layer) => layer.src), layers);
     assert(layout.layers.every((layer) => ["front", "back"].includes(layer.role)));
-    assert(layout.layers.every((layer) => ["top", "bottom"].includes(layer.edge)));
+    assert(layout.layers.every((layer) => ["top", "bottom", "fill"].includes(layer.edge)));
     assert(layout.containerWidth > 0);
     assert(layout.overflowHorizontal >= 0);
     assert(layout.overflowTop >= 0);
     assert(layout.overflowBottom >= 0);
     assert.match(profileFrameVariables(id)["--profile-frame-render-width"], /%$/);
     for (const src of layers) {
+      if (src.startsWith("/profile-frames/")) {
+        const bytes = fs.readFileSync(new URL(`../public${src}`, import.meta.url));
+        assert.equal(bytes.subarray(1, 4).toString(), "PNG");
+        assert(bytes.includes(Buffer.from("acTL")), `${id} precisa ser APNG animado`);
+        continue;
+      }
       const url = new URL(src);
       assert.equal(url.protocol, "https:");
       assert.equal(url.hostname, "cdn.discordapp.com");
@@ -64,6 +70,7 @@ test("profile frame catalog keeps every product separate and uses layered Discor
   assert.deepEqual(profileFrameLayers("unknown"), []);
   assert.equal(profileFrameLayout("none"), null);
   assert.deepEqual(profileFrameVariables("unknown"), {});
+  assert.deepEqual(profileFrameLayout("aura-ciano").layers.map(({ role, edge }) => [role, edge]), [["front", "fill"]]);
 });
 
 test("profile frame metadata preserves official layer roles", () => {
