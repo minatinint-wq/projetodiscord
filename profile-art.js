@@ -4,6 +4,7 @@ const PROFILE_ART_BASE = "/profile-art/";
 // interna. Todos os itens abaixo usam a mídia do detalhe, nunca a capa estática.
 export const PROFILE_ART_EFFECTS = [
   ["none", "Sem efeito", null, "none"],
+  ["rain", "Chuva", "rain.apng", "apng"],
   ["trapped-souls", "Almas Aprisionadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/3b74ba84c8941ad0d91afafd00d169b8124cd2956fcaa7fda3b784a6edafcba6", "apng"],
   ["shattered-wings", "Asas Estilhaçadas", "https://cdn.discordapp.com/media/v1/collectibles-shop/13e64b0456243ed81ae809a507d980cadf31d1b44848bd2c89d3c511604b25ff", "apng"],
   ["nevermore-midnight", "Nunca Mais (Meia-noite)", "https://cdn.discordapp.com/assets/content/6093a8e844ec5bc6b796ad5f31063fdbd321dc525c49ff980fb123f4ff603244", "apng"],
