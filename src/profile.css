@@ -232,7 +232,7 @@ html[data-reduced-motion=true] .premium-motion-canvas{display:none}
 .premium-avatar-frame-scene-snowglobe{width:132%!important;height:132%!important;transform:translate(-50%,-47%)}
 .premium-avatar-frame-scene-aura-ciano{width:166%!important;height:166%!important}
 .identity-avatar:has(.premium-avatar-frame-scene-folhas-lunares){z-index:10;isolation:isolate}
-.premium-avatar-frame-scene-folhas-lunares{width:160%!important;height:160%!important;filter:drop-shadow(0 0 5px #ffffffb8)}
+.premium-avatar-frame-scene-folhas-lunares{width:152%!important;height:152%!important;filter:drop-shadow(0 0 5px #ffffffb8)}
 .premium-avatar-frame-scene-fire{filter:drop-shadow(0 0 5px #ff7a1673)}
 .premium-avatar-frame-scene-glitch{filter:drop-shadow(0 0 5px #7d61ff70)}
 .frame-catalog-search{margin-bottom:10px}.frame-catalog-more{width:100%;justify-content:center;margin-top:10px}
