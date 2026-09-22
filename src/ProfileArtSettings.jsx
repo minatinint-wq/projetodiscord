@@ -48,13 +48,13 @@ export default function ProfileArtSettings({ form, nitro, update }) {
       <p>Camadas decorativas próprias do cartão de perfil. Elas contornam a arte completa e extrapolam a borda, sem virar moldura de avatar nem placa de identificação.</p>
       <label className="settings-search"><Search size={18}/><input value={frameQuery} onChange={(event) => { setFrameQuery(event.target.value); setFramePage(0); }} placeholder={`Buscar entre ${PROFILE_FRAMES.length - 1} molduras`}/></label>
       <div className="profile-frame-grid">
-        {frames.slice(safeFramePage * FRAME_PAGE_SIZE, safeFramePage * FRAME_PAGE_SIZE + FRAME_PAGE_SIZE).map(([value, label, , format = "PNG EM CAMADAS"]) => {
+        {frames.slice(safeFramePage * FRAME_PAGE_SIZE, safeFramePage * FRAME_PAGE_SIZE + FRAME_PAGE_SIZE).map(([value, label]) => {
           const locked = value !== "none" && !nitro;
           const selected = (form.profileFrame || "none") === value;
           return <button type="button" key={value} disabled={locked} title={locked ? `${label} · Nitro` : label} className={`profile-frame-choice ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => !locked && update("profileFrame", value)}>
             <span className="profile-frame-thumb">{value === "none" ? <span className="profile-art-none">Sem moldura</span> : <ProfileFrameEffect frame={value} preview/>}</span>
             <span className="profile-catalog-label">{label}</span>
-            <small className="asset-format">{format}</small>
+            <small className="asset-format">PNG EM CAMADAS</small>
             {locked ? <b className="premium-lock">NITRO</b> : selected && <Check size={14}/>} 
           </button>;
         })}

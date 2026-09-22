@@ -10,6 +10,7 @@ export const PREMIUM_FRAME_ART = {
   "snowglobe": "/cosmetics-animated/frames/snowglobe.png?v=7",
   "fire": "/cosmetics-animated/frames/fire.png?v=7",
   "glitch": "/cosmetics-animated/frames/glitch.png?v=7",
+  "aura-ciano": "/cosmetics-animated/frames/aura-ciano.apng?v=1",
 }
 
 export const PREMIUM_FRAME_APNG = new Set(Object.keys(PREMIUM_FRAME_ART))

@@ -6,18 +6,19 @@ import { AVATAR_FRAMES, PROFILE_OVERLAYS, PREMIUM_AVATAR_FRAMES, PREMIUM_PROFILE
 const asset = (kind, id) => new URL("../public/cosmetics-optimized/" + kind + "/" + id + ".png", import.meta.url)
 const animatedAsset = (kind, id) => new URL("../public/cosmetics-animated/" + kind + "/" + id + ".webp", import.meta.url)
 const apngFrame = id => new URL("../public/cosmetics-animated/frames/" + id + ".png", import.meta.url)
+const localApngFrame = id => new URL("../public/cosmetics-animated/frames/" + id + ".apng", import.meta.url)
 const pngInfo = async (url) => {
   const bytes = await readFile(url)
   return { bytes, width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20), colorType: bytes[25] }
 }
 
 test("pacote premium tem molduras APNG e seis variantes de perfil", async () => {
-  assert.equal(PREMIUM_AVATAR_FRAMES.length, 637)
+  assert.equal(PREMIUM_AVATAR_FRAMES.length, 638)
   assert.equal(PREMIUM_PROFILE_OVERLAYS.length, 6)
   assert.equal(PREMIUM_BANNER_PRESETS.length, 6)
-  for (const id of ["snowglobe", "fire", "glitch"]) {
+  for (const id of ["snowglobe", "fire", "glitch", "aura-ciano"]) {
     assert(AVATAR_FRAMES.some(([value]) => value === id), id)
-    const info = await pngInfo(apngFrame(id))
+    const info = await pngInfo(id === "aura-ciano" ? localApngFrame(id) : apngFrame(id))
     assert(info.bytes.length > 100_000, id)
     assert([3, 4, 6].includes(info.colorType), id + " precisa preservar alpha")
     if (info.colorType === 3) assert(info.bytes.includes(Buffer.from("tRNS")), id + " precisa conter transparência indexada")
