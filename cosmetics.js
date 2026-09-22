@@ -10,7 +10,7 @@ export const PROFILE_EFFECTS = [
 ];
 export const AVATAR_FRAMES = [
  ["none","Sem moldura"],["snowglobe","Globo de neve"],["fire","Fogo"],["glitch","Glitch"],
- ["aura-ciano","Aura Ciano"],
+ ["aura-ciano","Aura Ciano"],["folhas-lunares","Folhas lunares"],
  ...REMOTE_AVATAR_DECORATIONS,
 ];
 export const PROFILE_OVERLAYS = [
