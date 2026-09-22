@@ -3955,6 +3955,46 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
       )}
       {directGroupModal&&<CreateDirectGroupModal friends={friendsData.friends} onClose={()=>setDirectGroupModal(false)} onCreate={createDirectGroup} Avatar={Avatar}/>}
       {voiceConnected && voiceChannel?.privateCall && (
+        <section className="private-call-stage" aria-label="Vídeo da chamada privada">
+          <header className="private-call-stage-header">
+            <div>
+              <span className="direct-call-live" aria-hidden="true" />
+              <strong>{voiceChannel.name}</strong>
+              <small>{visibleVoiceParticipants.length} conectado{visibleVoiceParticipants.length === 1 ? "" : "s"}</small>
+            </div>
+            <button type="button" title="Encerrar chamada" onClick={leaveVoice}>
+              <PhoneOff size={17} />
+            </button>
+          </header>
+          <div className="private-call-participant-grid">
+            {visibleVoiceParticipants.map((participant) => {
+              const videoStream = videoStreamFor(participant);
+              return (
+                <div
+                  className={`private-call-tile ${speaking[participant.id] ? "speaking" : ""}`}
+                  key={participant.id}
+                >
+                  {videoStream ? (
+                    <MediaStreamVideo
+                      stream={videoStream}
+                      muted={participant.id === currentUser.id}
+                    />
+                  ) : (
+                    <span className="private-call-avatar-stage">
+                      <Avatar user={participant} color={participant.avatarColor || "purple"} />
+                    </span>
+                  )}
+                  <div className="private-call-tile-label">
+                    <strong>{participant.displayName}</strong>
+                    <span>{participant.id === currentUser.id ? (muted ? "Você (mudo)" : "Você") : "Conectado"}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {voiceConnected && voiceChannel?.privateCall && (
         <section className="private-call-dock" aria-label="Chamada privada ativa">
           <span className="direct-call-live"/>
           <div><small>CHAMADA PRIVADA</small><strong>{voiceChannel.name}</strong><span>{visibleVoiceParticipants.length} conectado{visibleVoiceParticipants.length===1?"":"s"}</span></div>

@@ -335,7 +335,10 @@ function allocatePublicId(user) {
   return candidate;
 }
 function minimumUsernameLengthFor(user, requestedUsername = user?.username) {
-  if (isPrimaryMasterAdmin(user) || user?.shortUsernameAllowed === true) return 1;
+  // Every address in MASTER_ADMIN_EMAILS is a master-admin account. Keep the
+  // short-username privilege aligned with that role instead of limiting it to
+  // the legacy singular MASTER_ADMIN_EMAIL value.
+  if (isMasterAdmin(user) || user?.shortUsernameAllowed === true) return 1;
   const currentUsername = String(user?.username || "").trim().toLowerCase();
   const normalizedUsername = String(requestedUsername || "").trim().toLowerCase();
   if (currentUsername.length >= 2 && currentUsername.length < 4 && normalizedUsername === currentUsername) return currentUsername.length;
