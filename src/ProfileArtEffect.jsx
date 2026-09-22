@@ -12,6 +12,7 @@ export default function ProfileArtEffect({ effect, preview = false }) {
   return <span
     className={preview ? "profile-art-effect profile-art-preview" : "profile-art-effect"}
     aria-hidden="true"
+    data-effect={effect}
     data-format={profileArtFormat(effect)}
     data-variant={`${variant + 1}/${variantCount}`}
   >
