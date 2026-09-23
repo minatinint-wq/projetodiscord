@@ -38,7 +38,7 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
 });
 
 test("profile frame catalog keeps every product separate and uses layered Discord PNGs", () => {
-  assert.equal(PROFILE_FRAMES.length, 60);
+  assert.equal(PROFILE_FRAMES.length, 61);
   assert.equal(PROFILE_FRAME_IDS.size, PROFILE_FRAMES.length);
   for (const [id, , layers] of PROFILE_FRAMES.slice(1)) {
     assert(layers.length >= 1 && layers.length <= 4, `${id} precisa ter de 1 a 4 camadas`);
