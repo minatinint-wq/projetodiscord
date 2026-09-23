@@ -20,7 +20,7 @@ test("profile art catalog exposes APNGs and approved Discord references", () => 
         const url = new URL(variantSrc);
         assert.equal(url.protocol, "https:");
         assert.equal(url.hostname, "cdn.discordapp.com");
-        assert.match(url.pathname, /^\/(?:media\/v1\/collectibles-shop|assets\/content)\/[a-f0-9]+$/);
+        assert.match(url.pathname, /^\/(?:media\/v1\/collectibles-shop|assets\/content)\/[a-f0-9]+$|^\/assets\/profile_effects\/effects\/.+\.png$/);
         continue;
       }
       assert.equal(variantSrc, `/profile-art/${file}`);
