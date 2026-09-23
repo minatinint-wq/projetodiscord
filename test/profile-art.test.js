@@ -5,7 +5,7 @@ import { PROFILE_ART_EFFECTS, PROFILE_ART_IDS, profileArtFormat, profileArtSrc, 
 import { PROFILE_FRAMES, PROFILE_FRAME_IDS, profileFrameLayout, profileFrameLayers, profileFrameVariables } from "../profile-frames.js";
 
 test("profile art catalog exposes APNGs and approved Discord references", () => {
-  assert.equal(PROFILE_ART_EFFECTS.length, 81, "catálogo deve ter 80 efeitos além de Sem efeito");
+  assert.equal(PROFILE_ART_EFFECTS.length, 131, "catálogo deve ter 130 efeitos além de Sem efeito");
   assert.equal(PROFILE_ART_IDS.size, PROFILE_ART_EFFECTS.length);
   for (const [id, , source, format] of PROFILE_ART_EFFECTS.slice(1)) {
     const src = profileArtSrc(id);
