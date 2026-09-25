@@ -331,16 +331,18 @@ function MessageContent({ content, members, onProfile }) {
     </p>
   );
 }
-function MentionSuggestions({ candidates, onChoose }) {
+function MentionSuggestions({ candidates, onChoose, activeIndex = 0, onHover }) {
   if (!candidates.length) return null;
   return (
-    <div className="mention-suggestions" role="listbox" aria-label="Mencionar">
-      {candidates.map((candidate) => (
+    <div className="mention-suggestions" id="sesh-mention-suggestions" role="listbox" aria-label="Mencionar">
+      {candidates.map((candidate, index) => (
         <button
           type="button"
-          className="mention-suggestion"
+          className={`mention-suggestion ${index === activeIndex ? "active" : ""}`}
+          aria-selected={index === activeIndex}
           key={candidate.id}
           onMouseDown={(event) => event.preventDefault()}
+          onMouseEnter={() => onHover?.(index)}
           onClick={() => onChoose(candidate)}
         >
           {candidate.kind === "member" ? (
@@ -1573,6 +1575,7 @@ function App({ currentUser, onLogout, onUserUpdate }) {
     return()=>{window.removeEventListener("dragover",prevent);window.removeEventListener("drop",prevent);};
   },[]);
   const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [memberListOpen, setMemberListOpen] = useState(() => typeof window === "undefined" || window.innerWidth > 900);
   const [mobileNav, setMobileNav] = useState(false);
   useEffect(() => {
@@ -3493,17 +3496,41 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
     const match = value.match(/(?:^|\s)@([^\s@]*)$/);
     setMentionQuery(match ? match[1] : null);
   }
+  useEffect(() => {
+    setMentionIndex((current) => Math.min(current, Math.max(0, mentionCandidates.length - 1)));
+  }, [mentionCandidates.length]);
   function chooseMention(member) {
     setDraft((current) => current.replace(/(^|\s)@[^\s@]*$/, `$1@${member.mention || member.username} `));
     setMentionQuery(null);
+    setMentionIndex(0);
     requestAnimationFrame(() => composerInputRef.current?.focus());
   }
   function handleComposerKeyDown(event) {
-    if (event.key === "Escape") setMentionQuery(null);
-    if (event.key === "Tab" && mentionCandidates.length) {
-      event.preventDefault();
-      chooseMention(mentionCandidates[0]);
+    if (event.key === "Escape") {
+      setMentionQuery(null);
+      setMentionIndex(0);
+      return;
     }
+    if (mentionQuery !== null && mentionCandidates.length && event.key === "ArrowDown") {
+      event.preventDefault();
+      setMentionIndex((current) => (current + 1) % mentionCandidates.length);
+      return;
+    }
+    if (mentionQuery !== null && mentionCandidates.length && event.key === "ArrowUp") {
+      event.preventDefault();
+      setMentionIndex((current) => (current - 1 + mentionCandidates.length) % mentionCandidates.length);
+      return;
+    }
+    if (mentionQuery !== null && mentionCandidates.length && ["Enter", "Tab"].includes(event.key)) {
+      event.preventDefault();
+      chooseMention(mentionCandidates[mentionIndex] || mentionCandidates[0]);
+    }
+  }
+  function handleComposerPaste(event) {
+    const files = Array.from(event.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    event.preventDefault();
+    attachFiles(files);
   }
   async function sendMessage(event) {
     event.preventDefault();
@@ -5662,12 +5689,15 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     <Paperclip size={20} />
                   </button>
                   {readingAttachment&&<span className="file-reading" role="status">Preparando arquivo…</span>}{attachment && <div className="attachment-draft"><AttachmentView attachment={attachment} preview/><button type="button" aria-label="Remover anexo" onClick={()=>setAttachment(null)}><X size={14}/></button></div>}
-                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
+                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} activeIndex={mentionIndex} onHover={setMentionIndex} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}
                     value={draft}
                     onChange={(event) => updateDraft(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
+                    onPaste={handleComposerPaste}
+                    aria-autocomplete="list"
+                    aria-controls={mentionQuery !== null ? "sesh-mention-suggestions" : undefined}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
                   <EmojiPicker onSelect={emoji => updateDraft(draft + emoji)}/>
@@ -5804,12 +5834,15 @@ video: { frameRate: { ideal: 30, max: 30 }, height: { ideal: Number(localStorage
                     <Paperclip size={20} />
                   </button>
                   {readingAttachment&&<span className="file-reading" role="status">Preparando arquivo…</span>}{attachment && <div className="attachment-draft"><AttachmentView attachment={attachment} preview/><button type="button" aria-label="Remover anexo" onClick={()=>setAttachment(null)}><X size={14}/></button></div>}
-                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} onChoose={chooseMention} />}
+                  {mentionQuery !== null && <MentionSuggestions candidates={mentionCandidates} activeIndex={mentionIndex} onHover={setMentionIndex} onChoose={chooseMention} />}
                   <input
                     ref={composerInputRef}
                     value={draft}
                     onChange={(event) => updateDraft(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
+                    onPaste={handleComposerPaste}
+                    aria-autocomplete="list"
+                    aria-controls={mentionQuery !== null ? "sesh-mention-suggestions" : undefined}
                     placeholder={`Conversar em #${selectedChannel.name}`}
                   />
                   <EmojiPicker onSelect={emoji => updateDraft(draft + emoji)}/>

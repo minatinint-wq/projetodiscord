@@ -6709,7 +6709,7 @@ body[data-profile-plate="neon"] .profile-card {
 .composer .mention-suggestion > span { min-width: 0; }
 .composer .mention-suggestion strong,
 .composer .mention-suggestion small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mention-suggestion:hover { background: #35373c; }
+.mention-suggestion:hover, .mention-suggestion.active { background: #35373c; }
 .composer .mention-suggestion:hover { color: #fff; background: #35373c; }
 .mention-suggestion .avatar { width: 30px; height: 30px; }
 .mention-suggestion span { display: grid; gap: 1px; }
