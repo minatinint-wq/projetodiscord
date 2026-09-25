@@ -43,6 +43,7 @@ const COLLECTIONS = [
   "emailVerifications",
   "directMessages",
   "directGroups",
+  "workflows",
   "sessions",
 ];
 const sessions = new Map();
@@ -240,6 +241,37 @@ function normalizedRoles(roles) {
     { ...defaults[1], position: custom.length + 1 },
   ];
 }
+const WORKFLOW_TRIGGER_TYPES = new Set(["keyword", "reaction", "member_join"]);
+const WORKFLOW_ACTION_TYPES = new Set(["send_message", "assign_role"]);
+function normalizeWorkflow(workflow) {
+  const trigger = workflow?.trigger && typeof workflow.trigger === "object" ? workflow.trigger : {};
+  const triggerType = WORKFLOW_TRIGGER_TYPES.has(trigger.type) ? trigger.type : "keyword";
+  const actions = Array.isArray(workflow?.actions) ? workflow.actions : [];
+  return {
+    id: /^[a-zA-Z0-9_-]{1,80}$/.test(String(workflow?.id || "")) ? String(workflow.id) : id(),
+    serverId: String(workflow?.serverId || ""),
+    name: String(workflow?.name || "Automação sem nome").trim().slice(0, 80) || "Automação sem nome",
+    description: String(workflow?.description || "").trim().slice(0, 240),
+    active: workflow?.active !== false,
+    trigger: {
+      type: triggerType,
+      channelId: String(trigger.channelId || "").slice(0, 80),
+      value: String(trigger.value || "").trim().slice(0, 120),
+    },
+    actions: actions.filter((action) => WORKFLOW_ACTION_TYPES.has(action?.type)).slice(0, 8).map((action) => ({
+      type: action.type,
+      channelId: String(action.channelId || "").slice(0, 80),
+      content: String(action.content || "").trim().slice(0, 1200),
+      roleId: String(action.roleId || "").slice(0, 80),
+    })),
+    createdBy: String(workflow?.createdBy || ""),
+    managers: Array.isArray(workflow?.managers) ? [...new Set(workflow.managers.map((value) => String(value).slice(0, 80)))].slice(0, 20) : [],
+    runCount: Number.isSafeInteger(workflow?.runCount) && workflow.runCount >= 0 ? workflow.runCount : 0,
+    lastRunAt: workflow?.lastRunAt || null,
+    createdAt: workflow?.createdAt || now(),
+    updatedAt: workflow?.updatedAt || workflow?.createdAt || now(),
+  };
+}
 let database;
 let pgClient = null;
 let saveQueue = Promise.resolve();
@@ -412,6 +444,9 @@ const normalizeDatabase = (input) => {
     voiceMutedAt: membership.voiceMuted && membership.voiceMutedAt ? membership.voiceMutedAt : null,
     voiceMutedBy: membership.voiceMuted && membership.voiceMutedAt ? membership.voiceMutedBy || null : null,
   }));
+  normalized.workflows = normalized.workflows
+    .map((workflow) => normalizeWorkflow(workflow))
+    .filter((workflow) => workflow.serverId && workflow.createdBy);
   normalized.sessions = normalized.sessions
     .filter((record) => record?.tokenHash && record?.userId && Number(record.expiresAt) > Date.now())
     .slice(-5000);
@@ -1375,7 +1410,9 @@ function decorateMessage(message) {
   const visibleMessage = message.expiredAt
     ? { ...message, content: "Mensagem expirada", attachment: null, expired: true }
     : message;
-  const user = database.users.find((item) => item.id === message.authorId);
+  const user = message.authorId === AI_SESH_USER.id
+    ? AI_SESH_USER
+    : database.users.find((item) => item.id === message.authorId);
   const reply = message.replyToId
     ? database.messages.find((item) => item.id === message.replyToId && item.channelId === message.channelId)
     : null;
@@ -1480,6 +1517,77 @@ function broadcastServer(serverId, event) {
     )
       socket.send(JSON.stringify(event.type === "server.updated" ? { ...event, server: decorateServer(database.servers.find(item => item.id === serverId), database.users.find(item => item.id === userId)) } : event));
   }
+}
+function workflowChannel(server, channelId, fallbackType = "text") {
+  const channel = database.channels.find((item) => item.serverId === server.id && item.id === channelId);
+  if (channel && channel.type === fallbackType) return channel;
+  return database.channels.find((item) => item.serverId === server.id && item.type === fallbackType) || null;
+}
+function workflowMatches(workflow, event) {
+  if (!workflow.active || workflow.serverId !== event.serverId || workflow.trigger.type !== event.type || event.fromWorkflow) return false;
+  if (workflow.trigger.channelId && workflow.trigger.channelId !== event.channelId) return false;
+  if (workflow.trigger.type === "keyword") return Boolean(workflow.trigger.value && String(event.content || "").toLocaleLowerCase().includes(workflow.trigger.value.toLocaleLowerCase()));
+  if (workflow.trigger.type === "reaction") return Boolean(workflow.trigger.value && workflow.trigger.value === event.emoji);
+  return workflow.trigger.type === "member_join";
+}
+function workflowTemplate(content, event) {
+  const actor = database.users.find((item) => item.id === event.actorId);
+  const channel = database.channels.find((item) => item.id === event.channelId);
+  return String(content || "")
+    .replaceAll("{{user}}", actor?.displayName || "alguém")
+    .replaceAll("{{username}}", actor?.username || "membro")
+    .replaceAll("{{channel}}", channel?.name || "canal")
+    .replaceAll("{{message}}", String(event.content || "").slice(0, 400));
+}
+async function runServerWorkflows(server, event) {
+  if (!server || event?.fromWorkflow) return;
+  const workflows = database.workflows.filter((workflow) => workflowMatches(workflow, { ...event, serverId: server.id }));
+  if (!workflows.length) return;
+  let messagesChanged = false;
+  let membershipsChanged = false;
+  for (const workflow of workflows) {
+    for (const action of workflow.actions) {
+      if (action.type === "send_message") {
+        const channel = workflowChannel(server, action.channelId || event.channelId);
+        const content = workflowTemplate(action.content, event).trim();
+        if (!channel || !content) continue;
+        const message = {
+          id: id(),
+          channelId: channel.id,
+          authorId: AI_SESH_USER.id,
+          content,
+          attachment: null,
+          reactions: [],
+          pinnedAt: null,
+          pinnedBy: null,
+          automation: { workflowId: workflow.id, workflowName: workflow.name },
+          createdAt: now(),
+          editedAt: null,
+        };
+        database.messages.push(message);
+        const output = decorateMessage(message);
+        broadcast(channel.id, { type: "message.created", message: output });
+        messagesChanged = true;
+      }
+      if (action.type === "assign_role" && event.actorId) {
+        const role = normalizedRoles(server.roles).find((item) => item.id === action.roleId && item.id !== "owner");
+        const membership = database.memberships.find((item) => item.serverId === server.id && item.userId === event.actorId);
+        if (role && membership && membership.roleId !== role.id) {
+          membership.roleId = role.id;
+          membership.role = "custom";
+          membershipsChanged = true;
+          broadcastServer(server.id, { type: "member.role.updated", serverId: server.id, member: memberView(server, membership) });
+        }
+      }
+    }
+    workflow.runCount = Math.min(9_999_999, workflow.runCount + 1);
+    workflow.lastRunAt = now();
+    workflow.updatedAt = workflow.lastRunAt;
+  }
+  const collections = ["workflows"];
+  if (messagesChanged) collections.push("messages");
+  if (membershipsChanged) collections.push("memberships");
+  await saveDatabase(...collections);
 }
 function voiceParticipants(channelId) {
   return [...(voiceRooms.get(channelId)?.entries() || [])]
@@ -2476,6 +2584,81 @@ async function handler(req, res) {
       });
       return json(res, 200, { server: decorateServer(server, user) });
     }
+    const workflowsMatch = url.pathname.match(/^\/api\/servers\/([^/]+)\/workflows(?:\/([^/]+))?$/);
+    if (workflowsMatch) {
+      const server = serverForUser(user, workflowsMatch[1]);
+      if (!server) return json(res, 404, { error: "Servidor não encontrado." });
+      if (!hasServerPermission(user, server, "manageServer"))
+        return json(res, 403, { error: "Seu cargo não pode gerenciar automações." });
+      const workflowId = workflowsMatch[2];
+      if (req.method === "GET") {
+        return json(res, 200, { workflows: database.workflows.filter((workflow) => workflow.serverId === server.id) });
+      }
+      if (req.method === "DELETE") {
+        const workflow = database.workflows.find((item) => item.id === workflowId && item.serverId === server.id);
+        if (!workflow) return json(res, 404, { error: "Automação não encontrada." });
+        database.workflows = database.workflows.filter((item) => item !== workflow);
+        await saveDatabase("workflows");
+        return json(res, 200, { ok: true });
+      }
+      if (!["POST", "PATCH"].includes(req.method)) return json(res, 405, { error: "Método não permitido." });
+      const input = await body(req);
+      const existing = workflowId
+        ? database.workflows.find((item) => item.id === workflowId && item.serverId === server.id)
+        : null;
+      if (req.method === "PATCH" && !existing) return json(res, 404, { error: "Automação não encontrada." });
+      const triggerInput = input.trigger && typeof input.trigger === "object"
+        ? input.trigger
+        : existing?.trigger || {};
+      const triggerType = String(triggerInput.type || existing?.trigger?.type || "keyword");
+      if (!WORKFLOW_TRIGGER_TYPES.has(triggerType)) return json(res, 400, { error: "Gatilho inválido." });
+      const triggerValue = String(triggerInput.value ?? existing?.trigger?.value ?? "").trim().slice(0, 120);
+      if (["keyword", "reaction"].includes(triggerType) && !triggerValue)
+        return json(res, 400, { error: "Informe o texto ou emoji do gatilho." });
+      const triggerChannelId = triggerInput.channelId ?? existing?.trigger?.channelId ?? "";
+      const triggerChannel = triggerChannelId ? database.channels.find((item) => item.id === triggerChannelId && item.serverId === server.id && item.type === "text") : null;
+      if (triggerChannelId && !triggerChannel) return json(res, 400, { error: "Canal do gatilho inválido." });
+      const rawActions = Array.isArray(input.actions) ? input.actions : existing?.actions || [];
+      if (!rawActions.length || rawActions.length > 8) return json(res, 400, { error: "Adicione de 1 a 8 ações." });
+      let actions;
+      try {
+        actions = rawActions.map((action) => {
+          const type = String(action?.type || "");
+          if (!WORKFLOW_ACTION_TYPES.has(type)) throw new Error("Ação inválida.");
+          const channel = action.channelId ? database.channels.find((item) => item.id === action.channelId && item.serverId === server.id && item.type === "text") : null;
+          if (type === "send_message" && (!channel || !String(action.content || "").trim())) throw new Error("A ação de mensagem precisa de canal e texto.");
+          if (type === "assign_role" && (!normalizedRoles(server.roles).some((role) => role.id === action.roleId && role.id !== "owner"))) throw new Error("Cargo da automação inválido.");
+          return { type, channelId: channel?.id || "", content: String(action.content || "").trim().slice(0, 1200), roleId: String(action.roleId || "").slice(0, 80) };
+        });
+      } catch (error) {
+        return json(res, 400, { error: error.message || "Ação inválida." });
+      }
+      let workflow;
+      try {
+        workflow = normalizeWorkflow({
+          ...(existing || {}),
+          id: existing?.id || id(),
+          serverId: server.id,
+          name: input.name ?? existing?.name,
+          description: input.description ?? existing?.description,
+          active: input.active ?? existing?.active ?? true,
+          trigger: { type: triggerType, channelId: triggerChannel?.id || "", value: triggerValue },
+          actions,
+          createdBy: existing?.createdBy || user.id,
+          managers: existing?.managers?.length ? existing.managers : [user.id],
+          createdAt: existing?.createdAt || now(),
+          updatedAt: now(),
+          runCount: existing?.runCount || 0,
+          lastRunAt: existing?.lastRunAt || null,
+        });
+      } catch (error) {
+        return json(res, 400, { error: error.message || "Automação inválida." });
+      }
+      if (existing) Object.assign(existing, workflow);
+      else database.workflows.push(workflow);
+      await saveDatabase("workflows");
+      return json(res, existing ? 200 : 201, { workflow });
+    }
     const serverMatch = url.pathname.match(/^\/api\/servers\/([^/]+)$/);
     const memberModerationMatch = url.pathname.match(
       /^\/api\/servers\/([^/]+)\/members\/([^/]+)\/moderation$/,
@@ -2678,6 +2861,14 @@ async function handler(req, res) {
       await saveDatabase("messages");
       const output = decorateMessage(message);
       broadcast(channel.id, { type: "message.updated", message: output });
+      await runServerWorkflows(server, {
+        type: "reaction",
+        serverId: server.id,
+        channelId: channel.id,
+        actorId: user.id,
+        emoji,
+        content: message.content,
+      });
       return json(res, 200, { message: output });
     }
     if (messageReportMatch && req.method === "POST") {
@@ -2793,6 +2984,12 @@ async function handler(req, res) {
           type: "member.joined",
           serverId: server.id,
           member: memberView(server, joinedMembership),
+        });
+        await runServerWorkflows(server, {
+          type: "member_join",
+          serverId: server.id,
+          actorId: user.id,
+          content: "",
         });
       }
       return json(res, 200, { server: decorateServer(server, user) });
@@ -2951,6 +3148,13 @@ async function handler(req, res) {
           message: output,
         });
       await saveDatabase("messages");
+      await runServerWorkflows(server, {
+        type: "keyword",
+        serverId: server.id,
+        channelId: channel.id,
+        actorId: user.id,
+        content,
+      });
       return json(res, 201, { message: output });
     }
     const dmMatch = url.pathname.match(/^\/api\/direct\/([^/]+)\/messages$/);

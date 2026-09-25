@@ -83,6 +83,19 @@ test("cargos, emoji, ícone e permissões persistem; anexos são validados",asyn
  const ownerView=await req("/api/servers/"+server.id,"GET",undefined,owner.token);
  assert.equal(ownerView.members.find(member=>member.id===owner.user.id).roleId,"moderator");
 });
+test("workflow builder cria gatilho, executa ação e preserva edição parcial",async()=>{
+ const channelId=server.channels.find(channel=>channel.type==="text").id;
+ const created=await req("/api/servers/"+server.id+"/workflows","POST",{name:"Ajuda automática",description:"Responde ao comando",trigger:{type:"keyword",channelId,value:"!ajuda"},actions:[{type:"send_message",channelId,content:"Oi {{user}}, veja o guia em #{{channel}}."}]},owner.token);
+ assert.equal(created.status,201);assert.equal(created.workflow.active,true);assert.equal(created.workflow.trigger.value,"!ajuda");
+ const paused=await req("/api/servers/"+server.id+"/workflows/"+created.workflow.id,"PATCH",{active:false},owner.token);
+ assert.equal(paused.status,200);assert.equal(paused.workflow.trigger.value,"!ajuda");assert.equal(paused.workflow.actions[0].content,"Oi {{user}}, veja o guia em #{{channel}}.");
+ const reactivated=await req("/api/servers/"+server.id+"/workflows/"+created.workflow.id,"PATCH",{active:true},owner.token);
+ assert.equal(reactivated.status,200);
+ const sent=await req("/api/channels/"+channelId+"/messages","POST",{content:"!ajuda"},guest.token);assert.equal(sent.status,201);
+ const messages=await req("/api/channels/"+channelId+"/messages?limit=20","GET",undefined,owner.token);
+ assert.ok(messages.messages.some(message=>message.automation?.workflowId===created.workflow.id && message.content.includes("Oi Visitante")));
+ assert.equal((await req("/api/servers/"+server.id+"/workflows/"+created.workflow.id,"DELETE",undefined,owner.token)).status,200);
+});
 test("DM persiste texto e imagem e respeita preferências",async()=>{
  assert.equal((await req("/api/direct/"+owner.user.id+"/messages","POST",{content:"oi"},guest.token)).status,403);
  await req("/api/friends","POST",{username:"demo"},guest.token);

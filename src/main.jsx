@@ -52,6 +52,7 @@ import {
   Volume2,
   VolumeX,
   X,
+  Zap,
 } from "lucide-react";
 import { api, connectSocket } from "./api";
 import SettingsHub from "./SettingsHub";
@@ -954,6 +955,12 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
   const canEditRoles = server.role === "owner" || server.permissions?.manageRoles;
   const canEditRole = role => canEditRoles && (server.role === "owner" || (role.id !== "member" && role.position > server.actorPosition));
   const [settingsSection, setSettingsSection] = useState(canEditOverview ? "overview" : "roles");
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [workflowError, setWorkflowError] = useState("");
+  const [workflowForm, setWorkflowForm] = useState(null);
+  const textChannels = (server.channels || []).filter((channel) => channel.type === "text");
+  const workflowRoles = form.roles.filter((role) => role.id !== "owner");
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key !== "Escape") return;
@@ -963,6 +970,15 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose, roleEditorId]);
+  useEffect(() => {
+    if (settingsSection !== "workflows" || !canEditOverview) return undefined;
+    let cancelled = false;
+    setWorkflowError("");
+    api.workflows(server.id)
+      .then((result) => { if (!cancelled) setWorkflows(result.workflows || []); })
+      .catch((err) => { if (!cancelled) setWorkflowError(err.message); });
+    return () => { cancelled = true; };
+  }, [settingsSection, server.id, canEditOverview]);
   function addRole() {
     const roleId = `role_${crypto.randomUUID()}`;
     setRolesSaved(false); setSettingsSection("roles");
@@ -1047,6 +1063,49 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
+  function emptyWorkflow() {
+    return {
+      id: null, name: "", description: "", active: true,
+      trigger: { type: "keyword", channelId: textChannels[0]?.id || "", value: "" },
+      actions: [{ type: "send_message", channelId: textChannels[0]?.id || "", content: "", roleId: workflowRoles[0]?.id || "" }],
+    };
+  }
+  function openWorkflowForm(workflow = null) {
+    const base = workflow || emptyWorkflow();
+    setWorkflowError("");
+    setWorkflowForm({ ...base, trigger: { ...(base.trigger || {}) }, actions: (base.actions || []).map((action) => ({ ...action })) });
+  }
+  async function saveWorkflow(event) {
+    event.preventDefault();
+    if (!workflowForm) return;
+    setWorkflowBusy(true); setWorkflowError("");
+    try {
+      const result = workflowForm.id
+        ? await api.updateWorkflow(server.id, workflowForm.id, workflowForm)
+        : await api.createWorkflow(server.id, workflowForm);
+      setWorkflows((current) => workflowForm.id
+        ? current.map((item) => item.id === result.workflow.id ? result.workflow : item)
+        : [result.workflow, ...current]);
+      setWorkflowForm(null);
+    } catch (err) { setWorkflowError(err.message); }
+    finally { setWorkflowBusy(false); }
+  }
+  async function toggleWorkflow(workflow) {
+    setWorkflowError("");
+    try {
+      const result = await api.updateWorkflow(server.id, workflow.id, { active: !workflow.active });
+      setWorkflows((current) => current.map((item) => item.id === result.workflow.id ? result.workflow : item));
+    } catch (err) { setWorkflowError(err.message); }
+  }
+  async function removeWorkflow(workflow) {
+    if (!window.confirm(`Excluir a automação “${workflow.name}”?`)) return;
+    setWorkflowError("");
+    try { await api.deleteWorkflow(server.id, workflow.id); setWorkflows((current) => current.filter((item) => item.id !== workflow.id)); }
+    catch (err) { setWorkflowError(err.message); }
+  }
+  function updateWorkflowForm(patch) { setWorkflowForm((current) => ({ ...current, ...patch })); }
+  function updateWorkflowTrigger(patch) { setWorkflowForm((current) => ({ ...current, trigger: { ...current.trigger, ...patch } })); }
+  function updateWorkflowAction(patch) { setWorkflowForm((current) => ({ ...current, actions: [{ ...current.actions[0], ...patch }] })); }
   const customRoles = form.roles.filter((role) => !["owner", "member"].includes(role.id));
   const defaultRole = form.roles.find((role) => role.id === "member");
   const configurableMembers = members.map(member => ({ ...member, roleId: form.memberRoles[member.id] || member.roleId }));
@@ -1060,6 +1119,7 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
           <button type="button" className={settingsSection === "overview" ? "active" : ""} disabled={!canEditOverview} onClick={() => setSettingsSection("overview")}>Visão geral</button>
           <button type="button" className={settingsSection === "roles" ? "active" : ""} disabled={!canEditRoles} onClick={() => setSettingsSection("roles")}>Cargos</button>
           <button type="button" className={settingsSection === "members" ? "active" : ""} disabled={!canEditRoles} onClick={() => setSettingsSection("members")}>Membros</button>
+          <button type="button" className={settingsSection === "workflows" ? "active" : ""} disabled={!canEditOverview} onClick={() => setSettingsSection("workflows")}><Zap size={14} /> Automações</button>
           <div className="server-settings-nav-divider" />
           <p>As alterações são salvas em cada seção.</p>
         </aside>
@@ -1096,6 +1156,30 @@ function ServerSettingsPanel({ server, members = [], onClose, onSave }) {
             <label className="settings-search members-search"><Search size={18}/><input placeholder="Buscar membro" value={memberSearch} onChange={event => setMemberSearch(event.target.value)}/></label><div className="members-table-header"><span>MEMBRO</span><span>CARGO</span></div><section className="settings-members-list">{configurableMembers.filter(member => `${member.displayName} ${member.username}`.toLowerCase().includes(memberSearch.toLowerCase())).map((member) => <label className="server-role-member" data-member-id={member.id} key={member.id}><span><Avatar user={member} color={member.avatarColor || "purple"} small /><strong>{member.displayName}{member.id === server.ownerId && <em className="server-owner-label">DONO</em>}</strong><small>@{member.username}</small></span><select disabled={member.id === server.ownerId ? server.role !== "owner" : server.role !== "owner" && member.serverRole?.position <= server.actorPosition} value={form.memberRoles[member.id] || "member"} onChange={(event) => assignRoleMember(member.id, event.target.value)}>{member.id === server.ownerId && <option value="owner">Dono (padrão)</option>}{form.roles.filter(role => role.id !== "owner").map((role) => <option key={role.id} value={role.id} disabled={server.role !== "owner" && role.position <= server.actorPosition}>{role.name}</option>)}</select></label>)}{!configurableMembers.length && <div className="role-empty-state"><strong>Ainda não há membros</strong><span>Quando alguém entrar, você poderá atribuir um cargo aqui.</span></div>}</section>
             {rolesSaved && <p className="role-save-feedback">Membros atualizados.</p>}{error && <div className="form-error">{error}</div>}
             <div className="role-page-actions"><button type="button" className="prompt-confirm" onClick={saveRoles} disabled={busy}>{busy ? "Salvando..." : "Salvar membros"}</button></div>
+          </section>}
+          {settingsSection === "workflows" && <section className="server-workflows-page">
+            <header><span>AUTOMAÇÕES</span><h2>Workflow Builder</h2><p>Crie rotinas para responder a palavras, reações ou novas entradas. Use <code>{"{{user}}"}</code>, <code>{"{{channel}}"}</code> e <code>{"{{message}}"}</code> nas mensagens.</p></header>
+            <div className="workflow-toolbar"><div><strong>{workflows.length} automação{workflows.length === 1 ? "" : "ões"}</strong><small>Rodam dentro deste servidor e podem atribuir cargos automaticamente.</small></div><button type="button" className="role-create" onClick={() => openWorkflowForm()}>Criar automação</button></div>
+            {workflowError && <div className="form-error">{workflowError}</div>}
+            {!workflows.length && !workflowForm && <div className="workflow-empty"><Zap size={22}/><strong>Seu servidor ainda não tem automações</strong><span>Comece com uma mensagem de boas-vindas ou um comando de ajuda.</span><button type="button" className="prompt-confirm" onClick={() => openWorkflowForm()}>Montar primeira automação</button></div>}
+            <div className="workflow-list">{workflows.map((workflow) => {
+              const triggerLabel = workflow.trigger?.type === "member_join" ? "Quando alguém entrar" : workflow.trigger?.type === "reaction" ? "Reação " + workflow.trigger.value : "Mensagem contém “" + (workflow.trigger?.value || "…") + "”";
+              return <article className={"workflow-card " + (workflow.active ? "is-active" : "is-paused")} key={workflow.id}>
+                <div className="workflow-card-head"><div><strong>{workflow.name}</strong><small>{workflow.description || "Sem descrição"}</small></div><span className="workflow-status">{workflow.active ? "ATIVA" : "PAUSADA"}</span></div>
+                <div className="workflow-flow"><span className="workflow-pill">GATILHO · {triggerLabel}</span><span className="workflow-arrow">→</span><span className="workflow-pill">{workflow.actions?.length || 0} ação{workflow.actions?.length === 1 ? "" : "ões"}</span></div>
+                <footer><small>{workflow.runCount || 0} execução{workflow.runCount === 1 ? "" : "ões"}{workflow.lastRunAt ? " · última " + new Date(workflow.lastRunAt).toLocaleString() : ""}</small><div><button type="button" onClick={() => toggleWorkflow(workflow)}>{workflow.active ? "Pausar" : "Ativar"}</button><button type="button" onClick={() => openWorkflowForm(workflow)}>Editar</button><button type="button" className="workflow-danger" onClick={() => removeWorkflow(workflow)}>Excluir</button></div></footer>
+              </article>;
+            })}</div>
+            {workflowForm && <form className="workflow-editor" onSubmit={saveWorkflow}>
+              <div className="workflow-editor-head"><div><span>{workflowForm.id ? "EDITAR AUTOMAÇÃO" : "NOVA AUTOMAÇÃO"}</span><h3>Monte o fluxo</h3></div><button type="button" onClick={() => setWorkflowForm(null)} aria-label="Fechar editor"><X size={18}/></button></div>
+              <div className="workflow-editor-grid">
+                <label>Nome<input required maxLength={80} value={workflowForm.name} onChange={(event) => updateWorkflowForm({ name: event.target.value })} placeholder="Boas-vindas" /></label>
+                <label>Descrição<input maxLength={240} value={workflowForm.description} onChange={(event) => updateWorkflowForm({ description: event.target.value })} placeholder="O que esta rotina faz" /></label>
+                <fieldset><legend>Quando acontece</legend><label>Gatilho<select value={workflowForm.trigger.type} onChange={(event) => updateWorkflowTrigger({ type: event.target.value, value: event.target.value === "member_join" ? "" : workflowForm.trigger.value })}><option value="keyword">Mensagem contém</option><option value="reaction">Reação adicionada</option><option value="member_join">Membro entra</option></select></label>{workflowForm.trigger.type !== "member_join" && <label>{workflowForm.trigger.type === "reaction" ? "Emoji" : "Palavra ou frase"}<input required maxLength={120} value={workflowForm.trigger.value} onChange={(event) => updateWorkflowTrigger({ value: event.target.value })} placeholder={workflowForm.trigger.type === "reaction" ? "🎉" : "!ajuda"}/></label>}<label>Canal<select value={workflowForm.trigger.channelId || ""} onChange={(event) => updateWorkflowTrigger({ channelId: event.target.value })}><option value="">Qualquer canal</option>{textChannels.map((channel) => <option key={channel.id} value={channel.id}># {channel.name}</option>)}</select></label></fieldset>
+                <fieldset><legend>Ação</legend><label>Tipo<select value={workflowForm.actions[0]?.type || "send_message"} onChange={(event) => updateWorkflowAction({ type: event.target.value })}><option value="send_message">Enviar mensagem</option><option value="assign_role">Atribuir cargo</option></select></label>{workflowForm.actions[0]?.type === "assign_role" ? <label>Cargo<select required value={workflowForm.actions[0]?.roleId || ""} onChange={(event) => updateWorkflowAction({ roleId: event.target.value })}><option value="">Escolha um cargo</option>{workflowRoles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label> : <><label>Canal de destino<select required value={workflowForm.actions[0]?.channelId || ""} onChange={(event) => updateWorkflowAction({ channelId: event.target.value })}>{textChannels.map((channel) => <option key={channel.id} value={channel.id}># {channel.name}</option>)}</select></label><label>Mensagem<textarea required maxLength={1200} rows={4} value={workflowForm.actions[0]?.content || ""} onChange={(event) => updateWorkflowAction({ content: event.target.value })} placeholder="Olá, {{user}}! Bem-vindo ao #{{channel}}." /></label></>}</fieldset>
+              </div>
+              <div className="workflow-editor-foot"><label className="workflow-active-toggle"><input type="checkbox" checked={workflowForm.active !== false} onChange={(event) => updateWorkflowForm({ active: event.target.checked })}/> Ativa</label><div><button type="button" className="prompt-cancel" onClick={() => setWorkflowForm(null)}>Cancelar</button><button className="prompt-confirm" disabled={workflowBusy}>{workflowBusy ? "Salvando..." : "Salvar automação"}</button></div></div>
+            </form>}
           </section>}
         </main>
         {roleEditorId && form.roles.find((role) => role.id === roleEditorId) && <RoleConfigPanel role={form.roles.find((role) => role.id === roleEditorId)} members={configurableMembers} ownerId={server.ownerId} canAssignOwner={server.role === "owner"} onUpdate={updateRole} onAssignMember={assignRoleMember} onSave={saveRoles} saving={busy} onClose={() => setRoleEditorId(null)} />}

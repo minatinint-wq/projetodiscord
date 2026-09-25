@@ -1,6 +1,6 @@
 # Handoff completo — Sesh
 
-Atualizado em 18/09/2026. Este documento é a fonte de continuidade para outra IA assumir o projeto sem repetir a investigação.
+Atualizado em 25/09/2026. Este documento é a fonte de continuidade para outra IA assumir o projeto sem repetir a investigação.
 
 ## Prompt pronto para a próxima IA
 
@@ -45,6 +45,14 @@ Commits recentes relevantes:
 - `a1dcbfd feat: refine realtime UX and role effects`
 
 ## O que já funciona
+
+### Chat e automações — entrega de 25/09/2026
+
+- O composer de servidor aceita colagem nativa de texto e intercepta imagens coladas do clipboard como anexos.
+- `↑`/`↓` percorrem as sugestões de menção; `Enter`/`Tab` confirmam a pessoa destacada e `Esc` fecha a lista.
+- Configurações do servidor ganharam a aba **Automações**, com gatilhos por palavra, reação ou entrada de membro, ações de mensagem/cargo, pausa, edição, exclusão e variáveis `{{user}}`, `{{username}}`, `{{channel}}` e `{{message}}`.
+- O backend valida cada gatilho/ação e executa automações somente dentro do servidor autorizado; mensagens automáticas são persistidas e identificadas pelo workflow.
+- Validação deste bloco: `npm test` (51/51) e `npm run build` passaram.
 
 ### Conta e identidade
 

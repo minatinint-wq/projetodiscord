@@ -108,6 +108,19 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
+  workflows: (serverId) => request(`/api/servers/${serverId}/workflows`),
+  createWorkflow: (serverId, input) =>
+    request(`/api/servers/${serverId}/workflows`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateWorkflow: (serverId, workflowId, input) =>
+    request(`/api/servers/${serverId}/workflows/${workflowId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteWorkflow: (serverId, workflowId) =>
+    request(`/api/servers/${serverId}/workflows/${workflowId}`, { method: "DELETE" }),
   moderateMember: (serverId, userId, input) =>
     request(`/api/servers/${serverId}/members/${userId}/moderation`, {
       method: "PATCH",
